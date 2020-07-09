@@ -23,8 +23,7 @@ Mqtt топики:<br>
  r4s/devaddr/cmd/state <-- 0/off/false - switch off, 1/on/true - boil, 2...100 - boil&heat;<br>
  r4s/devaddr/cmd/heat_temp <-- 0 - switch off, 1...100 heat;<br>
  r4s/devaddr/cmd/nightlight  <-- 0/off/false - switch off, 1/on/true - switch on;<br>
- r4s/devaddr/rsp/ - current state, temperature, rssi etc.;<br>
- ![PROJECT_PHOTO](https://raw.githubusercontent.com/alutov/ESP32-R4sGate-for-Redmond/master/other/r4sGate.jpg)
+ r4s/devaddr/rsp/ - current state, temperature, rssi etc.;<br><br>
 
 # Rebuild notes
 Use Espressif IoT Development Framework(https://docs.espressif.com/projects/esp-idf/en/latest/esp32/) to build binary files.<br>
