@@ -16,14 +16,15 @@ RUS<br>
 ESP32 r4sGate позволяет подключать BLE-совместимые чайники Redmond, такие как RK-M173S или RK-M240S, к системе «умный дом» по с использованием протокола MQTT.
 Файл fr4sGate.bin в папке build уже собранный бинарник для  esp32 с памятью 4 Мбайт и прошивается одним файлом с адреса 0x0000 на чистую esp32. <br>
 Вместо этого также можно использовать три стандартных файла для перепрошивки: bootloader.bin (адрес 0x1000), partitions.bin (адрес 0x8000) и r4sGate.bin (адрес 0x10000).
-Затем нужно создать гостевую сеть Wi-Fi в маршрутизаторе с ssid «r4s» и паролем «12345678», подождать, пока esp32 не подключится к нему, ввести esp32
-IP-адрес в веб-браузере и установить остальные параметры. После чего гостевая сеть больше не нужна. Затем вы должны ввести имя Redmond чайника, чтобы
+Затем нужно создать гостевую сеть Wi-Fi в роутере с ssid «r4s» и паролем «12345678», подождать, пока esp32 не подключится к нему, ввести esp32
+IP-адрес в веб-браузере и установить остальные параметры. После чего гостевая сеть больше не нужна. Затем нужно ввести имя Redmond чайника, чтобы
 подключиться к устройству. Пока доступно только одно BLE подключение.<br> 
 Mqtt топики:<br>
  r4s/devaddr/cmd/state <-- 0/off/false - switch off, 1/on/true - boil, 2...100 - boil&heat;<br>
  r4s/devaddr/cmd/heat_temp <-- 0 - switch off, 1...100 heat;<br>
  r4s/devaddr/cmd/nightlight  <-- 0/off/false - switch off, 1/on/true - switch on;<br>
  r4s/devaddr/rsp/ - current state, temperature, rssi etc.;<br>
+ ![PROJECT_PHOTO](https://raw.githubusercontent.com/alutov/ESP32-R4sGate-for-Redmond/master/other/r4sGate.jpg)
 
 # Rebuild notes
 Use Espressif IoT Development Framework(https://docs.espressif.com/projects/esp-idf/en/latest/esp32/) to build binary files.<br>
