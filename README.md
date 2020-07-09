@@ -19,6 +19,11 @@ ESP32 r4sGate позволяет подключать BLE-совместимые
 Затем нужно создать гостевую сеть Wi-Fi в маршрутизаторе с ssid «r4s» и паролем «12345678», подождать, пока esp32 не подключится к нему, ввести esp32
 IP-адрес в веб-браузере и установить остальные параметры. После чего гостевая сеть больше не нужна. Затем вы должны ввести имя Redmond чайника, чтобы
 подключиться к устройству. Пока доступно только одно BLE подключение. 
+Mqtt топики:<br>
+ r4s/devaddr/cmd/state <-- 0/off/false - switch off, 1/on/true - boil, 2...100 - boil&heat;<br>
+ r4s/devaddr/cmd/heat_temp <-- 0 - switch off, 1...100 heat;<br>
+ r4s/devaddr/cmd/nightlight  <-- 0/off/false - switch off, 1/on/true - switch on;<br>
+ r4s/devaddr/rsp/ - current state, temperature, rssi etc.;<br>
 
 # Rebuild notes
 Use Espressif IoT Development Framework(https://docs.espressif.com/projects/esp-idf/en/latest/esp32/) to build binary files.<br>
