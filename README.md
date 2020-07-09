@@ -1,5 +1,5 @@
 # ESP32 Ready4Sky (R4S) Gateway for Redmond Kettle
-#ENG<br>
+# ENG<br>
 ESP32 r4sGate allows you to connect  BLE compatible Redmond kettles like RK-M173S or RK-M240S to the smart home system using the MQTT protocol.
 The file fr4sGate.bin in build folder is already assembled binary for esp32 with 4Mb memory is flashed with a single file from the address 0x0000 to a clean esp32.<br> 
 You can also use three standard files for flashing instead: bootloader.bin (addr 0x1000), partitions.bin (addr 0x8000) and r4sGate.bin (addr 0x10000).
@@ -12,7 +12,7 @@ Mqtt topics:<br>
  r4s/devaddr/cmd/nightlight  <-- 0/off/false - switch off, 1/on/true - switch on;<br>
  r4s/devaddr/rsp/ - current state, temperature, rssi etc.;<br>
 
-#RUS<br>
+# RUS<br>
 ESP32 r4sGate позволяет подключать BLE-совместимые чайники Redmond, такие как RK-M173S или RK-M240S, к системе «умный дом» по с использованием протокола MQTT.
 Файл fr4sGate.bin в папке build уже собранный бинарник для  esp32 с памятью 4 Мбайт и прошивается одним файлом с адреса 0x0000 на чистую esp32. <br>
 Вместо этого также можно использовать три стандартных файла для перепрошивки: bootloader.bin (адрес 0x1000), partitions.bin (адрес 0x8000) и r4sGate.bin (адрес 0x10000).
