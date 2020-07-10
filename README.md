@@ -26,4 +26,4 @@ Mqtt топики:<br>
  r4s/devaddr/rsp/ - текущее состояние, температура, rssi и т.д.;<br><br>
 
 # Rebuild notes
-Use Espressif IoT Development Framework(https://docs.espressif.com/projects/esp-idf/en/latest/esp32/) to build binary files.<br>
+Use Espressif [url=https://docs.espressif.com/projects/esp-idf/en/latest/esp32/]IoT Development Framework[/url] to build binary files.<br>
