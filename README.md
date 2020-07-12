@@ -1,7 +1,5 @@
-# ESP32 Ready4Sky (R4S) Gateway for Redmond Kettle
-<br>
 ![PROJECT_PHOTO](https://raw.githubusercontent.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb.jpg)
-<br>
+# ESP32 Ready4Sky (R4S) Gateway for Redmond Kettle
 ENG<br>
 ESP32 r4sGate allows you to connect  BLE compatible Redmond kettles like RK-M173S or RK-M240S to the smart home system using the MQTT protocol. For a long time already there is a great similar project for esp32 on the github (https://github.com/olehs/r4sGate), written by olehs for the arduino environment. Unfortunately, as I understand it, the BLE library used in arduino periodically loses connection with the device. And for about two years nothing has changed. That is why I rewrote the program again, but in an espressif esp-idf environment. I have not tested much yet, but the program works faster and there is more free memory. I hope that the BLE connection with the kettle will be more stable.
 The file fr4sGate.bin in build folder is already assembled binary for esp32 with 4Mb memory is flashed with a single file from the address 0x0000 to a clean esp32. 
