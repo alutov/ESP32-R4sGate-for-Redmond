@@ -26,7 +26,7 @@ Mqtt топики:<br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb.jpg) 
  <br><br>Мои настройки Mqtt в Iobroker-е:
  ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mymqtt.jpg)
- <br><br>Добавил экран. Пока выглядит так:
+ <br><br> Добавил экран. Получилось что-то похожее на часы. Температура в помещении, на выходе котла и на улице. Все берется с Mqtt. Пока выглядит так:
  ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft.jpg)
  <br><br>Если заинтересует, выложу и этот вариант здесь.<br><br>
 
