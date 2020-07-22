@@ -23,5 +23,23 @@ Mqtt топики:<br>
  r4s/devaddr/cmd/nightlight_blue <- 0..255 Уровень синего в ночнике;<br>
  r4s/devaddr/rsp/ - текущее состояние, температура, rssi и т.д.;<br><br>
 
+<br><br>Веб интерфейс:
+ 
+ 
+ 
+ <br><br>Мои настройки Mqtt в Iobroker-е:
+ 
+ 
+ 
+ 
+ 
+ <br><br>Добавил экран. Пока выглядит так:
+ 
+ 
+ 
+ 
+ <br><br>Если заинтересует, выложу и этот вариант здесь.
+ 
+
 # Rebuild notes
 Use Espressif IoT Development Framework (https://docs.espressif.com/projects/esp-idf/en/latest/esp32/) to build binary files.<br>
