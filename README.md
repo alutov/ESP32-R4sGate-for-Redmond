@@ -22,24 +22,13 @@ Mqtt топики:<br>
  r4s/devaddr/cmd/nightlight_green <- 0..255 Уровень зеленого в ночнике;<br>
  r4s/devaddr/cmd/nightlight_blue <- 0..255 Уровень синего в ночнике;<br>
  r4s/devaddr/rsp/ - текущее состояние, температура, rssi и т.д.;<br><br>
-
-<br><br>Веб интерфейс:
- 
- 
- 
+Веб интерфейс:
+![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb.jpg) 
  <br><br>Мои настройки Mqtt в Iobroker-е:
- 
- 
- 
- 
- 
+ ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mymqtt.jpg)
  <br><br>Добавил экран. Пока выглядит так:
- 
- 
- 
- 
- <br><br>Если заинтересует, выложу и этот вариант здесь.
- 
+ ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft.jpg)
+ <br><br>Если заинтересует, выложу и этот вариант здесь.<br><br>
 
 # Rebuild notes
 Use Espressif IoT Development Framework (https://docs.espressif.com/projects/esp-idf/en/latest/esp32/) to build binary files.<br>
