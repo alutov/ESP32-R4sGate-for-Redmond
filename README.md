@@ -28,7 +28,7 @@ Mqtt топики:<br>
  ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mymqtt.jpg)
  <br><br> Добавил экран 320x240 на ili9341. Получилось что-то похожее на часы. Температура в помещении, на выходе котла и на улице. Все берется с Mqtt. Пока выглядит так:
  ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft.jpg)
- <br><br>Если заинтересует, выложу и этот вариант здесь.<br><br>
+ <br><br>Пока еще не доделал. Если заинтересует, выложу и этот вариант здесь.<br><br>
 
 # Rebuild notes
 Use Espressif IoT Development Framework (https://docs.espressif.com/projects/esp-idf/en/latest/esp32/) to build binary files.<br>
