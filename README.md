@@ -12,7 +12,7 @@ Mqtt topics:<br>
  r4s/devaddr/rsp/ - current state, temperature, rssi etc.;<br><br>
  Added a 320x240 screen to ili9341. It turned out something like a watch. Indoor temperature, at the boiler outlet and outside. Everything is taken from Mqtt.
 This option is in the ext folder. Used only the necessary procedures from https://github.com/Bodmer/TFT_eSPI, adapted not very well, but as is for esp-iot.
-Pins for screen connection in tft.c.
+Pins for screen connection in tft.c. The possibility of displaying images in jpeg format 320x176 is also provided. To do this, you need to specify the url of the image. My camera has url like this: http://192.168.1.7/auto.jpg?usr=admin&pwd=andrew. The picture is loaded into a 32768 byte buffer in RAM. Refreshed every 15 seconds.
 
 ### RUS<br>
 ESP32 r4sGate позволяет подключать BLE-совместимые чайники Redmond, такие как RK-M173S или RK-M240S, к системе «умный дом» по протоколу MQTT.
@@ -30,7 +30,7 @@ Mqtt топики:<br>
  <br><br> Добавил экран 320x240 на ili9341. Получилось что-то похожее на часы. Температура в помещении, на выходе котла и на улице. Все берется с Mqtt. Пока выглядит так:
  ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft.jpg)
  <br><br>Этот вариант в папке ext. Использовал только необходимые процедуры из https://github.com/Bodmer/TFT_eSPI, адаптированные не совсем хорошо, но как есть для esp-iot.
- Пины для поключения экрана в файле tft.c.
+ Пины для поключения экрана в файле tft.c. Предусмотрена возможность вывода на экран и картинки в формате jpeg 320x176. Для этого нужно указать url картинки. У моей камеры url такой: http://192.168.1.7/auto.jpg?usr=admin&pwd=andrew. Картинка грузится в буфер размером 32768 байт в оперативной памяти. Обновляется каждые 15 секунд. 
  <br><br>
 
 # Rebuild notes
