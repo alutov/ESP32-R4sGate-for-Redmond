@@ -9,7 +9,10 @@ Mqtt topics:<br>
  r4s/devaddr/cmd/nightlight_red <- 0..255 Red nightlight level;<br>
  r4s/devaddr/cmd/nightlight_green <- 0..255 Green nightlight level;<br>
  r4s/devaddr/cmd/nightlight_blue <- 0..255 Blue nightlight level;<br>
- r4s/devaddr/rsp/ - current state, temperature, rssi etc.;<br>
+ r4s/devaddr/rsp/ - current state, temperature, rssi etc.;<br><br>
+ Added a 320x240 screen to ili9341. It turned out something like a watch. Indoor temperature, at the boiler outlet and outside. Everything is taken from Mqtt.
+This option is in the ext folder. Used only the necessary procedures from https://github.com/Bodmer/TFT_eSPI, adapted not very well, but as is for esp-iot.
+Pins for screen connection in tft.c.
 
 ### RUS<br>
 ESP32 r4sGate позволяет подключать BLE-совместимые чайники Redmond, такие как RK-M173S или RK-M240S, к системе «умный дом» по протоколу MQTT.
