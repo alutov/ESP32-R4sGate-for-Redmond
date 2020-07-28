@@ -32,6 +32,7 @@ Mqtt топики:<br>
  <br><br>Этот вариант в папке ext. Использовал только необходимые процедуры из https://github.com/Bodmer/TFT_eSPI, адаптированные не совсем хорошо, но как есть для esp-iot.
  Пины для поключения экрана в файле tft.c. Предусмотрена возможность вывода на экран и картинки в формате jpeg 320x176. Для этого нужно указать url картинки. У моей камеры url такой: http://192.168.1.7/auto.jpg?usr=admin&pwd=andrew. Картинка грузится в буфер размером 32768 байт в оперативной памяти. Обновляется каждые 15 секунд. 
  <br><br>
-
+ ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft1.jpg)
+<br><br>
 # Rebuild notes
 Use Espressif IoT Development Framework (https://docs.espressif.com/projects/esp-idf/en/latest/esp32/) to build binary files.<br>
