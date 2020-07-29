@@ -30,6 +30,7 @@ Mqtt топики:<br>
  r4s/devaddr/rsp/ - текущее состояние, температура, rssi и т.д.;<br><br>
 **Веб интерфейс**:
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb.jpg) 
+![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb1.jpg) 
  <br><br>
  #### Ext
  Добавил экран 320x240 на чипе ili9341. Получилось что-то похожее на часы. Температура в помещении, на выходе котла и на улице. Все берется с Mqtt. Пока выглядит так:
