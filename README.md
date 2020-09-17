@@ -15,9 +15,9 @@ The retain flag is cleared so that the broker does not remember, but reads the s
  r4s/devaddr/rsp/ - current state, temperature, rssi etc.;<br>
 The level values are stored in the gateway and transmitted to the kettle when the backlight is turned on.<br><br>
  Mqtt topics for multicooker (see image 3 below): <br>
-r4s / devaddr / cmd / state <- 0 / off / false - switch off, 1 / on / true - program start or heating; <br>
+r4s / devaddr / cmd / state <- 0 / off / false - switch off, 1 / on / true - program start or heating if program not set; <br>
 r4s / devaddr / cmd / prog <- program number 1-12, 0 - switch off; <br>
-Programs: <br>
+ Programs: <br>
  1 - Rice / Рис Крупы, 2 - Slow Cooking / Томление, 3 - Pilaf / Плов, 4 - Frying / Жарка;<br>
  5 - Stewing / Тушение, 6 - Pasta / Паста, 7 - Milk Porridge / Молочная каша, 8 - Soup / Суп;<br>
  9 - Yogurt / Йогурт, 10 - Baking / Выпечка, 11 - Steam / Пар, 12 - Hot / Варка Бобовые;<br>
@@ -43,7 +43,7 @@ Pins for screen connection in tft.c. The possibility of displaying images in jpe
  Image 1. My Mqtt setting.<br><br>
  Снят флаг retain, чтобы брокер не запоминал, а считывал состояние устройств при соединении. В Home Assistant  установленный в нем и/или Mqtt брокере флаг retain может приводить к самопроизвольному включению и выключению устройства (https://mjdm.ru/forum/viewtopic.php?f=8&t=5501&sid=de6b1e2b43f25c8d9ae9af5673ee9417&start=140#p121604). Также установлен флаг публикации при подписке, что позволяет не вводить все топики вручную. Иногда при публикации сразу большого числа подписок iobroker почему-то делает некоторые из них с защитой от записи :-), есть у меня такой глюк. Приходится их удалять и перезапускать Mqtt адаптер, чтобы они появились опять.<br>
 Mqtt топики для чайника (см. картинку 2 ниже):<br>
-r4s/devaddr/cmd/state <-- 0/off/false - выключение, 1/on/true - кипячение, 2...100 - кипячение и подогрев;<br>
+r4s/devaddr/cmd/state <-- 0/off/false - выключение, 1/on/true - кипячение, 2...100 - кипячение и подогрев, если программа не установлена;<br>
 r4s/devaddr/cmd/heat_temp <-- 0 - выключение, 1...100 подогрев;<br>
 r4s/devaddr/cmd/nightlight <-- 0/off/false - выключение ночника, 1/on/true - включение ночника;<br>
 r4s/devaddr/cmd/nightlight_red <- 0..255 Уровень красного в ночнике;<br>
@@ -56,7 +56,7 @@ r4s/devaddr/rsp/ - текущее состояние, температура, rs
 Mqtt топики для мультиварки (см. картинку 3 ниже):<br>
 r4s/devaddr/cmd/state <-- 0/off/false - выключение, 1/on/true - старт программы или подогрев;<br> 
 r4s/devaddr/cmd/prog <-- номер программы 1-12, 0 - выключение;<br>
-Программы:<br>
+ Программы:<br>
  1 - Rice / Рис Крупы, 2 - Slow Cooking / Томление, 3 - Pilaf / Плов, 4 - Frying / Жарка;<br>
  5 - Stewing / Тушение, 6 - Pasta / Паста, 7 - Milk Porridge / Молочная каша, 8 - Soup / Суп;<br>
  9 - Yogurt / Йогурт, 10 - Baking / Выпечка, 11 - Steam / Пар, 12 - Hot / Варка Бобовые;<br>
