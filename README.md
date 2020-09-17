@@ -30,9 +30,9 @@ Mqtt топики:<br>
  r4s/devaddr/cmd/nightlight_blue <- 0..255 Уровень синего в ночнике;<br>
  r4s/devaddr/rsp/ - текущее состояние, температура, rssi и т.д.;<br><br>
 **Веб интерфейс**:
-![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb.jpg) 
+![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb3.jpg) 
 <br>
-![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb1.jpg) 
+![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb2.jpg) 
  <br>
 Добавил экран 320x240 на чипе ili9341. Получилось что-то похожее на часы. Температура в помещении, на выходе котла и на улице. Все берется с Mqtt. Пока выглядит так:
  ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft.jpg)
