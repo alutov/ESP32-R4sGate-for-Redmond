@@ -14,8 +14,20 @@ The retain flag is cleared so that the broker does not remember, but reads the s
  r4s/devaddr/cmd/nightlight_blue <- 0..255 Blue nightlight level;<br>
  r4s/devaddr/rsp/ - current state, temperature, rssi etc.;<br>
 The level values are stored in the gateway and transmitted to the kettle when the backlight is turned on.<br><br>
- Mqtt topics for multicooker:<br>
- 
+ Mqtt topics for multicooker (see image 3 below): <br>
+r4s / devaddr / cmd / state <- 0 / off / false - switch off, 1 / on / true - program start or heating; <br>
+r4s / devaddr / cmd / prog <- program number 1-12, 0 - switch off; <br>
+Programs: <br>
+ 1 - Rice / Рис Крупы, 2 - Slow Cooking / Томление, 3 - Pilaf / Плов, 4 - Frying / Жарка;<br>
+ 5 - Stewing / Тушение, 6 - Pasta / Паста, 7 - Milk Porridge / Молочная каша, 8 - Soup / Суп;<br>
+ 9 - Yogurt / Йогурт, 10 - Baking / Выпечка, 11 - Steam / Пар, 12 - Hot / Варка Бобовые;<br>
+r4s / devaddr / cmd / mode <- mode: 1 - vegetables, 2 - fish, 3 - meat for programs 4,5,11 <br>
+r4s / devaddr / cmd / temp <- temperature;<br>
+r4s / devaddr / cmd / set_hour <- program running time, hours;<br>
+r4s / devaddr / cmd / set_min <- program running time, minutes;<br>
+r4s / devaddr / cmd / delay_hour <- program running time plus a delay before the program start, hours;<br>
+r4s / devaddr / cmd / delay_min <- program running time plus a delay before the program start, minutes;<br>
+The delay_hour and delay_min parameters are stored in the gateway and transmitted when the mode is set, and therefore are set before the program is selected. When a program is selected, the temperature and program runtime are set by default, after setting mode they are adjusted again. After setting the program and mode, you can adjust the time and temperature if necessary. Multipocar is not supported yet, I don't see the point. When writing zero to prog, a switch off command is sent to the multicooker, which is useful for resetting the program.<br>
 
 <br><br><br><br><br>
 
@@ -26,11 +38,11 @@ This option is in the ext folder. Used only the necessary procedures from https:
 Pins for screen connection in tft.c. The possibility of displaying images in jpeg format 320x176 is also provided. To do this, you need to specify the url of the image. My camera has url like this: http://192.168.1.7/auto.jpg?usr=admin&pwd=andrew. The picture is loaded into a 32768 bytes buffer in RAM. Refreshed every 16 seconds.
 
 ### RUS<br>
- Эта версия ESP32 r4sGate позволяет подключать BLE-совместимые чайники Redmond, такие как RK-M173S или RK-M240S, а также мультиварку RMC-M800S к системе "умный дом" по протоколу MQTT. Теперь поддерживаются 3 BLE соединения, добавлена поддержка RMC-M800S (Отдельное спасибо vring0 (https://github.com/vring0) за описание ее протокола). Давно уже есть на гитхабе отличный подобный проект для esp32 (https://github.com/olehs/r4sGate, форум https://mjdm.ru/forum/viewtopic.php?f=8&t=5501), написанный olehs для среды ардуино. К сожалению используемая в ардуино библиотека BLE периодически теряет соединение с устройством. Вот почему переписал программу заново, но уже в espressif esp-idf среде. Первая версия программы с теми же возможностями (27.08.2020), поддерживающая только чайник и одно BLE соединение, работает шустрее и стабильнее держит соединение с чайником, а свободной памяти стало больше. Надеюсь, что и новая версия будет работать не хуже. Для запуска шлюза нужно запрограммировать ESP32. Файл fr4sGate.bin в папке build это уже собранный бинарник для esp32 с памятью 4 Мбайт и прошивается одним файлом с адреса 0x0000 на чистую esp32. Вместо него также можно использовать три стандартных файла для перепрошивки: bootloader.bin (адрес 0x1000),  partitions.bin (адрес 0x8000) и r4sGate.bin (адрес 0x10000). Файл r4sGate.bin можно также использовать для обновления прошивки через web интерфейс. Затем нужно создать гостевую сеть Wi-Fi в роутере с ssid <r4s> и паролем <12345678>, подождать, пока esp32 не подключится к нему, ввести esp32 IP-адрес в веб-браузере и во вкладке Setting установить остальные параметры. После чего гостевая сеть больше не нужна. Esp32 будет пытаться подключиться к сети "r4s" только при недоступности основной сети, например, при неправильном пароле. Затем нужно ввести имя Redmond устройства и привязать его к шлюзу. Для привязки нужно нажать и удерживать кнопку "+" на чайнике или "таймер" на мультиварке  до тех пор, пока устройство не войдет в режим привязки и через некоторое время соединится со шлюзом. Предусмотрена возможность подключения к одному MQTT серверу нескольких шлюзов. Для этого нужно в каждом шлюзе установить свой r4sGate Number. Шлюз с номером 0 будет писать в топик r4s/devaddr/..., шлюз с номером 1 - r4s1/devaddr/... и т.д. Нужно только учесть, что запрос на авторизацию при привязке зависит от номера шлюза и от номера соединения в шлюзе. Это позволяет привязать 2 одинаковых чайника к 2 разным шлюзам или к 2 разным соединениям в пределах одного шлюза. У меня шлюз подключен к Iobroker. Мои настройки MQTT брокера ниже на картинке 1. 
+ Эта версия ESP32 r4sGate позволяет подключать BLE-совместимые чайники Redmond, такие как RK-M173S или RK-M240S, а также мультиварку RMC-M800S к системе "умный дом" по протоколу MQTT. Теперь поддерживаются 3 BLE соединения, добавлена поддержка RMC-M800S (Отдельное спасибо vring0 (https://github.com/vring0) за описание ее протокола). Давно уже есть на гитхабе отличный подобный проект для esp32 (https://github.com/olehs/r4sGate, форум https://mjdm.ru/forum/viewtopic.php?f=8&t=5501), написанный olehs для среды ардуино. К сожалению используемая в ардуино библиотека BLE периодически теряет соединение с устройством. Вот почему переписал программу заново, но уже в espressif esp-idf среде. Первая версия программы с теми же возможностями (27.08.2020), поддерживающая только чайник и одно BLE соединение, работает шустрее и стабильнее держит соединение с чайником, а свободной памяти стало больше. Надеюсь, что и новая версия будет работать не хуже. Для запуска шлюза нужно запрограммировать ESP32. Файл fr4sGate.bin в папке build это уже собранный бинарник для esp32 с памятью 4 Мбайт и прошивается одним файлом с адреса 0x0000 на чистую esp32. Вместо него также можно использовать три стандартных файла для перепрошивки: bootloader.bin (адрес 0x1000),  partitions.bin (адрес 0x8000) и r4sGate.bin (адрес 0x10000). Файл r4sGate.bin можно также использовать для обновления прошивки через web интерфейс. Затем нужно создать гостевую сеть Wi-Fi в роутере с ssid <r4s> и паролем <12345678>, подождать, пока esp32 не подключится к нему, ввести esp32 IP-адрес в веб-браузере и во вкладке Setting установить остальные параметры. После чего гостевая сеть больше не нужна. Esp32 будет пытаться подключиться к сети "r4s" только при недоступности основной сети, например, при неправильном пароле. Затем нужно ввести имя Redmond устройства и привязать его к шлюзу. Для привязки нужно нажать и удерживать кнопку "+" на чайнике или "таймер" на мультиварке  до тех пор, пока устройство не войдет в режим привязки и через некоторое время соединится со шлюзом. Предусмотрена возможность подключения к одному MQTT серверу нескольких шлюзов. Для этого нужно в каждом шлюзе установить свой r4sGate Number. Шлюз с номером 0 будет писать в топик r4s/devaddr/..., шлюз с номером 1 - r4s1/devaddr/... и т.д. Нужно только учесть, что запрос на авторизацию при привязке зависит от номера шлюза и от номера соединения в шлюзе. Это позволяет привязать 2 одинаковых чайника к 2 разным шлюзам или к 2 разным соединениям в пределах одного шлюза. У меня шлюз подключен к Iobroker. Мои настройки MQTT брокера ниже на картинке 1.<br>
  ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mymqtt.jpg)
  Image 1. My Mqtt setting.<br><br>
  Снят флаг retain, чтобы брокер не запоминал, а считывал состояние устройств при соединении. В Home Assistant  установленный в нем и/или Mqtt брокере флаг retain может приводить к самопроизвольному включению и выключению устройства (https://mjdm.ru/forum/viewtopic.php?f=8&t=5501&sid=de6b1e2b43f25c8d9ae9af5673ee9417&start=140#p121604). Также установлен флаг публикации при подписке, что позволяет не вводить все топики вручную. Иногда при публикации сразу большого числа подписок iobroker почему-то делает некоторые из них с защитой от записи :-), есть у меня такой глюк. Приходится их удалять и перезапускать Mqtt адаптер, чтобы они появились опять.<br>
-Mqtt топики для чайника(сь. кптинку 2 ниже):<br>
+Mqtt топики для чайника(см. картинку 2 ниже):<br>
 r4s/devaddr/cmd/state <-- 0/off/false - выключение, 1/on/true - кипячение, 2...100 - кипячение и подогрев;<br>
 r4s/devaddr/cmd/heat_temp <-- 0 - выключение, 1...100 подогрев;<br>
 r4s/devaddr/cmd/nightlight <-- 0/off/false - выключение ночника, 1/on/true - включение ночника;<br>
@@ -41,24 +53,22 @@ r4s/devaddr/rsp/ - текущее состояние, температура, rs
 Значения уровней запоминаются в шлюзе и передаются на чайник при включении подсветки.<br><br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mymqtt1.jpg)
  Image 2. My Mqtt kettle topics.<br><br> 
-Mqtt топики для мультиварки:<br>
-r4s/devaddr/cmd/state <-- 0/off/false - выключение, 1/on/true - старт программы или подогрев; 
- 
- 
-<br><br><br><br><br>
-
-
-![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mymqtt.jpg) 
-Mqtt топики:<br>
- r4s/devaddr/cmd/state <-- 0/off/false - выключение, 1/on/true - кипячение, 2...100 - кипячение и подогрев;<br>
- r4s/devaddr/cmd/heat_temp <-- 0 - выключение, 1...100 подогрев;<br>
- r4s/devaddr/cmd/nightlight  <-- 0/off/false - выключение ночника, 1/on/true - включение ночника;<br>
- r4s/devaddr/cmd/nightlight_red <- 0..255 Уровень красного в ночнике;<br>
- r4s/devaddr/cmd/nightlight_green <- 0..255 Уровень зеленого в ночнике;<br>
- r4s/devaddr/cmd/nightlight_blue <- 0..255 Уровень синего в ночнике;<br>
- r4s/devaddr/rsp/ - текущее состояние, температура, rssi и т.д.;<br><br>
- 
-![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mymqtt2.jpg) 
+Mqtt топики для мультиварки(см. картинку 3 ниже):<br>
+r4s/devaddr/cmd/state <-- 0/off/false - выключение, 1/on/true - старт программы или подогрев;<br> 
+r4s/devaddr/cmd/prog <-- номер программы 1-12, 0 - выключение;<br>
+Программы:<br>
+ 1 - Rice / Рис Крупы, 2 - Slow Cooking / Томление, 3 - Pilaf / Плов, 4 - Frying / Жарка;<br>
+ 5 - Stewing / Тушение, 6 - Pasta / Паста, 7 - Milk Porridge / Молочная каша, 8 - Soup / Суп;<br>
+ 9 - Yogurt / Йогурт, 10 - Baking / Выпечка, 11 - Steam / Пар, 12 - Hot / Варка Бобовые;<br>
+r4s/devaddr/cmd/mode <-- режим: 1 - овощи, 2 - рыба, 3 - мясо для программ 4,5,11<br>
+r4s/devaddr/cmd/temp <-- температура;<br>
+r4s/devaddr/cmd/set_hour <-- время работы программы, часы;<br>
+r4s/devaddr/cmd/set_min <-- время работы программы, минуты;<br>
+r4s/devaddr/cmd/delay_hour <-- время работы программы плюс задержка до старта программы, часы;<br>
+r4s/devaddr/cmd/delay_min <-- время работы программы плюс задержка до старта программы, минуты;<br>
+ Параметры delay_hour и delay_min запоминаются в шлюзе и передаются при установке режима, а потому устанавливаются до выбора программы. При выборе программы устанавливаются температура и время работы программы по умолчанию, после установки mode еще раз корректируются. После установки программы и режима можно при необходимости скорректировать время и температуру. Мультипокар пока не поддерживается, я не вижу смысла. при записи нуля в prog на мультиварку посылается команда выключения, что полезно для сброса программы.<br>
+![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mymqtt2.jpg)
+ Image 3. My Mqtt multicooker topics.<br><br> 
 
 
 
