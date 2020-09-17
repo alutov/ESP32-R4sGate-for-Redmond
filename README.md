@@ -13,13 +13,13 @@ Mqtt topics:<br>
  r4s/devaddr/cmd/nightlight_green <- 0..255 Green nightlight level;<br>
  r4s/devaddr/cmd/nightlight_blue <- 0..255 Blue nightlight level;<br>
  r4s/devaddr/rsp/ - current state, temperature, rssi etc.;<br><br>
-#### Ext
+
 Added a 320x240 screen on ili9341 chip. It turned out something like a watch. Indoor temperature, at the boiler outlet and outside. Everything is taken from Mqtt.
 This option is in the ext folder. Used only the necessary procedures from https://github.com/Bodmer/TFT_eSPI, adapted not very well, but as is for esp-iot.
 Pins for screen connection in tft.c. The possibility of displaying images in jpeg format 320x176 is also provided. To do this, you need to specify the url of the image. My camera has url like this: http://192.168.1.7/auto.jpg?usr=admin&pwd=andrew. The picture is loaded into a 32768 bytes buffer in RAM. Refreshed every 16 seconds.
 
 ### RUS<br>
-#### Base
+
 ESP32 r4sGate позволяет подключать BLE-совместимые чайники Redmond, такие как RK-M173S или RK-M240S, к системе «умный дом» по протоколу MQTT.
 Давно уже есть  на гитхабе отличный подобный проект  для esp32 (https://github.com/olehs/r4sGate), написанный olehs для среды ардуино. К сожалению,  как я понял,  используемая в ардуино библиотека BLE периодически теряет соединение с устройством. И около двух лет уже ничего не меняется. Вот почему  переписал программу  заново, но уже в espressif esp-idf среде. Пока еще мало тестировал, но программа работает шустрее и свободной памяти стало больше. Надеюсь, и BLE соединение с чайником будет стабильнее. Файл fr4sGate.bin в папке build это уже собранный бинарник для  esp32 с памятью 4 Мбайт и прошивается одним файлом с адреса 0x0000 на чистую esp32. Вместо него также можно использовать три стандартных файла для перепрошивки: bootloader.bin (адрес 0x1000), partitions.bin (адрес 0x8000) и r4sGate.bin (адрес 0x10000). Файл r4sGate.bin можно также использовать для обновления прошивки через web интерфейс. Затем нужно создать гостевую сеть Wi-Fi в роутере с ssid «r4s» и паролем «12345678», подождать, пока esp32 не подключится к нему, ввести esp32 IP-адрес в веб-браузере и установить остальные параметры. После чего гостевая сеть больше не нужна. Esp32 будет пытаться подключиться к сети "r4s" только при недоступности основной сети, например, при неправильном пароле. Затем нужно ввести имя Redmond чайника и привязать чайник к шлюзу (https://mjdm.ru/forum/viewtopic.php?f=8&t=5501). Пока доступно только одно BLE подключение. Предусмотрена возможность подключения к одному MQTT серверу нескольких шлюзов. Для этого нужно в каждом шлюзе установить свой r4sGate Number. Шлюз с номером 0 будет писать в топик r4s/devaddr/..., шлюз с номером 1 - r4s1/devaddr/... и т.д. Нужно только учесть, что запрос на авторизацию при привязке зависит от r4sGate Number. Это позволяет привязать 2 одинаковых чайника к 2 разным шлюзам.<br> 
 Mqtt топики:<br>
