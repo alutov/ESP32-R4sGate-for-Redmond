@@ -42,7 +42,7 @@ Pins for screen connection in tft.c. The possibility of displaying images in jpe
  ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mymqtt.jpg)
  Image 1. My Mqtt setting.<br><br>
  Снят флаг retain, чтобы брокер не запоминал, а считывал состояние устройств при соединении. В Home Assistant  установленный в нем и/или Mqtt брокере флаг retain может приводить к самопроизвольному включению и выключению устройства (https://mjdm.ru/forum/viewtopic.php?f=8&t=5501&sid=de6b1e2b43f25c8d9ae9af5673ee9417&start=140#p121604). Также установлен флаг публикации при подписке, что позволяет не вводить все топики вручную. Иногда при публикации сразу большого числа подписок iobroker почему-то делает некоторые из них с защитой от записи :-), есть у меня такой глюк. Приходится их удалять и перезапускать Mqtt адаптер, чтобы они появились опять.<br>
-Mqtt топики для чайника(см. картинку 2 ниже):<br>
+Mqtt топики для чайника (см. картинку 2 ниже):<br>
 r4s/devaddr/cmd/state <-- 0/off/false - выключение, 1/on/true - кипячение, 2...100 - кипячение и подогрев;<br>
 r4s/devaddr/cmd/heat_temp <-- 0 - выключение, 1...100 подогрев;<br>
 r4s/devaddr/cmd/nightlight <-- 0/off/false - выключение ночника, 1/on/true - включение ночника;<br>
@@ -53,7 +53,7 @@ r4s/devaddr/rsp/ - текущее состояние, температура, rs
 Значения уровней запоминаются в шлюзе и передаются на чайник при включении подсветки.<br><br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mymqtt1.jpg)
  Image 2. My Mqtt kettle topics.<br><br> 
-Mqtt топики для мультиварки(см. картинку 3 ниже):<br>
+Mqtt топики для мультиварки (см. картинку 3 ниже):<br>
 r4s/devaddr/cmd/state <-- 0/off/false - выключение, 1/on/true - старт программы или подогрев;<br> 
 r4s/devaddr/cmd/prog <-- номер программы 1-12, 0 - выключение;<br>
 Программы:<br>
