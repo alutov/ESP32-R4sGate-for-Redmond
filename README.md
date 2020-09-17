@@ -1,5 +1,5 @@
 # ESP32 Ready4Sky (R4S) Gateway for Redmond Kettle
-##Updating in progress... New version: 3 ble connections and rmc800s support. New binaries and sources but description not yet updated
+## Updating in progress... New version: 3 ble connections and rmc800s support. New binaries and sources but description not yet updated
 
 
 ### ENG<br>
