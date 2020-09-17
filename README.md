@@ -1,6 +1,8 @@
 # ESP32 Ready4Sky (R4S) Gateway for Redmond Kettle
+##Updating in progress... New version: 3 ble connections and rmc800s support. New binaries and sources but description not yet updated
+
+
 ### ENG<br>
-#### Base
 ESP32 r4sGate allows you to connect  BLE compatible Redmond kettles like RK-M173S or RK-M240S to the smart home system using the MQTT protocol. For a long time already there is a great similar project for esp32 on the github (https://github.com/olehs/r4sGate), written by olehs for the arduino environment. Unfortunately, as I understand it, the BLE library used in arduino periodically loses connection with the device. And for about two years nothing has changed. That is why I rewrote the program again, but in an espressif esp-idf environment. I have not tested much yet, but the program works faster and there is more free memory. I hope that the BLE connection with the kettle will be more stable.
 The file fr4sGate.bin in build folder is already assembled binary for esp32 with 4Mb memory is flashed with a single file from the address 0x0000 to a clean esp32. You can also use three standard files for flashing instead: bootloader.bin (addr 0x1000), partitions.bin (addr 0x8000) and r4sGate.bin (addr 0x10000). The r4sGate.bin file can also be used to update the firmware via the web interface. Then you need to create a guest wifi network in the router with the ssid "r4s" and password "12345678", wait until esp32 connects to it then enter esp32 IP address in web browser and set the remaining parameters. After which the guest network is no longer needed. Esp32 will try to connect to the "r4s" network only if the main network is unavailable, for example, if the password is incorrect. Then you must enter Redmond Kettle name and bind the kettle to the gate (https://mjdm.ru/forum/viewtopic.php?f=8&t=5501). Only one BLE connection available now. It is possible to connect several gateways to one MQTT server. To do this, you need to set different r4sGate Number in each gateway. The gateway with number 0 will write to the topic r4s/devaddr/..., the gateway with number 1 will write r4s1/devaddr/..., etc. It is only necessary to take into account that the authorization request when binding depends on r4sGate Number. This allows you to bind 2 identical kettles to 2 different gateways.<br>
 Mqtt topics:<br>
@@ -33,8 +35,7 @@ Mqtt топики:<br>
 <br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb1.jpg) 
  <br>
- #### Ext
- Добавил экран 320x240 на чипе ili9341. Получилось что-то похожее на часы. Температура в помещении, на выходе котла и на улице. Все берется с Mqtt. Пока выглядит так:
+Добавил экран 320x240 на чипе ili9341. Получилось что-то похожее на часы. Температура в помещении, на выходе котла и на улице. Все берется с Mqtt. Пока выглядит так:
  ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft.jpg)
  <br><br>Этот вариант в папке ext. Использовал только необходимые процедуры из https://github.com/Bodmer/TFT_eSPI, адаптированные не совсем хорошо, но как есть для esp-iot.
  Пины для поключения экрана в файле tft.c. Предусмотрена возможность вывода на экран и картинки в формате jpeg 320x176. Для этого нужно указать url картинки. У моей камеры url такой: http://192.168.1.7/auto.jpg?usr=admin&pwd=andrew. Картинка грузится в буфер размером 32768 байт в оперативной памяти. Обновляется каждые 16 секунд. 
