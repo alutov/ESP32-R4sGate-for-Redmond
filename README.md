@@ -27,7 +27,7 @@ r4s/devaddr/cmd/set_min <- program running time, minutes;<br>
 r4s/devaddr/cmd/delay_hour <- program running time plus a delay before the program start, hours;<br>
 r4s/devaddr/cmd/delay_min <- program running time plus a delay before the program start, minutes;<br>
 r4s/devaddr/cmd/warm <- heating after the end of the program; <br>
-The delay_hour and delay_min parameters are stored in the gateway and transmitted when setting the mode or heating, and therefore are set after setting the program and before setting the mode or auto-heating. When a program is selected, the temperature and program runtime are set by default, after setting mode they are adjusted again. After setting the program and mode, you can adjust the time and temperature if necessary. Multicook mode is not supported yet, I don't see the point. When writing zero to prog, a switch off command is sent to the multicooker, which is useful for resetting the program.<br>
+The delay_hour and delay_min parameters are stored in the gateway and transmitted when setting the mode or heating, and therefore are set after setting the program and before setting the mode or auto-heating. When a program is selected, the temperature and program runtime are set by default, after setting mode they are adjusted again. After setting the program and mode, you can adjust the time and temperature if necessary. Multicook program is not supported yet, I don't see the point. When writing zero to prog, a switch off command is sent to the multicooker, which is useful for resetting the program.<br>
 The devices can also be controlled via the web interface. Examples of the main page and the settings page are below in pictures 4 and 5.<br>
 
 #### Screen support<br>
@@ -63,7 +63,7 @@ r4s/devaddr/cmd/set_min <-- время работы программы, мину
 r4s/devaddr/cmd/delay_hour <-- время работы программы плюс задержка до старта программы, часы;<br>
 r4s/devaddr/cmd/delay_min <-- время работы программы плюс задержка до старта программы, минуты;<br>
 r4s/devaddr/cmd/warm <-- подогрев после завершения программы;<br>
- Параметры delay_hour и delay_min запоминаются в шлюзе и передаются при установке режима или подогрева, а потому устанавливаются после установки программы и перед установкой режима или автоподогрева. При выборе программы устанавливаются температура и время работы программы по умолчанию, после установки mode еще раз корректируются. После установки программы и режима можно при необходимости скорректировать время и температуру. Режим мультиповар пока не поддерживается, я не вижу смысла. При записи нуля в prog на мультиварку посылается команда выключения, что полезно для сброса программы.<br><br>
+ Параметры delay_hour и delay_min запоминаются в шлюзе и передаются при установке режима или подогрева, а потому устанавливаются после установки программы и перед установкой режима или автоподогрева. При выборе программы устанавливаются температура и время работы программы по умолчанию, после установки mode еще раз корректируются. После установки программы и режима можно при необходимости скорректировать время и температуру. Программа мультиповар пока не поддерживается, я не вижу смысла. При записи нуля в prog на мультиварку посылается команда выключения, что полезно для сброса программы.<br><br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mymqtt2.jpg)
  Image 3. My Mqtt multicooker topics.<br><br> 
 Устройствами можно управлять также и по веб интерфейсу. Примеры главной страницы и страницы настроек ниже на картинках 4 и 5.
