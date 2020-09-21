@@ -14,8 +14,8 @@ The retain flag is cleared so that the broker does not remember, but reads the s
  r4s/devaddr/rsp/ - current state, temperature, rssi etc.;<br>
 The level values are stored in the gateway and transmitted to the kettle when the backlight is turned on.<br><br>
  Mqtt topics for multicooker (see image 3 below): <br>
-r4s / devaddr / cmd / state <- 0 / off / false - switch off, 1 / on / true - program start or heating if program not set; <br>
-r4s / devaddr / cmd / prog <- program number 1-12, 0 - switch off; <br>
+r4s/devaddr/cmd/state <- 0 / off / false - switch off, 1 / on / true - program start or heating if program not set; <br>
+r4s/devaddr/cmd/prog <- program number 1-12, 0 - switch off; <br>
  Programs: <br>
  1 - Rice / Рис Крупы, 2 - Slow Cooking / Томление, 3 - Pilaf / Плов, 4 - Frying / Жарка;<br>
  5 - Stewing / Тушение, 6 - Pasta / Паста, 7 - Milk Porridge / Молочная каша, 8 - Soup / Суп;<br>
