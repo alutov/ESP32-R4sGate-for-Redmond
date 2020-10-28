@@ -1,11 +1,11 @@
 # ESP32 Ready4Sky (R4S) Gateway for Redmond devices
 ### ENG<br>
 [Use Google to translate into English.](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond%2Fblob%2Fmaster%2FREADME.md)
-### Изменения в текущей версии после последнего релиза 2020.10.27
+**Изменения в текущей версии после последнего релиза 2020.10.27**
 Нет.
 ### RUS<br>
 &emsp; ESP32 r4sGate позволяет подключать BLE-совместимые устройства Redmond к системе "умный дом" по протоколу MQTT. Теперь поддерживаются 3 BLE соединения. [Список поддерживаемых устройств текущей версии:](https://github.com/alutov/ESP32-R4sGate-for-Redmond/issues/12)<br>
-#### Электрочайник<br>
+**Электрочайник**<br>
 Redmond SkyKettle M171S<br>
 Redmond SkyKettle M173S<br>
 Redmond SkyKettle G200S<br>
@@ -14,13 +14,13 @@ Redmond SkyKettle G211S<br>
 Redmond SkyKettle G212S<br>
 Redmond SkyKettle G216S<br>
 Redmond SkyKettle G240S<br>
-#### Мультиварка<br>
+**Мультиварка**<br>
 Redmond SkyCooker RMC-M800S<br>
-#### Кофеварка<br>
+**Кофеварка**<br>
 Redmond SkyCoffee M1519S<br>
-#### Розетка<br>
+**Розетка**<br>
 Redmond SkyPort 103S<br><br>
-#### Конвектор электрический<br>
+**Конвектор электрический**<br>
 Redmond SkyHeat 4529S<br><br>
 
 &emsp; Давно уже есть отличный подобный проект для esp32 на [Гитхабе](https://github.com/olehs/r4sGate) ([форум тут](https://mjdm.ru/forum/viewtopic.php?f=8&t=5501)), написанный olehs для среды ардуино. К сожалению используемая в ардуино библиотека BLE периодически теряет соединение с устройством. Вот почему переписал программу заново, но уже в espressif esp-idf среде. Первая версия программы с теми же возможностями (27.08.2020), поддерживающая только чайник и одно BLE соединение, работает шустрее и стабильнее держит соединение с чайником, а свободной памяти стало больше. Надеюсь, что и новая версия будет работать не хуже. Для запуска шлюза нужно запрограммировать ESP32. Файл fr4sGate.bin в папке build это уже собранный бинарник для esp32 с памятью 4 Мбайт и прошивается одним файлом с адреса 0x0000 на чистую esp32. Вместо него также можно использовать три стандартных файла для перепрошивки: bootloader.bin (адрес 0x1000),  partitions.bin (адрес 0x8000) и r4sGate.bin (адрес 0x10000). Файл r4sGate.bin можно также использовать для обновления прошивки через web интерфейс.<br>
