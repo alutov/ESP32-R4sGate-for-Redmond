@@ -1,4 +1,4 @@
-# ESP32 Ready4Sky (R4S) Gateway for Redmond Kettle and Multicooker
+# ESP32 Ready4Sky (R4S) Gateway for Redmond devices
 
 ### Изменения в текущей версии после последнего релиза
 Нет.
