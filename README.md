@@ -1,6 +1,6 @@
 # ESP32 Ready4Sky (R4S) Gateway for Redmond devices
 ### ENG<br>
-[Use Google to translate into English.](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond)
+[Use Google to translate into English.](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond%2Fblob%2Fmaster%2FREADME.md)
 ### Изменения в текущей версии после последнего релиза 2020.10.27
 Нет.
 ### RUS<br>
@@ -40,12 +40,12 @@ r4s/devaddr/cmd/warm <-- подогрев после завершения про
  Картинка 3. My Mqtt multicooker topics.<br><br> 
 Устройствами можно управлять также и по веб интерфейсу. Примеры главной страницы и страницы настроек ниже на картинках 4 и 5.
 
-**Web interface main page / Веб интерфейс, главная страничка**:
+**Веб интерфейс, главная страничка**:
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb.jpg) 
-Картинка 4. Main web page.<br><br>
-**Web interface setting page /Веб интерфейс, страничка настроек**:
+Картинка 4. Главная страничка.<br><br>
+**Веб интерфейс, страничка настроек**:
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb1.jpg) 
-Картинка 5. Setting web page.<br><br>
+Картинка 5. Страничка настроек.<br><br>
  
 #### Поддержка экрана<br>
  
@@ -57,4 +57,4 @@ r4s/devaddr/cmd/warm <-- подогрев после завершения про
 Картинка 7. Экран шлюза 2.<br><br>
  Если экран не нужен, то нужно лишь после программирования esp32 и настройки подсоединить ее к источнику питания и спрятать где-нибудь на кухне.<br>
 # Сборка проекта
-Для сборки бинарных файлов использован [Espressif IoT Development Framework](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/).<br>
+Для сборки бинарных файлов использован [Espressif IoT Development Framework.](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/)<br>
