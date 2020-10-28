@@ -1,7 +1,7 @@
 # ESP32 Ready4Sky (R4S) Gateway for Redmond devices
 ### ENG<br>
 [Use Google to translate into English.](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond%2Fblob%2Fmaster%2FREADME.md)<br>
-**Изменения в текущей версии после последнего релиза 2020.10.27**
+**Изменения в текущей версии после последнего релиза 2020.10.27**<br>
 Нет.
 ### RUS<br>
 &emsp; ESP32 r4sGate позволяет подключать BLE-совместимые устройства Redmond к системе "умный дом" по протоколу MQTT. Теперь поддерживаются 3 BLE соединения. [Список поддерживаемых устройств текущей версии:](https://github.com/alutov/ESP32-R4sGate-for-Redmond/issues/12)<br>
