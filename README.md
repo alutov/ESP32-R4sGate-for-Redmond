@@ -1,8 +1,8 @@
-# ESP32 Ready4Sky (R4S) Gateway for Redmond devices
+# ESP32 Ready4Sky (R4S) шлюз для устройств Redmond
+#### Изменения в текущей версии после последнего релиза 2020.10.27
+Нет.
 ### ENG<br>
 [Use Google to translate into English.](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond%2Fblob%2Fmaster%2FREADME.md)<br>
-### Изменения в текущей версии после последнего релиза 2020.10.27
-Нет.
 ### RUS<br>
 &emsp; ESP32 r4sGate позволяет подключать BLE-совместимые устройства Redmond к системе "умный дом" по протоколу MQTT. Теперь поддерживаются 3 BLE соединения. [Список поддерживаемых устройств текущей версии:](https://github.com/alutov/ESP32-R4sGate-for-Redmond/issues/12)<br>
 **Электрочайник**<br>
@@ -65,13 +65,13 @@ r4s/devaddr/cmd/delay <-- запуск отложенного старта, 0/of
 r4s/devaddr/cmd/lock <-- блокировка, 0/off/false - выключение, 1/on/true - включение;<br>
 r4s/devaddr/cmd/strength <-- крепость, 0/off/false - выключение, 1/on/true - включение;<br>
 r4s/devaddr/rsp/ - текущее состояние, rssi и т.д.;<br>
-Значения времени отложенного старта запоминаются в шлюзе и передаются на чайник при включении этого режима.<br><br>
+Значения времени отложенного старта запоминаются в шлюзе и передаются на кофеварку при включении этого режима.<br><br>
 &emsp; Mqtt топики для розетки:<br>
 r4s/devaddr/cmd/state <-- 0/off/false - выключение, 1/on/true - включение;<br>
 r4s/devaddr/cmd/lock <-- блокировка, 0/off/false - выключение, 1/on/true - включение;<br>
 r4s/devaddr/rsp/ - текущее состояние, rssi и т.д.;<br><br>
 &emsp; Начиная с версии 2020.10.27 появилась возможность использовать совмещенные топики для команд и ответов. Опция включается в настройках. Мне это пригодилось при интеграции устройств в Google Home с помощью драйвера iot iobroker-а. Как я понял, этот драйвер не принимает раздельные топики команд/ответов. Кроме того, так как Google Home понимает "true / false" вместо "ON / OFF", то нужно в настройках драйвера iot "Conversation to Google Home = function (value) {}" ввести строку вида "switch (value) {case "ON": return true ; break; default: return false;} ".  
-Устройствами можно управлять также и по веб интерфейсу. Примеры главной страницы и страницы настроек ниже на картинках 4 и 5.
+&emsp; Устройствами можно управлять также и в веб интерфейсе шлюза. Примеры главной страницы и страницы настроек ниже на картинках 4 и 5.
 
 **Веб интерфейс, главная страничка**:
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb.jpg) 
