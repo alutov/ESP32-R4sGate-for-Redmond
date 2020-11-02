@@ -1,6 +1,6 @@
 # ESP32 Ready4Sky (R4S) шлюз для устройств Redmond
 #### Изменения в текущей версии после последнего релиза 2020.10.27
-Нет.
+Текущая версия 2020.11.02. Добавлена возможность вывода в ответах на команы "true/false" вместо "ON/OFF". Мне пригодилась в в драйвере iot iobroker-а при подключении к яндекс колонке или гугл ассистенту. Опция включается в настройках и не работает, если включен Hass Discovery, т.к. в Home Assistant "ON/OFF" идет по умолчанию.<br> 
 ### ENG<br>
 [Use Google to translate into English.](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond%2Fblob%2Fmaster%2FREADME.md)<br>
 ### RUS<br>
