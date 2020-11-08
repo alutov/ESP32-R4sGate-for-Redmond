@@ -79,7 +79,7 @@ r4s/devaddr/rsp/ - текущее состояние, rssi и т.д.;<br><br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb.jpg) 
 Картинка 4. Главная страничка.<br><br>
 **Веб интерфейс, страничка настроек**:
-![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb1.jpg) 
+![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb2.mkv) 
 Картинка 5. Страничка настроек.<br><br>
  
 #### Поддержка экрана<br>
