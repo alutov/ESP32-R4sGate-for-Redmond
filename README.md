@@ -1,7 +1,9 @@
 # ESP32 Ready4Sky (R4S) шлюз для устройств Redmond+
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft2.gif)
 #### Изменения в текущей версии после последнего [релиза 2020.11.07](https://github.com/alutov/ESP32-R4sGate-for-Redmond/releases/tag/2020.11.07)
-&emsp; Текущая версия 2020.11.07. Изменений нет.<br>
+&emsp; Текущая версия 2020.11.20. Добавлена поддержка чайников Xiaomi MiKettle. Поддерживаются 2 версии:   MiKettle(Int) с ProductId 275 и MiKettle(HK) с ProductId 131.
+Использована информация от [aprosvetova](https://github.com/aprosvetova/xiaomi-kettle) c уточнением по авторизации от [drndos](https://github.com/aprosvetova/xiaomi-kettle/issues/3). Управление возможно только из режима "warming". Доступно включение и выключение кипячения, установка температуры подогрева. Можно перевести чайник в режим Idle. Команда выполняется с задержкой. В отличие от локального выключения "warming" при дальнейшем выключении и включении чайник переходит в режим подогрева. Пока оставил так. Возможно, это особенность конкретной версии. Все необходимые параметры чайника шлюз устанавливает самостоятельно, родное приложение пригодится для обновления прошивки.
+Время подогрева установлено на 12 часов(720 минут), после 700 минут шлюз сбрасывает счетчик. Это пока тестовая версия. Надеюсь, что ни один Redmond не пострадал при добавлении MiKettle.<br>
 
 ### ENG<br>
 [Use Google to translate into English.](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond%2Fblob%2Fmaster%2FREADME.md)<br>
