@@ -1,7 +1,7 @@
 # ESP32 Ready4Sky (R4S) шлюз для устройств Redmond+
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft2.gif)
 #### Изменения в текущей версии после последнего [релиза 2020.11.29](https://github.com/alutov/ESP32-R4sGate-for-Redmond/releases/tag/2020.11.29)
-&emsp; Текущая версия 2020.11.29. Изменений нет.
+&emsp; Текущая версия 2020.12.06. Небольшая правка веб интерфейса.
 
 ### ENG<br>
 [Use Google to translate into English.](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond%2Fblob%2Fmaster%2FREADME.md)<br>
