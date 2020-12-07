@@ -1,6 +1,5 @@
 # ESP32 Ready4Sky (R4S) шлюз для устройств Redmond+
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft2.gif)
-![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft3.jpg)
 #### Изменения в текущей версии после последнего [релиза 2020.11.29](https://github.com/alutov/ESP32-R4sGate-for-Redmond/releases/tag/2020.11.29)
 &emsp; Текущая версия 2020.12.06. Небольшая правка веб интерфейса.
 
@@ -94,7 +93,7 @@ r4s/devaddr/rsp/ - текущее состояние, rssi и т.д.;<br><br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft.jpg)
 Картинка 6. Экран шлюза 1.<br><br>
 &emsp; Предусмотрена возможность вывода на экран и картинки в формате jpeg 320x176. Размер картинки будет около 20 кБайт. Для этого нужно указать url картинки. У моей камеры url такой: http://192.168.1.7/auto.jpg?usr=admin&pwd=admin. Картинка грузится в буфер размером 32768 байт в оперативной памяти. Время обновления можно установить в настройках. Пример экрана на картинке 7. <br><br>
- ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft1.jpg)
+ ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft3.jpg)
 Картинка 7. Экран шлюза 2.<br><br>
 
 &emsp; Стоит отметить, что сама TFT плата влияет на распространение как WiFi, так и BLE. И даже если антенна esp32 выглядывает из-под экрана, чувствительнось такого "бутерброда" заметно меньше обычной esp32. Рекомендую использовать с экраном вариант esp32 с внешней антенной. У меня в шлюзе с экраном замена esp32 на вариант с разъемом и установка внешней антенны дала прирост уровней WIFI и BLE примерно на 20dBm.<br>
