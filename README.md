@@ -1,7 +1,7 @@
 # ESP32 Ready4Sky (R4S) шлюз для устройств Redmond+
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft2.gif)
 #### Изменения в текущей версии после последнего [релиза 2020.11.29](https://github.com/alutov/ESP32-R4sGate-for-Redmond/releases/tag/2020.11.29)
-&emsp; Текущая версия 2020.12.09. Небольшая правка веб интерфейса. Изменены параметры сборки в sdkconfig. Пытаюсь убрать вылезшие проблемы в [библиотеке Ble](https://github.com/espressif/esp-idf/issues/6073) esp-idf версий v4.3-dev-1901-g178b122c1 и v4.3-dev-1720-g494a124d9. На всякий случай положил в папку build/old те же исходники, но собранные в esp-idf версии v4.2-dev-1905-g625bd5eb1. В этой версии esp-idf собирал все ранние версии шлюза, и проблем с ble вроде бы не было. Правда при загрузке картинки шлюз иногда перегружался, из-за чего и переходил на новые версии.
+&emsp; Текущая версия 2020.12.09. Небольшая правка веб интерфейса. Изменены параметры сборки в sdkconfig. Пытаюсь убрать вылезшие проблемы в [библиотеке Ble](https://github.com/espressif/esp-idf/issues/6073) esp-idf версий v4.3-dev-1901-g178b122c1 и v4.3-dev-1720-g494a124d9. Возможно, нужно просто правильно настроить параметры сборки. На всякий случай положил в папку build/old те же исходники, но собранные в esp-idf версии v4.2-dev-1905-g625bd5eb1. В этой версии esp-idf собирал все ранние версии шлюза, и проблем с ble вроде бы не было. Правда при загрузке картинки шлюз иногда перегружался, из-за чего и переходил на новые версии.
 ### ENG<br>
 [Use Google to translate into English.](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond%2Fblob%2Fmaster%2FREADME.md)<br>
 ### RUS<br>
