@@ -2,7 +2,7 @@
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft2.gif)
 
 &emsp; Текущая версия 2021.02.24. Добавлена поддержка мультиварки RMC-M903S и частично духового шкафа RO-5707S, за исключением режимов блокировки и автоподогрева. 
-В RMC-M800S добавлена программа мультиповар. Отключена проверка состояния BLE  соединений во время обновления. На экране вместо влажности в помещении выводится напряжение и ток.
+В RMC-M800S добавлена программа мультиповар. В режиме RMC-M903S можно попробовать и другие мультиварки. Отключена проверка состояния BLE  соединений во время обновления. На экране вместо влажности в помещении выводится напряжение и ток.
 ### ENG<br>
 [Use Google to translate into English.](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond%2Fblob%2Fmaster%2FREADME.md)<br>
 ### RUS<br>
