@@ -12,7 +12,7 @@
 [Список поддерживаемых устройств текущей версии:](https://github.com/alutov/ESP32-R4sGate-for-Redmond/issues/12)<br>
 **Электрочайник**<br>
 Redmond SkyKettle M171S<br>
-Redmond SkyKettle M173S<br>
+Redmond SkyKettle M173S / RTP-M810S<br>
 Redmond SkyKettle G200S<br>
 Redmond SkyKettle G210S<br>
 Redmond SkyKettle G211S<br>
