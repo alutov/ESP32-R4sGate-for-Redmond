@@ -108,7 +108,11 @@ r4s/devaddr/rsp/ - текущее состояние, rssi и т.д.;<br><br>
 Если хочется запустить шлюз максимально быстро, без пайки, да еще и с приличным корпусом, стоит присмотреться к совместимым готовым устройствам. 
 
 #### [TTGO T-Watcher BTC Ticker](https://aliexpress.ru/wholesale?catId=&SearchText=TTGO%20T-Watcher%20BTC%20Ticker)<br>
-Я проверял работоспособность шлюза на TTGO T4 TFT BTC Ticker версии 1.3. Прошивается он через встроенный USB разъем, перед прошивкой устройства нужно замкнуть контакты 4 и 5 разъема (картинка 8). Настройки экрана для версии 1.3: 12-MISO, 23-MOSI, 18-CLK, 27-CS, 32-DC, 5-RES, 4-LED, 0-T_CS, и для версии 1.2: 12-MISO, 23-MOSI, 18-CLK, 27-CS, 26-DC, 5-RES, 4-LED, 0-T_CS. В версии 1.2 нет управления включением и выключением экрана.
+![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft4.jpg)
+Картинка 8. TTGO T-Watcher BTC Ticker.<br><br>
+Я проверял работоспособность шлюза на TTGO T4 TFT BTC Ticker версии 1.3. Прошивается он через встроенный USB разъем, перед прошивкой устройства нужно замкнуть контакты 6 и 7 в нижнем ряду разъема (картинка 9). Настройки экрана для версии 1.3: 12-MISO, 23-MOSI, 18-CLK, 27-CS, 32-DC, 5-RES, 4-LED, 0-T_CS, и для версии 1.2: 12-MISO, 23-MOSI, 18-CLK, 27-CS, 26-DC, 5-RES, 4-LED, 0-T_CS. В версии 1.2 нет управления включением и выключением экрана.
+![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft5.jpg)
+Картинка 9. Замкнуть 6 и 7 пины для прошивки TTGO T-Watcher BTC Ticker.<br><br>
 
 # Сборка проекта
 &emsp; Для сборки бинарных файлов использован [Espressif IoT Development Framework.](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/)<br>
