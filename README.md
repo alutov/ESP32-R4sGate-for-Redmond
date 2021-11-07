@@ -1,5 +1,4 @@
 # ESP32 Ready4Sky (R4S) шлюз для устройств Redmond+
-![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft2.gif)
 
 #### Открыта группа в телеграме "[ESP32 Ready4Sky (R4S)](https://t.me/ESP32_R4sGate)".
 
