@@ -40,7 +40,8 @@
 * Redmond SkyCooker RMC-M224S
 * Redmond SkyCooker RMC-M800S
 * Redmond SkyCooker RMC-M903S / RMC-M92S
-
+* Redmond SkyCooker RMC-M961S
+     
 **Кофеварки**
 
 * Redmond SkyCoffee M1519S
