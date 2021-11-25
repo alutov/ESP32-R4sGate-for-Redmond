@@ -20300,7 +20300,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
         strcat(buf1, "<meta http-equiv=\"refresh\" content=\"3;URL=http://");
         strcat(buf1, bufip);
         strcat(buf1,"\">");
-        strcat(buf1, "</head><body>Setting saved. Rebooting...</body></html>")
+        strcat(buf1, "</head><body>Setting saved. Rebooting...</body></html>");
         httpd_resp_sendstr(req, buf1);
 
 	ESP_LOGI(AP_TAG, "Prepare to restart system!");
