@@ -17270,6 +17270,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcpy(bsend,"<!DOCTYPE html><html>");
 	strcat(bsend,"<head><title>r4sGate</title>");
         strcat(bsend,"<meta name='viewport' content='width=device-width, initial-scale=1.0'>");
+        strcat(bsend,"<meta http-equiv=\"refresh\" content=\"5\">");
         strcat(bsend,cssDatasheet);
 	strcat(bsend,"</head><body class='bodymenu'><header class='headermenu'><h1>ESP32 r4sGate");
 	if (R4SNUM)  {
@@ -17778,7 +17779,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 //	strcat(bsend,bufip);
 //	strcat(bsend,"/\"</body></html>");
 
-	strcat(bsend,"<meta http-equiv=\"refresh\" content=\"5\"></body></html>");
+	strcat(bsend,"</body></html>");
         httpd_resp_sendstr(req, bsend);
     return ESP_OK;
 }
@@ -20295,9 +20296,11 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	nvs_close(my_handle);
 	}
 	}
-	strcpy(buf1,"<!DOCTYPE html><html><head><title>r4sGate</title><meta name='viewport' content='width=device-width, initial-scale=1.0'></head><body>Setting saved. Rebooting...</body></html><meta http-equiv=\"refresh\" content=\"3;URL=http://");
+	strcpy(buf1,"<!DOCTYPE html><html><head><title>r4sGate</title><meta name='viewport' content='width=device-width, initial-scale=1.0'>");
+        strcat(buf1, "<meta http-equiv=\"refresh\" content=\"3;URL=http://");
         strcat(buf1, bufip);
-	strcat(buf1,"/\"</body></html>");
+        strcat(buf1,"\">");
+        strcat(buf1, "</head><body>Setting saved. Rebooting...</body></html>");
         httpd_resp_sendstr(req, buf1);
 
 	ESP_LOGI(AP_TAG, "Prepare to restart system!");
@@ -20344,9 +20347,9 @@ static esp_err_t prestart_get_handler(httpd_req_t *req)
         if (httpd_req_get_hdr_value_str(req, "Host", bufip, buf_len) == ESP_OK) {
         }
 	}
-	strcpy(buf1,"<!DOCTYPE html><html><head><title>r4sGate</title><meta name='viewport' content='width=device-width, initial-scale=1.0'></head><body>Rebooting...</body></html><meta http-equiv=\"refresh\" content=\"3;URL=http://");
+	strcpy(buf1,"<!DOCTYPE html><html><head><title>r4sGate</title><meta name='viewport' content='width=device-width, initial-scale=1.0'><meta http-equiv=\"refresh\" content=\"3;URL=http://");
         strcat(buf1, bufip);
-	strcat(buf1,"/\"</body></html>");
+	strcat(buf1,"\"></head><body>Rebooting...</body></html>");
         httpd_resp_sendstr(req, buf1);
 
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -20479,7 +20482,11 @@ Content-Type: application/octet-stream\r\n\r\n
 	ESP_LOGI(AP_TAG, "Total Write binary data length: %x", binary_file_length);
 	
 	err = esp_ota_end(update_handle);
-	strcpy (otabuf,"<!DOCTYPE html><html><head><title>r4sGate</title><meta name='viewport' content='width=device-width, initial-scale=1.0'></head><body>Update ");
+	strcpy (otabuf,"<!DOCTYPE html><html><head><title>r4sGate</title><meta name='viewport' content='width=device-width, initial-scale=1.0'> ");
+	strcat(otabuf,"<meta http-equiv=\"refresh\" content=\"3;URL=http://");
+	strcat(otabuf, bufip);
+    strcat(otabuf,"\">");
+	strcat(otabuf,"</head><body>Update");
 	if (err != ESP_OK) {
 	if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
 	ESP_LOGE(AP_TAG, "Image validation failed, image is corrupted");
@@ -20490,9 +20497,7 @@ Content-Type: application/octet-stream\r\n\r\n
 	ESP_LOGI(AP_TAG, "esp_ota_end ok!");
 	strcat(otabuf,"ok");
 	}
-	strcat(otabuf,". Rebooting...</body></html><meta http-equiv=\"refresh\" content=\"3;URL=http://");
-        strcat(otabuf, bufip);
-	strcat(otabuf,"/\"</body></html>");
+	strcat(otabuf,". Rebooting...</body></html>");
         httpd_resp_sendstr(req, otabuf);
 
 	err = esp_ota_set_boot_partition(pupdate);
