@@ -176,5 +176,6 @@
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft7.jpg)
 <br>Картинка 11. Соединить последний контакт в верхнем ряду и 4 в нижнем ряду (gnd и gpio0) перед прошивкой M5Stack BASIC Kit.<br><br>
 На сайте m5stack.com есть M5Stack Basic v2.6. Прошивка на этой версии пока не проверялась.<br>
-     ### 6. Сборка проекта
+     
+### 6. Сборка проекта
 &emsp; Для сборки бинарных файлов использован [Espressif IoT Development Framework.](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/)<br>
