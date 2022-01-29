@@ -210,7 +210,8 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 
 #### [ATOM-LITE-ESP32-DEVELOPMENT-KIT](https://docs.m5stack.com/en/core/atom_lite)<br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft8.jpg)
-Прошивается атом по usb без установки перемычек. Кнопку использовал для включения-выключения одного из устройств (39-Port1), светодиод пока в прошивке не задействован. Дальность особо не проверял, но устройство самое маленькое, devkit esp32 по размерам больше.
+<br>Картинка 11. ATOM-LITE-ESP32-DEVELOPMENT-KIT.<br><br>
+     Прошивается атом по usb без установки перемычек. Кнопку использовал для включения-выключения одного из устройств (39-Port1), светодиод пока в прошивке не задействован. Дальность особо не проверял, но устройство самое маленькое, devkit esp32 по размерам больше.
      
      
 ## 6. Сборка проекта
