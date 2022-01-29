@@ -190,7 +190,7 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 &emsp; Если же экран не нужен, то нужно после программирования и настройки  esp32 подсоединить ее к источнику питания и спрятать где-нибудь на кухне.<br>
 
 ## 5. Совместимые готовые устройства
-Если хочется запустить шлюз максимально быстро, без пайки, да еще и с приличным корпусом, стоит присмотреться к совместимым готовым устройствам. Ниже перечислены только проверенные мной устройства. 
+Если хочется запустить шлюз максимально быстро, без пайки, да еще и с приличным корпусом, стоит присмотреться к совместимым готовым устройствам. Ниже перечислены только проверенные мной устройства. Для прошивки использовалась программа [flash_download_tools](https://www.espressif.com/sites/default/files/tools/flash_download_tool_3.9.2.zip).
 
 #### [TTGO T-Watcher BTC Ticker](https://aliexpress.ru/wholesale?catId=&SearchText=TTGO%20T-Watcher%20BTC%20Ticker)<br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft4.jpg)
