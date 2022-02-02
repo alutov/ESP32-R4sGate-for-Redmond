@@ -2,8 +2,6 @@
 
 RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond%2Fblob%2Fmaster%2FREADME.md)
 
-#### Открыта группа в телеграме "[ESP32 Ready4Sky (R4S)](https://t.me/ESP32_R4sGate)".
-
 > **После прошивки с версии 2021.03.25 на более свежие проверяйте типы устройств. Из-за добавления 170 модели все сдвинулось.**
 
 #### Текущая версия 2022.01.20.
