@@ -7,7 +7,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.04.20"
+#define AP_VER "2022.04.22"
 
 // If use ili9341 320*240 tft
 #define USE_TFT
@@ -9812,10 +9812,47 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 
 //*************** http server *******************
 
+static bool test_auth(httpd_req_t *req) {
+	if (!AUTH_BASIC[0])
+		return true;
+
+	char buf_auth[51] = {0};
+	char auth[56] = {0};
+
+	strcat(auth, "Basic ");
+	strcat(auth, AUTH_BASIC);
+
+	int buf_len;
+
+	buf_len = httpd_req_get_hdr_value_len(req, "Authorization") + 1;
+	if (buf_len > 1)
+	{
+		if (buf_len > 49)
+			buf_len = 49;
+		/* Copy null terminated value string into buffer */
+		if (httpd_req_get_hdr_value_str(req, "Authorization", buf_auth, buf_len) == ESP_OK)
+		{
+			if (strcmp(auth, buf_auth) == 0) {
+				return true;
+			}
+		}
+	}
+
+	httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"User Visible Realm\"");
+	httpd_resp_send_err(req, HTTPD_401_UNAUTHORIZED, NULL);
+	httpd_resp_sendstr(req, "");
+
+	return false;
+}
+
 
 /* HTTP GET main handler */
 static esp_err_t pmain_get_handler(httpd_req_t *req)
 {
+	if (!test_auth(req)) {
+		return ESP_OK;
+	}
+
 	int FreeMem = esp_get_free_heap_size();
 	char bufip[32] = {0};
 	time_t now;
@@ -10428,6 +10465,10 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 /* HTTP GET device1 handler */
 static esp_err_t pcfgdev1_get_handler(httpd_req_t *req)
 {
+	if (!test_auth(req)) {
+		return ESP_OK;
+	}
+
 	char bsend[12000];
         char buff[64];
 	strcpy(bsend,"<!DOCTYPE html><html>");
@@ -10702,6 +10743,10 @@ static const httpd_uri_t pcfgdev1ok = {
 /* HTTP GET device2 handler */
 static esp_err_t pcfgdev2_get_handler(httpd_req_t *req)
 {
+	if (!test_auth(req)) {
+		return ESP_OK;
+	}
+
 	char bsend[12000];
         char buff[64];
 	strcpy(bsend,"<!DOCTYPE html><html>");
@@ -10976,6 +11021,10 @@ static const httpd_uri_t pcfgdev2ok = {
 /* HTTP GET device3 handler */
 static esp_err_t pcfgdev3_get_handler(httpd_req_t *req)
 {
+	if (!test_auth(req)) {
+		return ESP_OK;
+	}
+
 	char bsend[12000];
         char buff[32];
 	strcpy(bsend,"<!DOCTYPE html><html>");
@@ -11536,6 +11585,10 @@ void HtpDeVSett(uint8_t blenum, char* bsend) {
 /* HTTP GET setting handler */
 static esp_err_t psetting_get_handler(httpd_req_t *req)
 {
+	if (!test_auth(req)) {
+		return ESP_OK;
+	}
+
 	char bsend[14200];
         char buff[32];
 	strcpy(bsend,"<!DOCTYPE html><html>");
@@ -11605,7 +11658,14 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	HtpDeVSett(1, bsend);
 	HtpDeVSett(2, bsend);
 
-	strcat(bsend,"<h3>System Setting</h3><br/><input name=\"r4snum\" type=\"number\" value=\"");
+	strcat(bsend, "<h3>System Setting</h3><br/>");
+
+	strcat(bsend, "<input name=\"auth\" type=\"text\" value=\"");
+	if (AUTH_BASIC[0])
+		strcat(bsend, AUTH_BASIC);
+	strcat(bsend, "\" size=\"15\">Basic Auth &emsp;");
+
+	strcat(bsend, "<input name=\"r4snum\" type=\"number\" value=\"");
 	itoa(R4SNUM,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"255\" size=\"3\">r4sGate Number &emsp;<input name=\"timzon\" type=\"number\" value=\"");
@@ -11740,6 +11800,10 @@ static const httpd_uri_t psetting = {
 
 static esp_err_t psetsave_get_handler(httpd_req_t *req)
 {
+	if (!test_auth(req)) {
+		return ESP_OK;
+	}
+
 	char buf1[1024] = {0};
 	char buf2[16] = {0};
 	char buf3[16] = {0};
@@ -11847,6 +11911,8 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	strcpy(buf2,"timzon");
 	parsuri(buf1,buf3,buf2,1024,4);
 	TimeZone = atoi(buf3);
+	strcpy(buf2, "auth");
+	parsuri(buf1, AUTH_BASIC, buf2, 1024, 50);
 	strcpy(buf2,"r4snum");
 	parsuri(buf1,buf3,buf2,1024,4);
 	R4SNUM = atoi(buf3);
@@ -12134,7 +12200,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	nvs_handle_t my_handle;
 	ret = nvs_open("storage", NVS_READWRITE, &my_handle);
 	if (ret == ESP_OK) {
-
+	nvs_set_str(my_handle, "auth", AUTH_BASIC);
 	nvs_set_u16(my_handle, "sjpgtim", jpg_time);
 	nvs_set_u16(my_handle, "smqprt", mqtt_port);
 	nvs_set_u8(my_handle,  "rlighta", BleDevStA.RgbR);
@@ -12244,6 +12310,10 @@ static const httpd_uri_t psetignore = {
 /* HTTP GET reboot handler */
 static esp_err_t prestart_get_handler(httpd_req_t *req)
 {
+	if (!test_auth(req)) {
+		return ESP_OK;
+	}
+
 	char buf1[512] = {0};
 //save ip from header
 	char bufip[32] = {0};
@@ -12274,6 +12344,10 @@ static const httpd_uri_t prestart = {
 /* HTTP GET update handler */
 static esp_err_t pupdate_get_handler(httpd_req_t *req)
 {
+	if (!test_auth(req)) {
+		return ESP_OK;
+	}
+
         httpd_resp_sendstr(req, serverIndex);
     return ESP_OK;
 }
@@ -12288,6 +12362,10 @@ static const httpd_uri_t pupdate = {
 /* HTTP GET updating handler */
 static esp_err_t pupdating_get_handler(httpd_req_t *req)
 {
+	if (!test_auth(req)) {
+		return ESP_OK;
+	}
+
 	f_update = true;
 	t_tinc_us = ~t_tinc_us;	
 	char otabuf[otabufsize] ={0};
@@ -12988,6 +13066,8 @@ void app_main(void)
 	bgpio5 = 0;
 	strcpy(strON,"ON");
 	strcpy(strOFF,"OFF");
+	AUTH_BASIC[0] = 0;
+
 // read nvs
 	nvs_handle_t my_handle;
 	ret = nvs_open("storage", NVS_READWRITE, &my_handle);
@@ -13061,6 +13141,10 @@ void app_main(void)
 	nvs_get_str(my_handle,"sreqnmc", BleDevStC.REQ_NAME,&nvsize);
 	nvsize = sizeof(BleMR);
 	nvs_get_blob(my_handle,"sblemd",  BleMR,&nvsize);
+
+	nvsize = 50;
+	nvs_get_str(my_handle, "auth", AUTH_BASIC, &nvsize);
+
 #ifdef USE_TFT
 	nvsize = 32;
 	nvs_get_str(my_handle,"smtopp1", MQTT_TOPP1,&nvsize);

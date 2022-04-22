@@ -313,6 +313,8 @@ char MyJPGbuf[MyJPGbuflen];
 int32_t MyJPGbufidx = 0;
 char tESP32Addr[16];                        //esp mac
 
+char AUTH_BASIC[51];
+
 uint8_t R4SNUM = 0;                         //r4s number
 uint8_t R4SNUMO = 0;                        //r4s number
 //uint8_t r4ststat = 0;                     //timer?
