@@ -7,10 +7,8 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.04.22"
+#define AP_VER "2022.04.23"
 
-// If use ili9341 320*240 tft
-#define USE_TFT
 
 #include "r4sGate.h"
 
@@ -310,9 +308,7 @@ struct BleDevStC *pBleDevStC;
 static struct BleMonRec BleMR[BleMonNum];
 static struct BleMonExt BleMX[BleMonNum];
 
-#ifdef USE_TFT
 #include "tft/tft.c"
-#endif
 
 //******************* timer *********************
 static intr_handle_t s_timer_handle;
@@ -6644,8 +6640,8 @@ void MqSState() {
 	if  ((mqttConnected) && (bStateS != bprevStateS)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/screen");
-	if (!bStateS) esp_mqtt_client_publish(mqttclient, ldata, strOFF, 0, 1, 1);
-        else esp_mqtt_client_publish(mqttclient, ldata, strON, 0, 1, 1);
+       	itoa(bStateS,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	r4sppcoms = 255;
 	t_ppcoms_us = t_mqt_us;
 	bprevStateS = bStateS;
@@ -8551,7 +8547,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	BleDevStC.bprevCVol = 255;
 	BleDevStC.bprevCVoll = 255;
 
-	bprevStateS = 255;
+	bprevStateS = ~bStateS;
 
 	fgpio1 = 1;
 	fgpio2 = 1;
@@ -8579,7 +8575,6 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/ip");
 	esp_mqtt_client_publish(client, llwtt, wbuff, 0, 1, 1);
-#ifdef USE_TFT
 	if (MQTT_TOPP1[0]) esp_mqtt_client_subscribe(client, MQTT_TOPP1, 0);
 	if (MQTT_TOPP2[0]) esp_mqtt_client_subscribe(client, MQTT_TOPP2, 0);
 	if (MQTT_TOPP3[0]) esp_mqtt_client_subscribe(client, MQTT_TOPP3, 0);
@@ -8587,7 +8582,6 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	if (MQTT_TOPP5[0]) esp_mqtt_client_subscribe(client, MQTT_TOPP5, 0);
 	if (MQTT_TOPP6[0]) esp_mqtt_client_subscribe(client, MQTT_TOPP6, 0);
 	if (MQTT_TOPP7[0]) esp_mqtt_client_subscribe(client, MQTT_TOPP7, 0);
-#endif
 	if (FDHass && tESP32Addr[0]) {
 	strcpy(llwtt,"homeassistant/sensor/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
@@ -8618,7 +8612,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 
-	strcpy(llwtt,"homeassistant/switch/");
+	strcpy(llwtt,"homeassistant/number/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/2x");
 	strcat(llwtt,tESP32Addr);
@@ -8643,10 +8637,15 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/screen\",\"state_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/screen\",\"availability_topic\":\"");
+	strcat(llwtd,"/screen\",\"min\":\"0\",\"max\":\"255\",\"availability_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+
+
+
+
+
 //
 	if ((bgpio1 > 63) && (bgpio1 < 98)) {
 	strcpy(llwtt,"homeassistant/switch/");
@@ -9231,30 +9230,21 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcpy(tbuff,MQTT_BASE_TOPIC);
 	strcat(tbuff,"/screen");
 	if (!memcmp(event->topic, tbuff, event->topic_len)) {
-
-	if ((!incascmp("1",event->data,event->data_len)) || (!incascmp("on",event->data,event->data_len))
-		|| (!incascmp("true",event->data,event->data_len))) {
-	if ((!bStateS) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
-	if (tft_conn) {
-	gpio_set_level(PIN_NUM_BCKL, 1);
-	bStateS = 1;
-	}
-	bprevStateS = 255;
-	t_lasts_us = ~t_lasts_us;
-	}
-	} else if ((!incascmp("0",event->data,event->data_len)) || (!incascmp("off",event->data,event->data_len))
-		|| (!incascmp("false",event->data,event->data_len))) {
-	if ((bStateS)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
-	if (tft_conn) {
-	gpio_set_level(PIN_NUM_BCKL, 0);
-	}
-	bStateS = 0;
-	bprevStateS = 255;
-	t_lasts_us = ~t_lasts_us;
-	}	
-	} else if ((!incascmp("restart",event->data,event->data_len)) || (!incascmp("reset",event->data,event->data_len))
+	if ((!incascmp("restart",event->data,event->data_len)) || (!incascmp("reset",event->data,event->data_len))
 		|| (!incascmp("reboot",event->data,event->data_len))) {
 	esp_restart();
+	} else if (event->data_len && (event->data_len < 5)){
+	uint16_t duty = 255;
+	mystrcpy(tbuff, event->data, event->data_len);
+	duty = atoi(tbuff);
+	if (duty < 256) {
+	if ((duty != bStateS) || (!r4sppcoms)) { 
+	ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty);
+	ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0);
+        bStateS = duty;
+	t_lasts_us = ~t_lasts_us;
+	}
+	}
 	}
 
 	} else if (topoffs) {
@@ -10021,12 +10011,10 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	itoa(mqtt_port,buff,10);
 	strcat(bsend,buff);
         (mqttConnected)? strcat(bsend," / Connected") : strcat(bsend," / Disconnected");
-#ifdef USE_TFT
 	strcat(bsend,"</td></tr>");
 	strcat(bsend,"<tr><td>ILI9341 320*240 LCD</td><td>");
 	if (!tft_conf) strcat(bsend,"Disabled");
 	else (tft_conn)? strcat(bsend,"Connected") : strcat(bsend,"Disconnected");
-#endif
 	strcat(bsend,"</td></tr></table><br><footer><h6>More info on <a href='https://github.com/alutov/ESP32-R4sGate-for-Redmond' style='font-size: 15px; text-decoration: none'>github.com/alutov</a></h6>");
 
 //itoa(strlen(bsend),buff,10);
@@ -11635,7 +11623,6 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
         strcat(bsend,"> \"true/false\" Response&emsp;<input type=\"checkbox\" name=\"chk7\" value=\"7\"");
 	if (foffln) strcat(bsend,"checked");
         strcat(bsend,"> \"offline\" Response</br>");
-#ifdef USE_TFT
 	strcat(bsend,"<input name=\"smtopp1\" value=\"");
 	if (MQTT_TOPP1[0]) strcat(bsend,MQTT_TOPP1);
 	strcat(bsend,"\"size=\"32\">Indoor Temp&ensp;&emsp;<input name=\"smtopp2\" value=\"");
@@ -11651,7 +11638,6 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"\"size=\"32\">Outdoor Temp &ensp;<input name=\"smtopp7\" value=\"");
 	if (MQTT_TOPP7[0]) strcat(bsend,MQTT_TOPP7);
 	strcat(bsend,"\"size=\"32\">Outdoor Humidity</br>");
-#endif
 	strcat(bsend,"<h3>Devices Setting</h3><br/>");
 
 	HtpDeVSett(0, bsend);
@@ -11691,7 +11677,6 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"> Delete Mqtt topics &emsp;");
 	strcat(bsend,"<input type=\"checkbox\" name=\"chk0\" value=\"0\"");
 	strcat(bsend,"> Format NVS area</br>");
-#ifdef USE_TFT
 	strcat(bsend,"<input name=\"smjpuri\" value=\"");
 	if (MyHttpUri[0]) strcat(bsend,MyHttpUri);
 	strcat(bsend,"\"size=\"64\">320*176 JPEG Url &emsp;<input name=\"sjpgtim\" type=\"number\" value=\"");
@@ -11727,7 +11712,6 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	itoa(PIN_TOUCH_CS,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">T_CS</br>");
-#endif
         strcat(bsend,"Port GPIO/Mode<input name=\"ppin1\" type=\"number\" value=\"");
 	itoa((bgpio1 & 0x3f),buff,10);
 	strcat(bsend,buff);
@@ -12252,7 +12236,6 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	nvs_set_str(my_handle, "sreqnmb", BleDevStB.REQ_NAME);
 	nvs_set_str(my_handle, "sreqnmc", BleDevStC.REQ_NAME);
 	nvs_set_blob(my_handle,"sblemd",  BleMR, sizeof(BleMR));
-#ifdef USE_TFT
 	nvs_set_str(my_handle, "smtopp1", MQTT_TOPP1);
 	nvs_set_str(my_handle, "smtopp2", MQTT_TOPP2);
 	nvs_set_str(my_handle, "smtopp3", MQTT_TOPP3);
@@ -12261,7 +12244,6 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	nvs_set_str(my_handle, "smtopp6", MQTT_TOPP6);
 	nvs_set_str(my_handle, "smtopp7", MQTT_TOPP7);
 	nvs_set_str(my_handle, "smjpuri", MyHttpUri);
-#endif
         ret = nvs_commit(my_handle);
 	if (ret != ESP_OK) {
 	ESP_LOGE(AP_TAG, "NVS write error");
@@ -12904,16 +12886,12 @@ void lpcomstat(uint8_t blenum) {
 	ptr->r4slpres = 0;
 	ptr->f_Sync++;
 	if (ptr->f_Sync > 15) mkSync(blenum);	
-#ifdef USE_TFT
 	if (tft_conn) tfblestate();
-#endif
 	ptr->t_last_us = t_before_us;	
 	}
 // every 1s display time and date
 	if ((tft_conn) && (t_before_us - t_clock_us > 1000000)) {
-#ifdef USE_TFT
 	tftclock();
-#endif
 	t_clock_us = t_before_us;	
 	}
 
@@ -13145,7 +13123,6 @@ void app_main(void)
 	nvsize = 50;
 	nvs_get_str(my_handle, "auth", AUTH_BASIC, &nvsize);
 
-#ifdef USE_TFT
 	nvsize = 32;
 	nvs_get_str(my_handle,"smtopp1", MQTT_TOPP1,&nvsize);
 	nvsize = 24;
@@ -13162,7 +13139,6 @@ void app_main(void)
 	nvs_get_str(my_handle,"smtopp7", MQTT_TOPP7,&nvsize);
 	nvsize = 64;
 	nvs_get_str(my_handle,"smjpuri", MyHttpUri,&nvsize);
-#endif
 // Close nvs
 	nvs_close(my_handle);
 	}
@@ -13274,9 +13250,7 @@ void app_main(void)
     timer_start(TIMER_GROUP_0, TIMER_0);
 
 
-#ifdef USE_TFT
 	if (tft_conf) tft_conn = tftinit();
-#endif
 //Initialize Wifi
 	wifi_init_sta();
 //init bt
@@ -13310,6 +13284,7 @@ void app_main(void)
 	esp_restart();
 	}
 
+	ESP_LOGI(AP_TAG,"Basic Auth string: %s",AUTH_BASIC);
 	ESP_LOGI(AP_TAG,"esp32 BLE MAC Address:");
 	esp_read_mac(binblemac, ESP_MAC_BT);
         esp_log_buffer_hex(AP_TAG, binblemac, 6);
@@ -13410,7 +13385,6 @@ to get MSK (GMT + 3) I need to write GMT-3
 	}
 
 	if (!f_update && !BleDevStA.r4slpcom && !BleDevStB.r4slpcom && !BleDevStC.r4slpcom && tft_conn && jpg_time && (t_before_us - t_jpg_us > jpg_time*1000000)) {
-#ifdef USE_TFT
 	ret = tftjpg();
 	if (ret) {
 	BleDevStA.t_last_us = t_before_us;
@@ -13418,17 +13392,14 @@ to get MSK (GMT + 3) I need to write GMT-3
 	BleDevStC.t_last_us = t_before_us;
 	t_tinc_us = t_before_us;
 	}
-#endif
 	t_jpg_us = t_before_us;	
 	}
 
 	if (t_before_us - t_tinc_us > 4000000) {
 	blstnum_inc();
-#ifdef USE_TFT
 	if (tft_conn) tfblestate();
 	if (tft_conn) tftclock();
 	t_clock_us = t_before_us;	
-#endif
 	if (f_update && tft_conn) tfblestate();
 	t_tinc_us = t_before_us;	
 	if (s_retry_num >= WIFI_MAXIMUM_RETRY) {

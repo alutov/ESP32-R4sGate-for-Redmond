@@ -41,6 +41,7 @@
 #include "esp_sntp.h"
 #include "esp_timer.h"
 #include "driver/timer.h"
+#include "driver/ledc.h"
 
 //*** define ***
 //*** common ***
@@ -319,8 +320,8 @@ uint8_t R4SNUM = 0;                         //r4s number
 uint8_t R4SNUMO = 0;                        //r4s number
 //uint8_t r4ststat = 0;                     //timer?
 uint8_t r4sppcoms = 0;
-uint8_t bStateS = 0;
-uint8_t bprevStateS = 0;
+uint16_t bStateS = 0;
+uint16_t bprevStateS = 0;
 int64_t t_ppcoms_us = 0;
 int64_t t_lasts_us = 0;
 int64_t t_clock_us = 0;

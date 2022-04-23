@@ -1190,15 +1190,38 @@ bool lcd_init(spi_device_handle_t spi)
 	bool result = false;
 	int  cmd = 0;
 	uint32_t lcd_id;
+
+    ledc_timer_config_t ledc_timer = {
+        .duty_resolution = LEDC_TIMER_8_BIT, // resolution of PWM duty
+        .freq_hz = 5000,                      // frequency of PWM signal
+        .speed_mode = LEDC_HIGH_SPEED_MODE,   // timer mode
+        .timer_num = LEDC_TIMER_0,            // timer index
+        .clk_cfg = LEDC_AUTO_CLK,             // Auto select the source clock
+    };
+
+    ledc_channel_config_t ledc_channel = {
+            .channel    = LEDC_CHANNEL_0,
+            .duty       = 0,
+            .gpio_num   = PIN_NUM_BCKL,
+            .speed_mode = LEDC_HIGH_SPEED_MODE,
+            .hpoint     = 0,
+            .timer_sel  = LEDC_TIMER_0
+    };
+
 //Initialize non-SPI GPIOs
 	gpio_set_direction(PIN_TOUCH_CS, GPIO_MODE_OUTPUT);
 	gpio_set_direction(PIN_NUM_DC, GPIO_MODE_OUTPUT);
 	gpio_set_direction(PIN_NUM_RST, GPIO_MODE_OUTPUT);
-	gpio_set_direction(PIN_NUM_BCKL, GPIO_MODE_OUTPUT);
 	gpio_set_level(PIN_TOUCH_CS, 1);
+
+	ledc_timer_config(&ledc_timer);
+        ledc_channel_config(&ledc_channel);
+
 ///Disable backlight
-	bStateS = 1;
-	gpio_set_level(PIN_NUM_BCKL, 0);
+	bStateS = 0;
+	ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
+	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
+
     //Reset the display
 	gpio_set_level(PIN_NUM_RST, 0);
 	vTaskDelay(200 / portTICK_RATE_MS);
@@ -1228,8 +1251,9 @@ bool lcd_init(spi_device_handle_t spi)
 	///Enable backlight
 	fillScreen(0);
         ESP_LOGI(AP_TAG, "ILI9341 TFT detected.");
-	bStateS = 1;
-	gpio_set_level(PIN_NUM_BCKL, 1);
+	bStateS = 255;
+	ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
+	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
 	result = true;
 	} else ESP_LOGI(AP_TAG, "ILI9341 TFT init error.");
 
@@ -1254,8 +1278,10 @@ bool lcd_init(spi_device_handle_t spi)
 	///Enable backlight
 	fillScreen(0);
         ESP_LOGI(AP_TAG, "ILI9342 TFT detected.");
-	bStateS = 1;
-	gpio_set_level(PIN_NUM_BCKL, 1);
+	bStateS = 255;
+	ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
+	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
+
 	result = true;
 	} else ESP_LOGI(AP_TAG, "ILI9342 TFT init error.");
 
