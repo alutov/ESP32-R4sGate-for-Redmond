@@ -561,6 +561,19 @@ static void hw_timer_callback(void *arg)
 	}
 	} else cntgpio5 = 0;
 	break;
+	case 192:
+	if ((gpio_get_level(bgpio5 & 0x3f)) != lvgpio5) {
+        cntgpio5++;
+	if (cntgpio5 > 5) {
+	fgpio5 = 1;
+	lvgpio5 = lvgpio5 ^ 1;
+	t_lasts_us = ~t_lasts_us;
+	cntgpio5 = 0;
+	t_jpg_us = ~t_jpg_us;	
+	}
+	} else cntgpio5 = 0;
+	break;
+
 	}
 }
 
@@ -11763,7 +11776,9 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if ((bgpio5 & 0xc0) == 0x40) strcat(bsend,"selected ");
         strcat(bsend,"value=\"64\">Out</option><option ");
 	if ((bgpio5 & 0xc0) == 0x80) strcat(bsend,"selected ");
-        strcat(bsend,"value=\"128\">In</option></select><br>");
+        strcat(bsend,"value=\"128\">In</option><option ");
+	if ((bgpio5 & 0xc0) == 0xc0) strcat(bsend,"selected ");
+        strcat(bsend,"value=\"192\">Jpg</option></select><br>");
 
 	strcat(bsend,"<h3>Store setting then press SAVE. ESP32 r4sGate will restart</h3></br>");
 	strcat(bsend,"<input type=SUBMIT value=\"Save settings\"></form><form method=\"POST\" action=\"/setignore\">");
@@ -13188,6 +13203,7 @@ void app_main(void)
 	} else {
 	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio1 = 0;
+	if ((bgpio1 > 127) && ((bgpio1 & 0x3f) < 34)) gpio_set_pull_mode((bgpio1 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 	if (bgpio2 > 63) {
@@ -13198,6 +13214,7 @@ void app_main(void)
 	} else {
 	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio2 = 0;
+	if ((bgpio2 > 127) && ((bgpio2 & 0x3f) < 34)) gpio_set_pull_mode((bgpio2 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 	if (bgpio3 > 63) {
@@ -13208,6 +13225,7 @@ void app_main(void)
 	} else {
 	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio3 = 0;
+	if ((bgpio3 > 127) && ((bgpio3 & 0x3f) < 34)) gpio_set_pull_mode((bgpio3 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 	if (bgpio4 > 63) {
@@ -13218,6 +13236,7 @@ void app_main(void)
 	} else {
 	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio4 = 0;
+	if ((bgpio4 > 127) && ((bgpio4 & 0x3f) < 34)) gpio_set_pull_mode((bgpio4 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 	if (bgpio5 > 63) {
@@ -13228,6 +13247,7 @@ void app_main(void)
 	} else {
 	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio5 = 0;
+	if ((bgpio5 > 127) && ((bgpio5 & 0x3f) < 34)) gpio_set_pull_mode((bgpio5 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 
