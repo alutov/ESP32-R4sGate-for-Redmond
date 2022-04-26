@@ -7,7 +7,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.04.23"
+#define AP_VER "2022.04.26"
 
 
 #include "r4sGate.h"
@@ -670,6 +670,12 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	if (!fcommtp) strcat(buft,"/cmd");
 	strcat(buft,"/nightlight_rgb");
 	esp_mqtt_client_subscribe(mqttclient, buft, 0);
+	strcpy(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/");
+	strcat(buft,ptr->tBLEAddr);
+	if (!fcommtp) strcat(buft,"/cmd");
+	strcat(buft,"/boil_time");
+	esp_mqtt_client_subscribe(mqttclient, buft, 0);
 	}
 	if (FDHass) {
 	strcpy(buft,"homeassistant/switch/");
@@ -847,6 +853,44 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
 //
 	if ((ptr->DEV_TYP < 10) && (ptr->DEV_TYP > 3)) {
+	strcpy(buft,"homeassistant/number/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/1x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+       	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Kettle.boiltime\",\"icon\":\"mdi:kettle\",\"uniq_id\":\"boiltime_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Kettle_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+       	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Kettle\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"command_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
+	strcat(bufd,"/boil_time\",\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/boil_time\",\"min\":\"-5\",\"max\":\"5\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
 	strcpy(buft,"homeassistant/light/");
 	strcat(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/1x");
@@ -4467,6 +4511,30 @@ bool m151sLoff(uint8_t blenum) {
 	return ptr->notifyData[3] == 1;
 }
 
+bool m171sBlTm(uint8_t blenum, int8_t bltime) {
+	if (blenum > 2) return false;
+        struct BleDevSt *ptr;
+	switch (blenum) {
+	case 1:
+	ptr = &BleDevStB;
+	break;
+	case 2:
+	ptr = &BleDevStC;
+	break;
+	default:
+	ptr = &BleDevStA;
+	break;
+	}
+	if ((ptr->DEV_TYP > 3) && (ptr->DEV_TYP < 10)) {
+	uint8_t data[] = { ptr->bProg, 0, ptr->bHtemp, 0, 1, ptr->bHtemp, 30, 0, 0, 0, 0, 0, 0, (bltime + 128), 0, 0};
+	if (r4sCommand(blenum, 0x05, data, sizeof(data)) != 5) return false;
+	if (ptr->notifyData[3] != 1) return false;
+	} else {
+	return false;
+	}
+	return true;
+}
+
 bool m171sOn(uint8_t blenum, uint8_t prog, uint8_t temp) {
 	if (blenum > 2) return false;
         struct BleDevSt *ptr;
@@ -4482,7 +4550,7 @@ bool m171sOn(uint8_t blenum, uint8_t prog, uint8_t temp) {
 	break;
 	}
 	if (ptr->DEV_TYP > 3) {
-	uint8_t data[] = { prog, 0, temp, 0, 1, temp, 30, 0, 0, 0, 0, 0, 0, 128, 0, 0};
+	uint8_t data[] = { prog, 0, temp, 0, 1, temp, 30, 0, 0, 0, 0, 0, 0, (ptr->bBlTime + 128), 0, 0};
 	if (r4sCommand(blenum, 0x05, data, sizeof(data)) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
 	if (r4sCommand(blenum, 0x03, 0, 0) != 5) return false;
@@ -4548,7 +4616,7 @@ bool m171s_NLOn(uint8_t blenum) {
 	if (ptr->notifyData[3] == 1)
 	return false;
     
-	uint8_t data[] = { 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0};
+	uint8_t data[] = { 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (ptr->bBlTime + 128), 0, 0};
 	if (r4sCommand(blenum, 0x05, data, sizeof(data)) != 5)
 	return false;
 	if (ptr->notifyData[3] == 1)
@@ -4578,7 +4646,7 @@ bool m171s_ModOff(uint8_t blenum) {
 	}
 //	if (!ptr->bProg) return true;
 	if (ptr->DEV_TYP > 3) {
-	uint8_t data[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0};
+	uint8_t data[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (ptr->bBlTime + 128), 0, 0};
 	if (r4sCommand(blenum, 0x05, data, sizeof(data)) != 5) return false;
 	if (ptr->notifyData[3] == 1) return false;
 	} else if (ptr->DEV_TYP == 1) {	
@@ -6111,12 +6179,14 @@ void msStatus(uint8_t blenum) {
 	ptr->bStNl = ptr->notifyData[11];
 	if ((ptr->bStNl == 4) || (ptr->bProg != 3)) ptr->bStNl = 0;
 	ptr->bStBp = ptr->notifyData[7];
+	ptr->bBlTime = ptr->notifyData[16] + 128;
 	} else {
 	ptr->bCtemp = ptr->notifyData[13];
 //	ptr->bHeat = ptr->notifyData[10];
 	ptr->bHeat = ptr->notifyData[3];
 	ptr->bStNl = 0;
 	ptr->bStBp = 0;
+	ptr->bBlTime = 0;
 	}
 	if (!ptr->bCtemp) ptr->bCVol = 254;
 	if ((ptr->bCVol == 252) && ptr->bState) ptr->bCVol = 253;
@@ -6142,6 +6212,9 @@ void msStatus(uint8_t blenum) {
 	itoa(ptr->notifyData[12],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	if (ptr->DEV_TYP > 3) {
+	strcat(ptr->cStatus,",\"boil\":");
+	itoa(ptr->bBlTime,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"volume\":[");
 	if (ptr->bCVol < 250) {
 	itoa(ptr->bCVol / 10,tmpvar,10);
@@ -6985,6 +7058,18 @@ void MqState(uint8_t blenum) {
 	ptr->t_ppcom_us = t_mqt_us;
 	ptr->bprevCVoll = ptr->bCVoll;
 	}
+	if  (ptr->bBlTime != ptr->bprevBlTime) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/boil_time");
+	itoa(ptr->bBlTime,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	ptr->r4sppcom = 255;
+	ptr->t_ppcom_us = t_mqt_us;
+	ptr->bprevBlTime = ptr->bBlTime;
+	}
 	}
 	} else if ( ptr->DEV_TYP < 12) {
 	if  (ptr->bprevState != ptr->bState) {
@@ -7681,6 +7766,7 @@ void MqState(uint8_t blenum) {
 	ptr->bprevSHum = ptr->bSHum;
 	}
 	if  (ptr->bSTime != ptr->bprevSTime) {
+	uint32_t tmp = 0;
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
 	strcat(ldata,ptr->tBLEAddr);
@@ -7693,7 +7779,12 @@ void MqState(uint8_t blenum) {
 	strcat(ldata,ptr->tBLEAddr);
 	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/pressurem");
-        itoa(ptr->bSTime * 75 / 10000,tmpvar,10);
+	tmp = ptr->bSTime * 75 / 1000;
+        itoa(tmp / 10,tmpvar1,10);
+	strcpy(tmpvar,tmpvar1);
+	strcat(tmpvar,".");
+        itoa(tmp % 10,tmpvar1,10);
+	strcat(tmpvar,tmpvar1);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	ptr->r4sppcom = 255;
 	ptr->t_ppcom_us = t_mqt_us;
@@ -7968,6 +8059,21 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slppar1 = 0;
 	ptr->r4slpcom = 5;
 	}
+	ptr->t_last_us = ~ptr->t_last_us;
+	}
+	} else if (!memcmp(topic+topoff, "boil_time", topic_len-topoff)) {
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	int tempsz = data_len;
+	if  (tempsz > 60) tempsz = 60;
+	mystrcpy(tbuff, data, tempsz);
+	int8_t cval = atoi(tbuff);
+	if ((!fcommtp) || (!ptr->r4sppcom) || (ptr->bBlTime != cval)) {
+	if (cval > 5) cval = 5;
+	else if (cval < -5) cval = -5;
+	if (!ptr->bState && !ptr->bHeat) {	
+	ptr->r4slppar1 = cval;
+	ptr->r4slpcom = 25;
+	} else ptr->bprevBlTime = 128;
 	ptr->t_last_us = ~ptr->t_last_us;
 	}
 	}
@@ -8492,7 +8598,9 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	BleDevStA.bprevSCount = ~BleDevStA.bSCount;
 	BleDevStB.bprevSCount = ~BleDevStB.bSCount;
 	BleDevStC.bprevSCount = ~BleDevStC.bSCount;
-
+	BleDevStA.bprevBlTime = 128;
+	BleDevStB.bprevBlTime = 128;
+	BleDevStC.bprevBlTime = 128;
 	BleDevStA.bprevLock = 255;
 	BleDevStA.bprevState = 255;
 	BleDevStA.bprevHeat = 255;
@@ -9769,6 +9877,7 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	strcat(bsend,buff);
 	strcat(bsend,", ");
 	} else if (ptr->DEV_TYP == 63) {
+	uint32_t tmp = 0;
 	strcat(bsend,", Temperature: ");
 	if (ptr->bSEnergy & 0x80000000) strcat(bsend,"-");
 	itoa((ptr->bSEnergy & 0x7fffffff) / 10,buff,10);
@@ -9786,7 +9895,11 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	itoa(ptr->bSTime / 100,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"hPa / ");
-        itoa(ptr->bSTime * 75 / 10000,buff,10);
+	tmp = ptr->bSTime * 75 / 1000;
+        itoa(tmp / 10,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend,".");
+        itoa(tmp % 10,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"mmHg, Quality: ");
 	itoa(ptr->bSCount,buff,10);
@@ -10120,6 +10233,12 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	itoa(ptr->RgbB,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"255\" size=\"3\">Light Blue</br>");
+	if ((ptr->DEV_TYP > 3) && !ptr->bState && !ptr->bHeat) {
+	strcat(bsend,"<input name=\"sbltim\" type=\"number\" value=\"");
+	itoa(ptr->bBlTime,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend,"\" min=\"-5\" max=\"5\" size=\"3\">Boil Time(Smart Boil)</br>");
+	}
 	} else if ( ptr->DEV_TYP == 63) {
 	strcat(bsend,"<body><form method=\"POST\" action=\"/cfgdev");
 	itoa(blenum1,buff,10);
@@ -10515,6 +10634,7 @@ static esp_err_t pcfgdev1ok_get_handler(httpd_req_t *req)
 	char buf1[512] = {0};
 	char buf2[16] = {0};
 	char buf3[16] = {0};
+	int8_t bnewBlTime = BleDevStA.bBlTime;
 	int  ret;
 	int  cm_done = BleDevStA.bProg;
 	ret = httpd_req_recv(req,buf1,512);
@@ -10540,6 +10660,10 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	strcpy(buf2,"blight");
 	parsuri(buf1,buf3,buf2,512,4);
 	BleDevStA.RgbB = atoi(buf3);
+	buf3[0] = 0;
+	strcpy(buf2,"sbltim");
+	parsuri(buf1,buf3,buf2,512,3);
+	bnewBlTime = atoi(buf3);
 	}
 	buf3[0] = 0;
 	strcpy(buf2,"stemp");
@@ -10584,9 +10708,15 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	BleDevStA.r4slpcom = 1;
 	break;
 	case 2:             //boil(on)
+	if (bnewBlTime != BleDevStA.bBlTime) {
+	cm_done = 0;
+	BleDevStA.r4slppar1 = bnewBlTime;
+	BleDevStA.r4slpcom = 25;
+	} else {
 	cm_done = 1;
 	BleDevStA.r4slppar1 = 0;
 	BleDevStA.r4slpcom = 2;
+	}
 	break;
 	case 3:             //heat(on)
 	cm_done = 1;
@@ -10793,6 +10923,7 @@ static esp_err_t pcfgdev2ok_get_handler(httpd_req_t *req)
 	char buf1[512] = {0};
 	char buf2[16] = {0};
 	char buf3[16] = {0};
+	int8_t bnewBlTime = BleDevStB.bBlTime;
 	int  ret;
 	int  cm_done = BleDevStB.bProg;
 	ret = httpd_req_recv(req,buf1,512);
@@ -10818,6 +10949,10 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	strcpy(buf2,"blight");
 	parsuri(buf1,buf3,buf2,512,4);
 	BleDevStB.RgbB = atoi(buf3);
+	buf3[0] = 0;
+	strcpy(buf2,"sbltim");
+	parsuri(buf1,buf3,buf2,512,3);
+	bnewBlTime = atoi(buf3);
 	}
 	buf3[0] = 0;
 	strcpy(buf2,"stemp");
@@ -10863,8 +10998,14 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	break;
 	case 2:             //boil(on)
 	cm_done = 1;
+	if (bnewBlTime != BleDevStB.bBlTime) {
+	cm_done = 0;
+	BleDevStB.r4slppar1 = bnewBlTime;
+	BleDevStB.r4slpcom = 25;
+	} else {
 	BleDevStB.r4slppar1 = 0;
 	BleDevStB.r4slpcom = 2;
+	}
 	break;
 	case 3:             //heat(on)
 	cm_done = 1;
@@ -11072,6 +11213,7 @@ static esp_err_t pcfgdev3ok_get_handler(httpd_req_t *req)
 	char buf1[512] = {0};
 	char buf2[16] = {0};
 	char buf3[16] = {0};
+	int8_t bnewBlTime = BleDevStC.bBlTime;
 	int  ret;
 	int  cm_done = BleDevStC.bProg;
 	ret = httpd_req_recv(req,buf1,512);
@@ -11097,6 +11239,10 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	strcpy(buf2,"blight");
 	parsuri(buf1,buf3,buf2,512,4);
 	BleDevStC.RgbB = atoi(buf3);
+	buf3[0] = 0;
+	strcpy(buf2,"sbltim");
+	parsuri(buf1,buf3,buf2,512,3);
+	bnewBlTime = atoi(buf3);
 	}
 	buf3[0] = 0;
 	strcpy(buf2,"stemp");
@@ -11141,9 +11287,15 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	BleDevStC.r4slpcom = 1;
 	break;
 	case 2:             //boil(on)
+	if (bnewBlTime != BleDevStC.bBlTime) {
+	cm_done = 0;
+	BleDevStC.r4slppar1 = bnewBlTime;
+	BleDevStC.r4slpcom = 25;
+	} else {
 	cm_done = 1;
 	BleDevStC.r4slppar1 = 0;
 	BleDevStC.r4slpcom = 2;
+	}
 	break;
 	case 3:             //heat(on)
 	cm_done = 1;
@@ -12852,6 +13004,14 @@ void lpcomstat(uint8_t blenum) {
 	ptr->t_last_us = ~ptr->t_last_us;
 	break;
 
+	case 25:	//boil time
+	ptr->r4slpres = 1;
+        ptr->bprevBlTime = 128;
+	m171sBlTm(blenum, ptr->r4slppar1);
+	ptr->r4slpcom = 0;
+	ptr->t_last_us = ~ptr->t_last_us;
+	break;
+
 	case 63:	//weather calibrate
         MqState(blenum);
 	ptr->r4slpres = 1;
@@ -13049,6 +13209,9 @@ void app_main(void)
 	BleDevStA.bCVoll = 0;
 	BleDevStB.bCVoll = 0;
 	BleDevStC.bCVoll = 0;
+	BleDevStA.bBlTime = 0;
+	BleDevStB.bBlTime = 0;
+	BleDevStC.bBlTime = 0;
 	memset (BleMR,0,sizeof(BleMR));
 	memset (BleMX,0,sizeof(BleMX));
 	foffln = 0;
@@ -13134,7 +13297,7 @@ void app_main(void)
 	nvs_get_str(my_handle,"sreqnmc", BleDevStC.REQ_NAME,&nvsize);
 	nvsize = sizeof(BleMR);
 	nvs_get_blob(my_handle,"sblemd",  BleMR,&nvsize);
-
+	if (nvsize != sizeof(BleMR)) memset (BleMR,0,sizeof(BleMR));
 	nvsize = 50;
 	nvs_get_str(my_handle, "auth", AUTH_BASIC, &nvsize);
 
