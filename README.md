@@ -5,7 +5,7 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 > **Шлюз использует Mqtt, что позволяет ему работать с практически всеми системами умного дома. Отображаемая на экране дополнительная информация также берется с Mqtt. Любителей ESPHome прошу не спамить в issues, а искать другие решения - портирование в ESPHome не планируется.**<br> 
 > **После прошивки с версии 2021.03.25 на более свежие проверяйте типы устройств. Из-за добавления 170 модели все сдвинулось.<br>**
 
-#### [Текущая версия 2022.04.28](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/build/r4sGate.bin).
+#### [Текущая версия 2022.04.28](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin).
 * 2022.04.28. Переделан еще раз вывод меток в Mqtt и Home Assistant Discovery.  Добавлена поддержка [ATC_MiThermometer с прошивкой от pvvx в режиме custom](https://github.com/pvvx/ATC_MiThermometer). После обновления рекомендую выбрать в настройках Delete Mqtt Topics и Format NVS Area. Увеличено до 32 символов поле сервера Mqtt.
 * 2022.04.27. Переделан вывод меток в Mqtt и Home Assistant Discovery. Добавлена поддержка  BLE меток приложения Home Assistant на смартфонах. После обновления рекомендую выбрать в настройках Format NVS Area. Поправлено обновление прошивки для macos/ios устройств, проверено пока только на iPhone.
 * 2022.04.26. Добавлена регулировка времени кипения чайника. Регулировать можно только при выключенном чайнике.
