@@ -249,6 +249,18 @@ uint8_t  state;
 uint8_t  prstate;
 int8_t   rssi;
 int8_t   prrssi;
+int16_t  par1;
+int16_t  par2;
+int16_t  par3;
+int16_t  par4;
+int16_t  par5;
+int16_t  par6;
+int16_t  ppar1;
+int16_t  ppar2;
+int16_t  ppar3;
+int16_t  ppar4;
+int16_t  ppar5;
+int16_t  ppar6;
 };
 
 
@@ -287,7 +299,7 @@ char MQTT_BASE_TOPIC[8];                    // r4s
 char FND_NAME[16];                           // last founded device name
 char FND_ADDR[16];                           // last founded device addr
 char FND_ADDRx[32];                           // last founded device addr incl :
-char MQTT_USER[16];                         // MQTT Server user
+char MQTT_USER[33];                         // MQTT Server user
 char MQTT_PASSWORD[20];                     // MQTT Server password
 char MQTT_SERVER[20];                       // MQTT Server
 char WIFI_SSID[33];                         // network SSID for ESP32 to connect to
@@ -315,6 +327,7 @@ char MyJPGbuf[MyJPGbuflen];
 
 int32_t MyJPGbufidx = 0;
 char tESP32Addr[16];                        //esp mac
+char tESP32Addr1[32];                       //esp mac
 
 char AUTH_BASIC[51];
 
