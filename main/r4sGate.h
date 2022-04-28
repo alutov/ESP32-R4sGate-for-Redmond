@@ -299,9 +299,9 @@ char MQTT_BASE_TOPIC[8];                    // r4s
 char FND_NAME[16];                           // last founded device name
 char FND_ADDR[16];                           // last founded device addr
 char FND_ADDRx[32];                           // last founded device addr incl :
-char MQTT_USER[33];                         // MQTT Server user
+char MQTT_USER[16];                         // MQTT Server user
 char MQTT_PASSWORD[20];                     // MQTT Server password
-char MQTT_SERVER[20];                       // MQTT Server
+char MQTT_SERVER[33];                       // MQTT Server
 char WIFI_SSID[33];                         // network SSID for ESP32 to connect to
 char WIFI_PASSWORD[65];                     // password for the network above
 

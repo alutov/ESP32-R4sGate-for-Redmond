@@ -12041,12 +12041,12 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (WIFI_PASSWORD[0]) strcat(bsend,WIFI_PASSWORD);
 	strcat(bsend,"\"size=\"31\">Password</br><h3>MQTT Setting</h3><br/><input name=\"smqsrv\" value=\"");
 	if (MQTT_SERVER[0]) strcat(bsend,MQTT_SERVER);
-	strcat(bsend,"\"size=\"19\">Server &emsp;<input name=\"smqprt\" type=\"number\" value=\"");
+	strcat(bsend,"\"size=\"32\">Server &emsp;<input name=\"smqprt\" type=\"number\" value=\"");
 	itoa(mqtt_port,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"65535\" size=\"5\">Port &emsp;<input name=\"smqid\" value=\"");
 	if (MQTT_USER[0]) strcat(bsend,MQTT_USER);
-	strcat(bsend,"\"size=\"32\">Login &emsp;<input type=\"password\" input name=\"smqpsw\" value=\"");
+	strcat(bsend,"\"size=\"15\">Login &emsp;<input type=\"password\" input name=\"smqpsw\" value=\"");
 	if (MQTT_PASSWORD[0]) strcat(bsend,MQTT_PASSWORD);
 	strcat(bsend,"\"size=\"19\">Password</br><input type=\"checkbox\" name=\"chk1\" value=\"1\"");
 	if (FDHass) strcat(bsend,"checked");
@@ -12252,9 +12252,9 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	strcpy(buf2,"swfpsw");
 	parsuri(buf1,WIFI_PASSWORD,buf2,1024,65);
 	strcpy(buf2,"smqsrv");
-	parsuri(buf1,MQTT_SERVER,buf2,1024,20);
+	parsuri(buf1,MQTT_SERVER,buf2,1024,32);
 	strcpy(buf2,"smqid");
-	parsuri(buf1,MQTT_USER,buf2,1024,32);
+	parsuri(buf1,MQTT_USER,buf2,1024,16);
 	strcpy(buf2,"smqpsw");
 	parsuri(buf1,MQTT_PASSWORD,buf2,1024,20);
 	strcpy(buf2,"smtopp1");
@@ -13553,9 +13553,9 @@ void app_main(void)
 	nvs_get_str(my_handle,"swfid", WIFI_SSID,&nvsize);
 	nvsize = 64;
 	nvs_get_str(my_handle,"swfpsw", WIFI_PASSWORD,&nvsize);
-	nvsize = 20;
-	nvs_get_str(my_handle,"smqsrv", MQTT_SERVER,&nvsize);
 	nvsize = 32;
+	nvs_get_str(my_handle,"smqsrv", MQTT_SERVER,&nvsize);
+	nvsize = 16;
 	nvs_get_str(my_handle,"smqid", MQTT_USER,&nvsize);
 	nvsize = 20;
 	nvs_get_str(my_handle,"smqpsw", MQTT_PASSWORD,&nvsize);
