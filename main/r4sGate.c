@@ -7,7 +7,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.04.26"
+#define AP_VER "2022.04.27"
 
 
 #include "r4sGate.h"
@@ -3471,7 +3471,9 @@ if (p_data->read.handle == 0x2a) {
 
 }
 
-//*** Gap event handler ************************
+//*** Gattc event handler end ********************
+
+//*** Gap event handler **************************
 static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 {
     uint8_t *adv_name = NULL;
@@ -3783,9 +3785,14 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 // blemon
 	if (ble_mon) {
 	uint8_t i = 0;
+	uint8_t id = 1;
 	uint8_t found = 0;
+	if ((scan_result->scan_rst.adv_data_len > 21) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x1a\xff\x4c\x00\x02\x15",6)) id = 2;
+
 	while ((i < BleMonNum) && (!found)) {
-      	if (!memcmp(BleMR[i].mac, scan_result->scan_rst.bda, 6)) {
+	if (BleMR[i].id == id) {
+      	if (((id == 1) && !memcmp(BleMR[i].mac, scan_result->scan_rst.bda, 6)) ||
+ 		((id == 2) && !memcmp(BleMR[i].mac, &scan_result->scan_rst.ble_adv[6], 16))) {
 	BleMX[i].state = 1;
 	if (!BleMX[i].ttick) t_lasts_us = ~t_lasts_us;
         if (BleMR[i].sto) {
@@ -3805,6 +3812,7 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	else memset(BleMX[i].scrsp,0,32);
 	found = 1;
 	}
+	}
 	i++;
 	}
 	i = 0;
@@ -3815,7 +3823,9 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	BleMX[i].mto = 0;
         BleMX[i].ttick = BleMonDefTO;
 	BleMX[i].rssi = scan_result->scan_rst.rssi;
-        memcpy(BleMR[i].mac, scan_result->scan_rst.bda, 6);
+        if (id == 1) memcpy(BleMR[i].mac, scan_result->scan_rst.bda, 6);
+        else if (id == 2) memcpy(BleMR[i].mac, &scan_result->scan_rst.ble_adv[6], 16);
+	BleMR[i].id = id;
 	if (adv_name_len) mystrcpy(BleMX[i].name, (char *)adv_name,  15);
 	else memset(BleMX[i].name,0,16);
 	memset(BleMX[i].advdat,0,32);
@@ -3928,6 +3938,7 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
         break;
     }
 }
+//*** Gap event handler end **********************
 
 static void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param)
 {
@@ -6697,14 +6708,15 @@ void msStatus(uint8_t blenum) {
 void MqSState() {
 	if (mqtdel) return;
 	int64_t t_mqt_us = esp_timer_get_time();
-	char ldata[64];
-	char tmpvar[32]; 
+	char ldata[128];
+	char tmpvar[64]; 
 
 	for (int i = 0; i < BleMonNum; i++) {
 	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].state != BleMX[i].prstate)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
-	strcat(ldata,"/BleDev");
-       	itoa(i+1,tmpvar,10);
+	strcat(ldata,"/");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(ldata,tmpvar);
 	strcat(ldata,"/state");
 	if (!BleMX[i].state) esp_mqtt_client_publish(mqttclient, ldata, strOFF, 0, 1, 1);
@@ -6713,8 +6725,9 @@ void MqSState() {
 	}
 	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].rssi != BleMX[i].prrssi)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
-	strcat(ldata,"/BleDev");
-       	itoa(i+1,tmpvar,10);
+	strcat(ldata,"/");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(ldata,tmpvar);
 	strcat(ldata,"/rssi");
         itoa(BleMX[i].rssi,tmpvar,10);
@@ -8681,7 +8694,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
         BleMX[i].prrssi = 255;
 	}
 
-	char llwtt[64];
+	char llwtt[128];
 	char llwtd[512];
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/status");
@@ -9069,31 +9082,32 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	}
 
 	if (ble_mon) {
-	char tmpvar[32];
+	char tmpvar[64];
 	for (int i = 0; i < BleMonNum; i++) {
 	if(BleMR[i].sto) {
 //
 	strcpy(llwtt,"homeassistant/device_tracker/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
-	strcat(llwtt,"/1");
-       	itoa(i+1,tmpvar,10);
+	strcat(llwtt,"/1x");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtt,tmpvar);
-	strcat(llwtt,"x");
-	strcat(llwtt,tESP32Addr);
 	strcat(llwtt,"/config");
 	llwtd[0] = 0;
 //	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 	strcpy(llwtd,"{\"name\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,".Gate.BleDev");
-       	itoa(i+1,tmpvar,10);
+	strcat(llwtd,".");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
-	strcat(llwtd,".state\",\"icon\":\"mdi:tag\",\"uniq_id\":\"bdev");
-       	itoa(i+1,tmpvar,10);
+	strcat(llwtd,".state\",\"icon\":\"mdi:tag\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
-	strcat(llwtd,"state_");
-	strcat(llwtd,tESP32Addr);
-	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
+	strcat(llwtd,"_state\",\"device\":{\"identifiers\":[\"ESP32_");
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\"],\"name\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
@@ -9105,8 +9119,9 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	}
 	strcat(llwtd,"\",\"manufacturer\":\"Espressif\"},\"state_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/BleDev");
-       	itoa(i+1,tmpvar,10);
+	strcat(llwtd,"/");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"/state\",\"payload_home\":\"ON\",\"payload_not_home\":\"OFF\",\"availability_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
@@ -9115,25 +9130,26 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 //
 	strcpy(llwtt,"homeassistant/sensor/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
-	strcat(llwtt,"/1");
-       	itoa(i+1,tmpvar,10);
+	strcat(llwtt,"/1x");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtt,tmpvar);
-	strcat(llwtt,"x");
-	strcat(llwtt,tESP32Addr);
 	strcat(llwtt,"/config");
 	llwtd[0] = 0;
 //	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 	strcpy(llwtd,"{\"name\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,".Gate.BleDev");
-       	itoa(i+1,tmpvar,10);
+	strcat(llwtd,".");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
-	strcat(llwtd,".rssi\",\"icon\":\"mdi:bluetooth\",\"uniq_id\":\"bdev");
-       	itoa(i+1,tmpvar,10);
+	strcat(llwtd,".rssi\",\"icon\":\"mdi:bluetooth\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
-	strcat(llwtd,"state_");
-	strcat(llwtd,tESP32Addr);
-	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
+	strcat(llwtd,"_rssi\",\"device\":{\"identifiers\":[\"ESP32_");
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\"],\"name\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
@@ -9145,8 +9161,9 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	}
 	strcat(llwtd,"\",\"manufacturer\":\"Espressif\"},\"state_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/BleDev");
-       	itoa(i+1,tmpvar,10);
+	strcat(llwtd,"/");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"/rssi\",\"unit_of_meas\":\"dBm\",\"availability_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
@@ -11478,14 +11495,26 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend,"<a class='menu' href='update'>&#10548;<span class='showmenulabel'>Load firmware</span></a></div>");
 
 	strcat(bsend,"</header><body><form method=\"POST\" action=\"/blemonok\"  id=\"frm1\"><table class='normal' width='80%'>");
-	strcat(bsend,"<tr class=\"header\"><th width='50px' align='left'>Pos</th><th width='120px' align='left'>MAC</th><th width='150px' align='left'>Name</th><th width='70px' align='left''>RSSI</th><th width='70px' align='left''>Gap</th><th width='70px' align='left''>Last</th><th width='700px' align='left'>Advanced Data / Scan Response</th><th width='150px' align='left''>Timeout</tr>");
+	strcat(bsend,"<tr class=\"header\"><th width='50px' align='left'>Pos</th><th width='200px' align='left'>ID</th><th width='150px' align='left'>Name</th><th width='70px' align='left''>RSSI</th><th width='70px' align='left''>Gap</th><th width='70px' align='left''>Last</th><th width='700px' align='left'>Advanced Data / Scan Response</th><th width='150px' align='left''>Timeout</tr>");
 	for (int i=0; i < BleMonNum; i++) {
 	(i & 1)? strcat(bsend,"<tr><td class='xbg'>") : strcat(bsend,"<tr><td>");
 	itoa(i+1,buff,10);
 	strcat(bsend,buff);	
 	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
+	buff[0] = 0;
+	if (BleMR[i].id == 1) {
+	strcat(bsend,"mac: ");	
 	bin2hex(BleMR[i].mac,buff,6,0x3a);
 	strcat(bsend,buff);	
+	} else if (BleMR[i].id == 2) {
+	strcat(bsend,"uuid: ");	
+	bin2hex(BleMR[i].mac,buff,4,0);
+	strcat(bsend,buff);	
+	strcat(bsend,"-");	
+	bin2hex(&BleMR[i].mac[4],buff,2,0);
+	strcat(bsend,buff);	
+	strcat(bsend,"-");	
+	}
 	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
 	memset(buff,0,16);
 	mystrcpy(buff,BleMX[i].name,15);
@@ -11532,7 +11561,18 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"6500\" size=\"4\">s");
 
-	(i & 1)? strcat(bsend,"</td></tr><tr><td class='xbg'></td><td class='xbg'></td><td class='xbg'></td><td class='xbg'></td><td class='xbg'></td><td class='xbg'></td><td class='xbg'>") : strcat(bsend,"</td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td>");
+	(i & 1)? strcat(bsend,"</td></tr><tr><td class='xbg'></td><td class='xbg'>") : strcat(bsend,"</td></tr><tr><td></td><td>");
+	if (BleMR[i].id == 2) {
+	bin2hex(&BleMR[i].mac[6],buff,2,0);
+	strcat(bsend,buff);	
+	strcat(bsend,"-");	
+	bin2hex(&BleMR[i].mac[8],buff,2,0);
+	strcat(bsend,buff);	
+	strcat(bsend,"-");	
+	bin2hex(&BleMR[i].mac[10],buff,6,0);
+	strcat(bsend,buff);	
+	}
+	(i & 1)? strcat(bsend,"</td><td class='xbg'></td><td class='xbg'></td><td class='xbg'></td><td class='xbg'></td><td class='xbg'>") : strcat(bsend,"</td><td></td><td></td><td></td><td></td><td>");
 
 
 	if(BleMX[i].scrsplen) {
@@ -12577,8 +12617,9 @@ ESP_LOGI(AP_TAG, "Buff: %s",otabuf);
 	mystrcpy(filnam, otabuf+otabufoffs, 127);
 // search for data begin
 	otabufoffs = parsoff(otabuf,"application/octet-stream\r\n\r\n", otabufsize);
+	if (!otabufoffs) otabufoffs = parsoff(otabuf,"application/macbinary\r\n\r\n", otabufsize);
 	if (!otabufoffs) {
-	ESP_LOGE(AP_TAG, "application/octet-stream not found");
+	ESP_LOGE(AP_TAG, "application/octet-stream or application/macbinary not found");
 	ota_running = false;
 	otabufoffs = 0;
 	data_read = 0;
