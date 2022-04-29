@@ -7,7 +7,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.04.28"
+#define AP_VER "2022.04.29"
 
 
 #include "r4sGate.h"
@@ -324,7 +324,7 @@ static void hw_timer_callback(void *arg)
 	BleMX[i].ttick--;
 	if (!BleMX[i].ttick) {
 	t_lasts_us = ~t_lasts_us;
-        BleMX[i].advdatlen = 0;
+	BleMX[i].advdatlen = 0;
 	BleMX[i].scrsplen = 0;
 	BleMX[i].state = 0;
 	BleMX[i].rssi = 0;
@@ -3267,7 +3267,14 @@ if (p_data->read.handle == 0x2a) {
         uint8_t xiv_char_data[12] = { 0x55,0x00,0xff,0xb6,0x2c,0x27,0xb3,0xb8,0xac,0x5a,0xef,0xaa};  //auth string
 	xiv_char_data[3] = xiv_char_data[3] + blenum;  //for each position number different auth id
 	xiv_char_data[5] = xiv_char_data[5] + R4SNUM;  //for each gate number different auth id
-
+	if (macauth) {                                 // for each esp32 different auth id
+        xiv_char_data[4] = binblemac [0];
+        xiv_char_data[6] = binblemac [1];
+        xiv_char_data[7] = binblemac [2];
+        xiv_char_data[8] = binblemac [3];
+        xiv_char_data[9] = binblemac [4];
+        xiv_char_data[10] = binblemac [5];
+	}
 	mixA(gl_profile_tab[blenum].remote_bda, buff1, ptr->MiKettleID);
 	cipherInit(buff1, bufftab, 8);
 	cipherCrypt(p_data->notify.value, buff2, bufftab, 12);
@@ -3387,6 +3394,14 @@ if (p_data->read.handle == 0x2a) {
         uint8_t write_char_data[12] = { 0x55,0x00,0xff,0xb6,0x2c,0x27,0xb3,0xb8,0xac,0x5a,0xef,0xaa};  //auth string
 	write_char_data[3] = write_char_data[3] + blenum;  //for each position number different auth id
 	write_char_data[5] = write_char_data[5] + R4SNUM;  //for each gate number different auth id
+	if (macauth) {                                 // for each esp32 different auth id
+        write_char_data[4] = binblemac [0];
+        write_char_data[6] = binblemac [1];
+        write_char_data[7] = binblemac [2];
+        write_char_data[8] = binblemac [3];
+        write_char_data[9] = binblemac [4];
+        write_char_data[10] = binblemac [5];
+	}
 	if ((ptr->DEV_TYP < 64) || !ptr->xbtauth) {
 	if (ptr->DEV_TYP > 63) {
         write_char_data[0] = 0x90;
@@ -3795,7 +3810,7 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	uint8_t found = 0;
 	if ((scan_result->scan_rst.adv_data_len > 21) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x1a\xff\x4c\x00\x02\x15",6)) id = 2;
 	else if ((scan_result->scan_rst.adv_data_len > 17) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x12\x16\x1a\x18",4)) id = 3;
-	else if ((scan_result->scan_rst.adv_data_len > 18) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x13\x16\x1a\x18",4)) id = 3;
+	else if ((scan_result->scan_rst.adv_data_len > 15) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x10\x16\x1a\x18",4)) id = 3;
 
 	while ((i < BleMonNum) && (!found)) {
 	if (BleMR[i].id == id) {
@@ -3819,12 +3834,20 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	if (BleMX[i].scrsplen) memcpy(BleMX[i].scrsp, &scan_result->scan_rst.ble_adv[scan_result->scan_rst.adv_data_len], BleMX[i].scrsplen);
 	else memset(BleMX[i].scrsp,0,32);
 	if (id == 3) {
+	if (BleMX[i].advdat[0] < 0x12) {
+        BleMX[i].par1 = (BleMX[i].advdat[10] + (BleMX[i].advdat[11] << 8)) * 10;
+        BleMX[i].par2 = BleMX[i].advdat[12] * 100;
+        BleMX[i].par3 = BleMX[i].advdat[14] + (BleMX[i].advdat[15] << 8);
+        BleMX[i].par4 = BleMX[i].advdat[13];
+        BleMX[i].par5 = BleMX[i].advdat[16];
+	} else {
         BleMX[i].par1 = BleMX[i].advdat[10] + (BleMX[i].advdat[11] << 8);
         BleMX[i].par2 = BleMX[i].advdat[12] + (BleMX[i].advdat[13] << 8);
         BleMX[i].par3 = BleMX[i].advdat[14] + (BleMX[i].advdat[15] << 8);
         BleMX[i].par4 = BleMX[i].advdat[16];
         BleMX[i].par5 = BleMX[i].advdat[17];
         BleMX[i].par6 = BleMX[i].advdat[18];
+	}
 	}
 	found = 1;
 	}
@@ -3852,12 +3875,20 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	if (BleMX[i].scrsplen) memcpy(BleMX[i].scrsp, &scan_result->scan_rst.ble_adv[scan_result->scan_rst.adv_data_len], BleMX[i].scrsplen);
 	found = 1;
 	if (id == 3) {
+	if (BleMX[i].advdat[0] < 0x12) {
+        BleMX[i].par1 = (BleMX[i].advdat[10] + (BleMX[i].advdat[11] << 8)) * 10;
+        BleMX[i].par2 = BleMX[i].advdat[12] * 100;
+        BleMX[i].par3 = BleMX[i].advdat[14] + (BleMX[i].advdat[15] << 8);
+        BleMX[i].par4 = BleMX[i].advdat[13];
+        BleMX[i].par5 = BleMX[i].advdat[16];
+	} else {
         BleMX[i].par1 = BleMX[i].advdat[10] + (BleMX[i].advdat[11] << 8);
         BleMX[i].par2 = BleMX[i].advdat[12] + (BleMX[i].advdat[13] << 8);
         BleMX[i].par3 = BleMX[i].advdat[14] + (BleMX[i].advdat[15] << 8);
         BleMX[i].par4 = BleMX[i].advdat[16];
         BleMX[i].par5 = BleMX[i].advdat[17];
         BleMX[i].par6 = BleMX[i].advdat[18];
+	}
 	}
 	}
 	i++;
@@ -6775,10 +6806,14 @@ void MqSState() {
         itoa(var1 / 100,tmpvar1,10);
 	strcat(tmpvar,tmpvar1);
 	var1 = var1 % 100;
+	if (var1) {
 	strcat(tmpvar,".");
+	if (var1 % 10) {
 	if (var1 < 10) strcat (tmpvar,"0");
+	} else var1 = var1 / 10;
         itoa(var1,tmpvar1,10);
 	strcat(tmpvar,tmpvar1);
+	}
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	BleMX[i].ppar1 = BleMX[i].par1;
 	}
@@ -6792,10 +6827,14 @@ void MqSState() {
         itoa(var1 / 100,tmpvar1,10);
 	strcpy(tmpvar,tmpvar1);
 	var1 = var1 % 100;
+	if (var1) {
 	strcat(tmpvar,".");
+	if (var1 % 10) {
 	if (var1 < 10) strcat (tmpvar,"0");
+	} else var1 = var1 / 10;
         itoa(var1,tmpvar1,10);
 	strcat(tmpvar,tmpvar1);
+	}
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	BleMX[i].ppar2 = BleMX[i].par2;
 	}
@@ -9199,12 +9238,12 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
-        if (BleMR[i].id == 3) strcat(llwtd,"ATC_Thermometer LYWSD03MMC");
+        if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
         if (BleMR[i].id == 2) strcat(llwtd,"HA beacon");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx");
-        if (BleMR[i].id == 2) strcat(llwtd,"HA mobile");
+        if (BleMR[i].id == 2) strcat(llwtd,"Android / iOS");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
@@ -9249,12 +9288,12 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
-        if (BleMR[i].id == 3) strcat(llwtd,"ATC_Thermometer LYWSD03MMC");
+        if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
         if (BleMR[i].id == 2) strcat(llwtd,"HA beacon");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx");
-        if (BleMR[i].id == 2) strcat(llwtd,"HA mobile");
+        if (BleMR[i].id == 2) strcat(llwtd,"Android / iOS");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
@@ -12072,13 +12111,16 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"\"size=\"32\">Outdoor Temp &ensp;<input name=\"smtopp7\" value=\"");
 	if (MQTT_TOPP7[0]) strcat(bsend,MQTT_TOPP7);
 	strcat(bsend,"\"size=\"32\">Outdoor Humidity</br>");
-	strcat(bsend,"<h3>Devices Setting</h3><br/>");
+	strcat(bsend,"<h3>Devices Setting</h3></br>");
 
 	HtpDeVSett(0, bsend);
 	HtpDeVSett(1, bsend);
 	HtpDeVSett(2, bsend);
 
-	strcat(bsend, "<h3>System Setting</h3><br/>");
+	strcat(bsend,"<input type=\"checkbox\" name=\"chk8\" value=\"8\"");
+	if (macauth) strcat(bsend,"checked");
+	strcat(bsend,"> Use MAC in BLE Authentication</br>");
+	strcat(bsend, "<h3>System Setting</h3></br>");
 
 	strcat(bsend, "<input name=\"auth\" type=\"text\" value=\"");
 	if (AUTH_BASIC[0])
@@ -12372,6 +12414,11 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	foffln = 0;
 	if (buf3[0] == 0x37) foffln = 1;
 	buf3[0] = 0;
+	strcpy(buf2,"chk8");
+	parsuri(buf1,buf3,buf2,1024,2);
+	macauth = 0;
+	if (buf3[0] == 0x38) macauth = 1;
+	buf3[0] = 0;
 	strcpy(buf2,"chk0");
 	parsuri(buf1,buf3,buf2,1024,2);
 	if (buf3[0] == 0x30) {
@@ -12650,6 +12697,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	nvs_set_u8(my_handle,  "chk5",  ble_mon);
 	nvs_set_u8(my_handle,  "chk6",  tft_conf);
 	nvs_set_u8(my_handle,  "chk7",  foffln);
+	nvs_set_u8(my_handle,  "chk8",  macauth);
 	nvs_set_u8(my_handle, "pnmiso", PIN_NUM_MISO);
 	nvs_set_u8(my_handle, "pnmosi", PIN_NUM_MOSI);
 	nvs_set_u8(my_handle, "pnclk", PIN_NUM_CLK);
@@ -13386,6 +13434,7 @@ void app_main(void)
 	s_retry_num = 0;
 	f_update = false;
 	mqtdel  = 0;
+	macauth  = 0;
 	R4SNUM = 0;
 	R4SNUMO = 0;
 	BleDevStA.r4sAuthCount = 0;
@@ -13547,6 +13596,7 @@ void app_main(void)
 	nvs_get_u8(my_handle, "chk5",   &ble_mon);
 	nvs_get_u8(my_handle, "chk6",   &tft_conf);
 	nvs_get_u8(my_handle, "chk7",   &foffln);
+	nvs_get_u8(my_handle, "chk8",   &macauth);
 	nvs_get_u8(my_handle, "timzon", &TimeZone);
 	nvs_get_u8(my_handle, "r4snum", &R4SNUM);
 	size_t nvsize = 32;
@@ -13804,11 +13854,11 @@ to get MSK (GMT + 3) I need to write GMT-3
 	sntp_setservername(0, "pool.ntp.org");
 	sntp_init();
 // get esp mac addr 
-	uint8_t macbuf[8];
         tESP32Addr[0] = 0;
-	esp_read_mac(macbuf,0);
-	bin2hex(macbuf, tESP32Addr,6,0);
-	bin2hex(macbuf, tESP32Addr1,6,0x3a);
+        tESP32Addr1[0] = 0;
+	esp_read_mac(binwfmac,0);
+	bin2hex(binwfmac, tESP32Addr,6,0);
+	bin2hex(binwfmac, tESP32Addr1,6,0x3a);
 	itoa(R4SNUM,tzbuf,10);
 	strcat (tESP32Addr,tzbuf);
 

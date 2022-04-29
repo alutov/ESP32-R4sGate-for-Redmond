@@ -295,6 +295,7 @@ esp_mqtt_client_handle_t mqttclient;
 char strOFF[8];
 char strON[8];
 uint8_t binblemac [8];
+uint8_t binwfmac [8];
 char MQTT_BASE_TOPIC[8];                    // r4s
 char FND_NAME[16];                           // last founded device name
 char FND_ADDR[16];                           // last founded device addr
@@ -333,7 +334,6 @@ char AUTH_BASIC[51];
 
 uint8_t R4SNUM = 0;                         //r4s number
 uint8_t R4SNUMO = 0;                        //r4s number
-//uint8_t r4ststat = 0;                     //timer?
 uint8_t r4sppcoms = 0;
 uint16_t bStateS = 0;
 uint16_t bprevStateS = 0;
@@ -346,6 +346,7 @@ int64_t t_tinc_us = 0;
 
 uint8_t foffln  = 0;
 uint8_t mqtdel  = 0;
+uint8_t macauth  = 0;
 int floop = 0;
 
 //static uint8_t r4sAuth[8] = { 0xb6, 0x2c, 0x27, 0xb3, 0xb8, 0xac, 0x5a, 0xef };
