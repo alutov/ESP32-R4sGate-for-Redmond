@@ -1,4 +1,3 @@
-
 /* 
 ****************************************************************
 	ESP32 r4sGate for Redmond+ main
@@ -11776,15 +11775,17 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	bin2hex(&BleMR[i].mac[4],buff,2,0);
 	strcat(bsend,buff);	
 	strcat(bsend,"-");	
-	} else if (BleMR[i].id != 2) {
+	} else if (BleMR[i].id) {
 	strcat(bsend,"mac: ");	
 	bin2hex(BleMR[i].mac,buff,6,0x3a);
 	strcat(bsend,buff);	
 	}
 	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
 	memset(buff,0,16);
+	if (BleMR[i].id) {
 	mystrcpy(buff,BleMX[i].name,15);
 	strcat(bsend,buff);	
+	}
 	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
 	if (BleMX[i].rssi) {
 	itoa(BleMX[i].rssi,buff,10);
@@ -11890,6 +11891,7 @@ static esp_err_t pblemonok_get_handler(httpd_req_t *req)
 	char buf1[512] = {0};
 	char buf2[16] = {0};
 	char buf3[16] = {0};
+	uint16_t var = 0;
 	int  ret;
 	ret = httpd_req_recv(req,buf1,512);
 	if ( ret > 0 ) {
@@ -11907,12 +11909,16 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	strcat(buf2,buf3);
 	buf3[0] = 0;
 	parsuri(buf1,buf3,buf2,512,5);
-	if (buf3[0]) BleMR[i].sto = atoi(buf3) * 10;
+	if (buf3[0]) {
+	var = atoi(buf3) * 10;
+	BleMR[i].sto = var;
+	if (var && (BleMX[i].ttick > var)) BleMX[i].ttick = var;
+	}
 	}
 	buf3[0] = 0;
 	strcpy(buf2,"blmarfr");
 	parsuri(buf1,buf3,buf2,512,2);
-	ble_mon_refr = atoi(buf3);
+	if (buf3[0]) ble_mon_refr = atoi(buf3);
 	}
 	httpd_resp_set_status(req, "303 See Other");
 	httpd_resp_set_hdr(req, "Location", "/blemon");
@@ -12050,7 +12056,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 		return ESP_OK;
 	}
 
-	char bsend[14200];
+	char bsend[14800];
         char buff[32];
 	strcpy(bsend,"<!DOCTYPE html><html>");
 	strcat(bsend,"<head><title>r4sGate</title>");
@@ -12662,7 +12668,11 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	}
 	}
 
-
+	for (int i = 0; i < BleMonNum; i++) {
+        if (!BleMR[i].sto) {
+	memset(&BleMR[i],0,sizeof(BleMR[i]));
+	}
+	}
 // write nvs
 	nvs_handle_t my_handle;
 	ret = nvs_open("storage", NVS_READWRITE, &my_handle);

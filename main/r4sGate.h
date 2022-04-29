@@ -115,7 +115,7 @@
 #define BLE_INPUT_BUFFSIZE 64
 #define cStatus_len 128
 #define otabufsize 2048
-#define BleMonNum 8
+#define BleMonNum 10
 #define BleMonDefTO 3000
 
 
