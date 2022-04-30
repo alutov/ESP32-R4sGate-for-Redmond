@@ -3807,9 +3807,9 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	uint8_t i = 0;
 	uint8_t id = 1;
 	uint8_t found = 0;
-	if ((scan_result->scan_rst.adv_data_len > 21) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x1a\xff\x4c\x00\x02\x15",6)) id = 2;
-	else if ((scan_result->scan_rst.adv_data_len > 17) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x12\x16\x1a\x18",4)) id = 3;
-	else if ((scan_result->scan_rst.adv_data_len > 15) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x10\x16\x1a\x18",4)) id = 3;
+	if ((scan_result->scan_rst.adv_data_len > 26) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x1a\xff\x4c\x00\x02\x15",6)) id = 2;
+	else if ((scan_result->scan_rst.adv_data_len > 18) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x12\x16\x1a\x18",4)) id = 3;
+	else if ((scan_result->scan_rst.adv_data_len > 16) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x10\x16\x1a\x18",4)) id = 3;
 
 	while ((i < BleMonNum) && (!found)) {
 	if (BleMR[i].id == id) {
@@ -3834,9 +3834,14 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	else memset(BleMX[i].scrsp,0,32);
 	if (id == 3) {
 	if (BleMX[i].advdat[0] < 0x12) {
-        BleMX[i].par1 = (BleMX[i].advdat[10] + (BleMX[i].advdat[11] << 8)) * 10;
+        BleMX[i].par1 = BleMX[i].advdat[11] + (BleMX[i].advdat[10] << 8);
+        if (BleMX[i].par1 & 0x8000) {
+        BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+        BleMX[i].par1 = BleMX[i].par1 * 10;
+        BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) - 1;
+        } else BleMX[i].par1 = BleMX[i].par1 * 10;
         BleMX[i].par2 = BleMX[i].advdat[12] * 100;
-        BleMX[i].par3 = BleMX[i].advdat[14] + (BleMX[i].advdat[15] << 8);
+        BleMX[i].par3 = BleMX[i].advdat[15] + (BleMX[i].advdat[14] << 8);
         BleMX[i].par4 = BleMX[i].advdat[13];
         BleMX[i].par5 = BleMX[i].advdat[16];
 	} else {
@@ -3875,9 +3880,14 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	found = 1;
 	if (id == 3) {
 	if (BleMX[i].advdat[0] < 0x12) {
-        BleMX[i].par1 = (BleMX[i].advdat[10] + (BleMX[i].advdat[11] << 8)) * 10;
+        BleMX[i].par1 = BleMX[i].advdat[11] + (BleMX[i].advdat[10] << 8);
+        if (BleMX[i].par1 & 0x8000) {
+        BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+        BleMX[i].par1 = BleMX[i].par1 * 10;
+        BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) - 1;
+        } else BleMX[i].par1 = BleMX[i].par1 * 10;
         BleMX[i].par2 = BleMX[i].advdat[12] * 100;
-        BleMX[i].par3 = BleMX[i].advdat[14] + (BleMX[i].advdat[15] << 8);
+        BleMX[i].par3 = BleMX[i].advdat[15] + (BleMX[i].advdat[14] << 8);
         BleMX[i].par4 = BleMX[i].advdat[13];
         BleMX[i].par5 = BleMX[i].advdat[16];
 	} else {
@@ -9241,7 +9251,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
         if (BleMR[i].id == 2) strcat(llwtd,"HA beacon");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
-        if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx");
+        if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
         if (BleMR[i].id == 2) strcat(llwtd,"Android / iOS");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
@@ -9291,7 +9301,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
         if (BleMR[i].id == 2) strcat(llwtd,"HA beacon");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
-        if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx");
+        if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
         if (BleMR[i].id == 2) strcat(llwtd,"Android / iOS");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
@@ -9333,9 +9343,9 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
         bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
-        strcat(llwtd,"ATC_Thermometer LYWSD03MMC");
+        strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
 	strcat(llwtd,"\",\"manufacturer\":\"");
-        strcat(llwtd,"Xiaomi & pvvx");
+        strcat(llwtd,"Xiaomi & pvvx & atc1441");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\"},\"device_class\":\"temperature\",\"state_class\":\"measurement\",\"state_topic\":\"");
@@ -9373,9 +9383,9 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
         bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
-        strcat(llwtd,"ATC_Thermometer LYWSD03MMC");
+        strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
 	strcat(llwtd,"\",\"manufacturer\":\"");
-        strcat(llwtd,"Xiaomi & pvvx");
+        strcat(llwtd,"Xiaomi & pvvx & atc1441");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\"},\"device_class\":\"humidity\",\"state_class\":\"measurement\",\"state_topic\":\"");
@@ -9413,9 +9423,9 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
         bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
-        strcat(llwtd,"ATC_Thermometer LYWSD03MMC");
+        strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
 	strcat(llwtd,"\",\"manufacturer\":\"");
-        strcat(llwtd,"Xiaomi & pvvx");
+        strcat(llwtd,"Xiaomi & pvvx & atc1441");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\"},\"device_class\":\"battery\",\"state_class\":\"measurement\",\"state_topic\":\"");
