@@ -3777,14 +3777,16 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	bin2hex(scan_result->scan_rst.bda, FND_ADDR,6,0);
 	bin2hex(scan_result->scan_rst.bda, FND_ADDRx,6,0x3a);
 	FND_RSSI = scan_result->scan_rst.rssi;
-        ESP_LOGI(AP_TAG, "Remote BD_ADDR: %s", FND_ADDRx);
 //	ESP_LOGI(AP_TAG, "searched Adv Data Len %d, Scan Response Len %d", scan_result->scan_rst.adv_data_len, scan_result->scan_rst.scan_rsp_len);
-            adv_name = esp_ble_resolve_adv_data(scan_result->scan_rst.ble_adv,
+	adv_name = esp_ble_resolve_adv_data(scan_result->scan_rst.ble_adv,
                                                 ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
 	memset(devname,0,32);
 	if (adv_name_len && (adv_name_len < 32)) memcpy(devname,adv_name, adv_name_len);
-	ESP_LOGI(AP_TAG, "Rssi %d dBm, Device Name: %s", scan_result->scan_rst.rssi, devname);
 
+//	if ((scan_result->scan_rst.adv_data_len > 16) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x02\x01\x04\x03\x02",5)) {
+
+	ESP_LOGI(AP_TAG, "Remote BD_ADDR: %s", FND_ADDRx);
+	ESP_LOGI(AP_TAG, "Rssi %d dBm, Device Name: %s", scan_result->scan_rst.rssi, devname);
 //#if CONFIG_EXAMPLE_DUMP_ADV_DATA_AND_SCAN_RESP
             if (scan_result->scan_rst.adv_data_len > 0) {
                 ESP_LOGI(AP_TAG, "Adv data:");
@@ -3796,6 +3798,8 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
             }
 //#endif
             ESP_LOGI(AP_TAG, "\n");
+//}
+
 
             if (adv_name_len)  {
             int fnd_namelen = adv_name_len;
@@ -3838,7 +3842,7 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
         if (BleMX[i].par1 & 0x8000) {
         BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
         BleMX[i].par1 = BleMX[i].par1 * 10;
-        BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) - 1;
+        BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
         } else BleMX[i].par1 = BleMX[i].par1 * 10;
         BleMX[i].par2 = BleMX[i].advdat[12] * 100;
         BleMX[i].par3 = BleMX[i].advdat[15] + (BleMX[i].advdat[14] << 8);
@@ -3884,7 +3888,7 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
         if (BleMX[i].par1 & 0x8000) {
         BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
         BleMX[i].par1 = BleMX[i].par1 * 10;
-        BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) - 1;
+        BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
         } else BleMX[i].par1 = BleMX[i].par1 * 10;
         BleMX[i].par2 = BleMX[i].advdat[12] * 100;
         BleMX[i].par3 = BleMX[i].advdat[15] + (BleMX[i].advdat[14] << 8);
