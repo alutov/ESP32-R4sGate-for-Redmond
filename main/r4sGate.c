@@ -3970,8 +3970,8 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	Isscanning = false;
         if (param->scan_stop_cmpl.status != ESP_BT_STATUS_SUCCESS){
             ESP_LOGE(AP_TAG, "Scan stop failed, error status = 0x%X", param->scan_stop_cmpl.status);
-        } else ESP_LOGI(AP_TAG, "Scan stop successfully");
-
+        } else {
+	ESP_LOGI(AP_TAG, "Scan stop successfully");
 	if (!BleDevStA.btopen && BleDevStA.btconnect) {
                         ESP_LOGI(AP_TAG, "Connect 1 to the remote device");
                         esp_ble_gattc_open(gl_profile_tab[PROFILE_A_APP_ID].gattc_if, scan_rsta.scan_rst.bda, scan_rsta.scan_rst.ble_addr_type, true);
@@ -3983,6 +3983,7 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
                         esp_ble_gattc_open(gl_profile_tab[PROFILE_C_APP_ID].gattc_if, scan_rstc.scan_rst.bda, scan_rstc.scan_rst.ble_addr_type, true);
 	} else {
 	start_scan();
+	}
 	}
 	break;
 
@@ -9904,7 +9905,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 	s_retry_num = 0;
 	xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
 //	if (floop && MQTT_SERVER[0]) esp_mqtt_client_start(mqttclient);
-	if (floop && MQTT_SERVER[0]) esp_mqtt_client_reconnect(mqttclient);
+//	if (floop && MQTT_SERVER[0]) esp_mqtt_client_reconnect(mqttclient);
 	NumWfConn++;
 	if (!NumWfConn) NumWfConn--;
 	}
