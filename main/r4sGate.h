@@ -126,7 +126,7 @@
 
 struct BleDevSt {
 int      MiKettleID;
-bool     btconnect;
+bool     btopenreq;
 bool     btopen;
 bool     btauthoriz;
 bool     get_server;
@@ -265,9 +265,9 @@ int16_t  ppar6;
 
 
 
-static bool Isscanning      = false;
-static bool IsPassiveScan   = false;
-static bool StartingScan    = false;
+static bool Isscanning = false;
+static bool IsPassiveScan = false;
+static bool StartStopScanReq = false;
 static uint8_t hwtdiv = 0;
 
 static esp_gattc_char_elem_t *char_elem_result   = NULL;

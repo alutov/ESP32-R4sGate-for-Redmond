@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.04.29"
+#define AP_VER "2022.05.06"
 
 
 #include "r4sGate.h"
@@ -2602,17 +2602,23 @@ static void start_scan(void)
 	esp_err_t scan_ret = 0;
 
 //step 1: set scan only if not update, if not already starting scan or if no connections is opening   
-	if (!f_update && !StartingScan && (!BleDevStA.btconnect || BleDevStA.btopen) && (!BleDevStB.btconnect || BleDevStB.btopen) && (!BleDevStC.btconnect || BleDevStC.btopen)) {
-        if ((ble_mon > 1) || (BleDevStA.REQ_NAME[0] && !BleDevStA.btconnect) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btconnect) ||(BleDevStC.REQ_NAME[0] && !BleDevStC.btconnect)) {
+	if (!f_update && !StartStopScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen)) {
+        if ((ble_mon > 1) || (BleDevStA.REQ_NAME[0] && !BleDevStA.btopenreq) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btopenreq) ||(BleDevStC.REQ_NAME[0] && !BleDevStC.btopenreq)) {
         if (!Isscanning) {
 	scan_ret = esp_ble_gap_set_scan_params(&ble_scan_params);
 	IsPassiveScan = false;
-	} else if (IsPassiveScan) esp_ble_gap_stop_scanning();
+	} else if (IsPassiveScan) {
+	esp_ble_gap_stop_scanning();
+	StartStopScanReq = true;
+	}
 	} else if (ble_mon == 1) {
         if (!Isscanning) {
 	scan_ret = esp_ble_gap_set_scan_params(&ble_pscan_params);
 	IsPassiveScan = true;
-	} else if (!IsPassiveScan) esp_ble_gap_stop_scanning();
+	} else if (!IsPassiveScan) {
+	esp_ble_gap_stop_scanning();
+	StartStopScanReq = true;
+	}
         }
 	if (scan_ret){
 	ESP_LOGE(AP_TAG, "Set scan params error, error code = 0x%X", scan_ret);
@@ -2728,7 +2734,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
 	break;
     case ESP_GATTC_CONNECT_EVT:
-        if (ptr->btconnect && !ptr->btopen) {
+        if (ptr->btopenreq && !ptr->btopen) {
 	if ((ptr->DEV_TYP != 63) || (ptr->r4sAuthCount > 2)) {
 //	if (ptr->DEV_TYP != 63) {
         ESP_LOGI(AP_TAG, "CONNECT_EVT %d, set Bond and Encryption", blenum1);
@@ -2754,7 +2760,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
         if (param->open.status != ESP_GATT_OK) {
 	ESP_LOGE(AP_TAG, "Open %d failed, status %d", blenum1, p_data->open.status);
 	ptr->btopen = false;
-        ptr->btconnect = false;
+        ptr->btopenreq = false;
 	start_scan();
 	break;
         }
@@ -3466,7 +3472,7 @@ if (p_data->read.handle == 0x2a) {
     case ESP_GATTC_DISCONNECT_EVT:
         if (memcmp(p_data->disconnect.remote_bda, gl_profile_tab[blenum].remote_bda, 6) == 0){
 	ptr->btopen = false;
-        ptr->btconnect = false;
+        ptr->btopenreq = false;
         ptr->btauthoriz = false;
         ptr->get_server = false;
         ptr->xbtauth = 0;
@@ -3675,7 +3681,7 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
             break;
         }
         esp_err_t scan_ret = ESP_GATT_OK;
-        if ((ble_mon > 1) || (BleDevStA.REQ_NAME[0] && !BleDevStA.btconnect) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btconnect) ||(BleDevStC.REQ_NAME[0] && !BleDevStC.btconnect)) {
+        if ((ble_mon > 1) || (BleDevStA.REQ_NAME[0] && !BleDevStA.btopenreq) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btopenreq) ||(BleDevStC.REQ_NAME[0] && !BleDevStC.btopenreq)) {
 	scan_ret = esp_ble_gap_set_scan_params(&ble_scan_params);
 	IsPassiveScan = false;
 	} else if (ble_mon == 1) {
@@ -3742,15 +3748,15 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 
     case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: 
 //step 1: start scan only if not update, if not scanning, if not already starting scan or if no connections is opening   
-	if (!f_update && !Isscanning && !StartingScan && (!BleDevStA.btconnect || BleDevStA.btopen) && (!BleDevStB.btconnect || BleDevStB.btopen) && (!BleDevStC.btconnect || BleDevStC.btopen)) {
+	if (!f_update && !Isscanning && !StartStopScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen)) {
 //step 2: start scan if defined but not open connection present
-//        if ((BleDevStA.REQ_NAME[0] && !BleDevStA.btconnect) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btconnect) ||(BleDevStC.REQ_NAME[0] && !BleDevStC.btconnect)) {
+//        if ((BleDevStA.REQ_NAME[0] && !BleDevStA.btopenreq) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btopenreq) ||(BleDevStC.REQ_NAME[0] && !BleDevStC.btopenreq)) {
 	uint32_t duration = 0; //30
 	FND_NAME[0] = 0;
 	FND_ADDR[0] = 0;
 	FND_ADDRx[0] = 0;
         esp_ble_gap_start_scanning(duration);
-	StartingScan = true;
+	StartStopScanReq = true;
 	ESP_LOGI(AP_TAG, "Scan starting");
 //		}
 	}
@@ -3758,7 +3764,7 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 
     case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
         //scan start complete event to indicate scan start successfully or failed
-	StartingScan = false;
+	StartStopScanReq = false;
         if (param->scan_start_cmpl.status != ESP_BT_STATUS_SUCCESS) {
             ESP_LOGE(AP_TAG, "scan start failed, error status = 0x%X", param->scan_start_cmpl.status);
 //	if (ble_mon && !f_update && !Isscanning) esp_restart();
@@ -3908,7 +3914,7 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	}
 	}
 //
-            if ((adv_name != NULL) && (BleDevStA.btopen || !BleDevStA.btconnect) && (BleDevStB.btopen || !BleDevStB.btconnect) && (BleDevStC.btopen || !BleDevStC.btconnect)) {
+            if ((adv_name != NULL) && (BleDevStA.btopen || !BleDevStA.btopenreq) && (BleDevStB.btopen || !BleDevStB.btopenreq) && (BleDevStC.btopen || !BleDevStC.btopenreq)) {
 
                 if (((BleDevStA.REQ_NAME[0]) &&  strlen(BleDevStA.REQ_NAME) == adv_name_len && !strncmp((char *)adv_name, BleDevStA.REQ_NAME, adv_name_len)) ||
 //                ((BleDevStA.REQ_NAME[0]) &&  strlen(BleDevStA.REQ_NAME) == 17 && !incascmp(BleDevStA.REQ_NAME,FND_ADDRx,17)) ||
@@ -3917,11 +3923,14 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 			if (FND_NAME[0]) strcpy (BleDevStA.RQC_NAME,FND_NAME);
 			else strcpy (BleDevStA.RQC_NAME,BleDevStA.REQ_NAME);
                     ESP_LOGI(AP_TAG, "Searched 1 device %s\n", BleDevStA.RQC_NAME);
-                    if (BleDevStA.btconnect == false) {
+                    if (BleDevStA.btopenreq == false) {
 			BleDevStA.btopen = false;
-                        BleDevStA.btconnect = true;
+                        BleDevStA.btopenreq = true;
                         memcpy(&(scan_rsta), scan_result, sizeof(esp_ble_gap_cb_param_t));
-                        if (Isscanning) esp_ble_gap_stop_scanning();
+                        if (Isscanning) {
+			esp_ble_gap_stop_scanning();
+			StartStopScanReq = true;
+			}
                     }
                 }
 
@@ -3932,11 +3941,14 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 			if (FND_NAME[0]) strcpy (BleDevStB.RQC_NAME,FND_NAME);
 			else strcpy (BleDevStB.RQC_NAME,BleDevStB.REQ_NAME);
                     ESP_LOGI(AP_TAG, "Searched 2 device %s\n", BleDevStB.RQC_NAME);
-                    if (BleDevStB.btconnect == false) {
+                    if (BleDevStB.btopenreq == false) {
 			BleDevStB.btopen = false;
-                        BleDevStB.btconnect = true;
+                        BleDevStB.btopenreq = true;
                         memcpy(&(scan_rstb), scan_result, sizeof(esp_ble_gap_cb_param_t));
-                        if (Isscanning) esp_ble_gap_stop_scanning();
+                        if (Isscanning) {
+			esp_ble_gap_stop_scanning();
+			StartStopScanReq = true;
+			}
                     }
                 }
 
@@ -3947,11 +3959,14 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 			if (FND_NAME[0]) strcpy (BleDevStC.RQC_NAME,FND_NAME);
 			else strcpy (BleDevStC.RQC_NAME,BleDevStC.REQ_NAME);
                     ESP_LOGI(AP_TAG, "Searched 3 device %s\n", BleDevStC.RQC_NAME);
-                    if (BleDevStC.btconnect == false) {
+                    if (BleDevStC.btopenreq == false) {
 			BleDevStC.btopen = false;
-                        BleDevStC.btconnect = true;
+                        BleDevStC.btopenreq = true;
                         memcpy(&(scan_rstc), scan_result, sizeof(esp_ble_gap_cb_param_t));
-                        if (Isscanning) esp_ble_gap_stop_scanning();
+                        if (Isscanning) {
+			esp_ble_gap_stop_scanning();
+			StartStopScanReq = true;
+			}
                     }
                 }
 
@@ -3966,19 +3981,19 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
     }
 
     case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
-	StartingScan = false;
-	Isscanning = false;
+	StartStopScanReq = false;
         if (param->scan_stop_cmpl.status != ESP_BT_STATUS_SUCCESS){
             ESP_LOGE(AP_TAG, "Scan stop failed, error status = 0x%X", param->scan_stop_cmpl.status);
         } else {
+	Isscanning = false;
 	ESP_LOGI(AP_TAG, "Scan stop successfully");
-	if (!BleDevStA.btopen && BleDevStA.btconnect) {
+	if (!BleDevStA.btopen && BleDevStA.btopenreq) {
                         ESP_LOGI(AP_TAG, "Connect 1 to the remote device");
                         esp_ble_gattc_open(gl_profile_tab[PROFILE_A_APP_ID].gattc_if, scan_rsta.scan_rst.bda, scan_rsta.scan_rst.ble_addr_type, true);
-	} else if (!BleDevStB.btopen && BleDevStB.btconnect) {
+	} else if (!BleDevStB.btopen && BleDevStB.btopenreq) {
                         ESP_LOGI(AP_TAG, "Connect 2 to the remote device");
                         esp_ble_gattc_open(gl_profile_tab[PROFILE_B_APP_ID].gattc_if, scan_rstb.scan_rst.bda, scan_rstb.scan_rst.ble_addr_type, true);
-	} else if (!BleDevStC.btopen && BleDevStC.btconnect) {
+	} else if (!BleDevStC.btopen && BleDevStC.btopenreq) {
                         ESP_LOGI(AP_TAG, "Connect 3 to the remote device");
                         esp_ble_gattc_open(gl_profile_tab[PROFILE_C_APP_ID].gattc_if, scan_rstc.scan_rst.bda, scan_rstc.scan_rst.ble_addr_type, true);
 	} else {
@@ -8702,6 +8717,243 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 }
 
+void HDiscBlemon(bool mqtttst)
+{
+	if (mqtttst && FDHass && ble_mon) {
+	char llwtt[128];
+	char llwtd[512];
+	char tmpvar[64];
+	for (int i = 0; i < BleMonNum; i++) {
+	if(BleMR[i].sto) {
+//
+	strcpy(llwtt,"homeassistant/device_tracker/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/1x");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".state\",\"icon\":\"mdi:tag\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_state\",\"device\":{\"identifiers\":[\"r4s_");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+        if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+        if (BleMR[i].id == 2) strcat(llwtd,"HA beacon");
+        else strcat(llwtd,"Unknown");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+        if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+        if (BleMR[i].id == 2) strcat(llwtd,"Android / iOS");
+        else strcat(llwtd,"Unknown");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/state\",\"payload_home\":\"ON\",\"payload_not_home\":\"OFF\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/1x");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".rssi\",\"icon\":\"mdi:bluetooth\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_rssi\",\"device\":{\"identifiers\":[\"r4s_");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+        if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+        if (BleMR[i].id == 2) strcat(llwtd,"HA beacon");
+        else strcat(llwtd,"Unknown");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+        if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+        if (BleMR[i].id == 2) strcat(llwtd,"Android / iOS");
+        else strcat(llwtd,"Unknown");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/");
+        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/rssi\",\"unit_of_meas\":\"dBm\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	if (BleMR[i].id == 3) {
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/2x");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".temp\",\"icon\":\"mdi:thermometer\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_temp\",\"device\":{\"identifiers\":[\"r4s_");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+        strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+        strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"device_class\":\"temperature\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/temperature\",\"unit_of_meas\":\"\xc2\xb0\x43\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/3x");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".humid\",\"icon\":\"mdi:water-percent\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_humid\",\"device\":{\"identifiers\":[\"r4s_");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+        strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+        strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"device_class\":\"humidity\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/humidity\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/4x");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".battery\",\"icon\":\"mdi:battery-bluetooth\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_battery\",\"device\":{\"identifiers\":[\"r4s_");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+        strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+        strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"device_class\":\"battery\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/");
+        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/battery\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	}
+	}
+	}
+	}
+}
+
+
 
 //******************* Mqtt **********************
 static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
@@ -9217,240 +9469,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 	}
 
-	if (ble_mon) {
-	char tmpvar[64];
-	for (int i = 0; i < BleMonNum; i++) {
-	if(BleMR[i].sto) {
-//
-	strcpy(llwtt,"homeassistant/device_tracker/");
-	strcat(llwtt,MQTT_BASE_TOPIC);
-	strcat(llwtt,"/1x");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
-        else bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtt,tmpvar);
-	strcat(llwtt,"/config");
-	llwtd[0] = 0;
-//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
-	strcpy(llwtd,"{\"name\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,".");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
-        else bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,".state\",\"icon\":\"mdi:tag\",\"uniq_id\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"_");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
-        else bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"_state\",\"device\":{\"identifiers\":[\"r4s_");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
-        else bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"\"],\"name\":\"r4s.");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
-        else bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"\",\"model\":\"");
-        if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
-        if (BleMR[i].id == 2) strcat(llwtd,"HA beacon");
-        else strcat(llwtd,"Unknown");
-	strcat(llwtd,"\",\"manufacturer\":\"");
-        if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
-        if (BleMR[i].id == 2) strcat(llwtd,"Android / iOS");
-        else strcat(llwtd,"Unknown");
-	strcat(llwtd,"\",\"via_device\":\"ESP32_");
-	strcat(llwtd,tESP32Addr);
-	strcat(llwtd,"\"},\"state_topic\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
-        else bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"/state\",\"payload_home\":\"ON\",\"payload_not_home\":\"OFF\",\"availability_topic\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/status\"}");
-	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
-//
-	strcpy(llwtt,"homeassistant/sensor/");
-	strcat(llwtt,MQTT_BASE_TOPIC);
-	strcat(llwtt,"/1x");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
-        else bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtt,tmpvar);
-	strcat(llwtt,"/config");
-	llwtd[0] = 0;
-//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
-	strcpy(llwtd,"{\"name\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,".");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
-        else bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,".rssi\",\"icon\":\"mdi:bluetooth\",\"uniq_id\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"_");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
-        else bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"_rssi\",\"device\":{\"identifiers\":[\"r4s_");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
-        else bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"\"],\"name\":\"r4s.");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
-        else bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"\",\"model\":\"");
-        if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
-        if (BleMR[i].id == 2) strcat(llwtd,"HA beacon");
-        else strcat(llwtd,"Unknown");
-	strcat(llwtd,"\",\"manufacturer\":\"");
-        if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
-        if (BleMR[i].id == 2) strcat(llwtd,"Android / iOS");
-        else strcat(llwtd,"Unknown");
-	strcat(llwtd,"\",\"via_device\":\"ESP32_");
-	strcat(llwtd,tESP32Addr);
-	strcat(llwtd,"\"},\"state_topic\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
-        else bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"/rssi\",\"unit_of_meas\":\"dBm\",\"availability_topic\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/status\"}");
-	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
-//
-	if (BleMR[i].id == 3) {
-	strcpy(llwtt,"homeassistant/sensor/");
-	strcat(llwtt,MQTT_BASE_TOPIC);
-	strcat(llwtt,"/2x");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtt,tmpvar);
-	strcat(llwtt,"/config");
-	llwtd[0] = 0;
-//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
-	strcpy(llwtd,"{\"name\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,".");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,".temp\",\"icon\":\"mdi:thermometer\",\"uniq_id\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"_");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"_temp\",\"device\":{\"identifiers\":[\"r4s_");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"\"],\"name\":\"r4s.");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"\",\"model\":\"");
-        strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
-	strcat(llwtd,"\",\"manufacturer\":\"");
-        strcat(llwtd,"Xiaomi & pvvx & atc1441");
-	strcat(llwtd,"\",\"via_device\":\"ESP32_");
-	strcat(llwtd,tESP32Addr);
-	strcat(llwtd,"\"},\"device_class\":\"temperature\",\"state_class\":\"measurement\",\"state_topic\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"/temperature\",\"unit_of_meas\":\"\xc2\xb0\x43\",\"availability_topic\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/status\"}");
-	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
-//
-	strcpy(llwtt,"homeassistant/sensor/");
-	strcat(llwtt,MQTT_BASE_TOPIC);
-	strcat(llwtt,"/3x");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtt,tmpvar);
-	strcat(llwtt,"/config");
-	llwtd[0] = 0;
-//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
-	strcpy(llwtd,"{\"name\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,".");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,".humid\",\"icon\":\"mdi:water-percent\",\"uniq_id\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"_");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"_humid\",\"device\":{\"identifiers\":[\"r4s_");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"\"],\"name\":\"r4s.");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"\",\"model\":\"");
-        strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
-	strcat(llwtd,"\",\"manufacturer\":\"");
-        strcat(llwtd,"Xiaomi & pvvx & atc1441");
-	strcat(llwtd,"\",\"via_device\":\"ESP32_");
-	strcat(llwtd,tESP32Addr);
-	strcat(llwtd,"\"},\"device_class\":\"humidity\",\"state_class\":\"measurement\",\"state_topic\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"/humidity\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/status\"}");
-	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
-//
-	strcpy(llwtt,"homeassistant/sensor/");
-	strcat(llwtt,MQTT_BASE_TOPIC);
-	strcat(llwtt,"/4x");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtt,tmpvar);
-	strcat(llwtt,"/config");
-	llwtd[0] = 0;
-//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
-	strcpy(llwtd,"{\"name\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,".");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,".battery\",\"icon\":\"mdi:battery-bluetooth\",\"uniq_id\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"_");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"_battery\",\"device\":{\"identifiers\":[\"r4s_");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"\"],\"name\":\"r4s.");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"\",\"model\":\"");
-        strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
-	strcat(llwtd,"\",\"manufacturer\":\"");
-        strcat(llwtd,"Xiaomi & pvvx & atc1441");
-	strcat(llwtd,"\",\"via_device\":\"ESP32_");
-	strcat(llwtd,tESP32Addr);
-	strcat(llwtd,"\"},\"device_class\":\"battery\",\"state_class\":\"measurement\",\"state_topic\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
-	strcat(llwtd,tmpvar);
-	strcat(llwtd,"/battery\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
-	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/status\"}");
-	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
-//
-
-
-
-
-	}
-	}
-	}
-	}
+	HDiscBlemon(true);
 
 	}
 	strcpy(llwtt,MQTT_BASE_TOPIC);
@@ -10334,7 +10353,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,buff);
         strcat(bsend," dB");
         strcat(bsend,"</td></tr><tr><td>BLE activity</td><td>");
-	if (BleDevStA.btconnect && !BleDevStA.btauthoriz) {
+	if (BleDevStA.btopenreq && !BleDevStA.btauthoriz) {
 	strcat(bsend,"Connecting ");
 	strcat(bsend, BleDevStA.RQC_NAME);
         if (!BleDevStA.btopen) strcat(bsend," (Open");
@@ -10347,7 +10366,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	}
 	}
         strcat(bsend,")");
-	} else if (BleDevStB.btconnect && !BleDevStB.btauthoriz) {
+	} else if (BleDevStB.btopenreq && !BleDevStB.btauthoriz) {
 	strcat(bsend,"Connecting ");
 	strcat(bsend, BleDevStB.RQC_NAME);
         if (!BleDevStB.btopen) strcat(bsend," (Open");
@@ -10360,7 +10379,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	}
 	}
         strcat(bsend,")");
-	} else if (BleDevStC.btconnect && !BleDevStC.btauthoriz) {
+	} else if (BleDevStC.btopenreq && !BleDevStC.btauthoriz) {
 	strcat(bsend,"Connecting ");
 	strcat(bsend, BleDevStC.RQC_NAME);
         if (!BleDevStC.btopen) strcat(bsend," (Open");
@@ -11775,7 +11794,7 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend,"<a class='menu' href='update'>&#10548;<span class='showmenulabel'>Load firmware</span></a></div>");
 
 	strcat(bsend,"</header><body><form method=\"POST\" action=\"/blemonok\"  id=\"frm1\"><table class='normal' width='80%'>");
-	strcat(bsend,"<tr class=\"header\"><th width='50px' align='left'>Pos</th><th width='200px' align='left'>ID</th><th width='150px' align='left'>Name</th><th width='70px' align='left''>RSSI</th><th width='70px' align='left''>Gap</th><th width='70px' align='left''>Last</th><th width='700px' align='left'>Advanced Data / Scan Response</th><th width='150px' align='left''>Timeout</tr>");
+	strcat(bsend,"<tr class=\"header\"><th width='30px' align='left'>Pos</th><th width='210px' align='left'>ID</th><th width='140px' align='left'>Name</th><th width='70px' align='left''>RSSI</th><th width='70px' align='left''>Gap</th><th width='70px' align='left''>Last</th><th width='720px' align='left'>Advanced Data / Scan Response</th><th width='150px' align='left''>Timeout</tr>");
 	for (int i=0; i < BleMonNum; i++) {
 	(i & 1)? strcat(bsend,"<tr><td class='xbg'>") : strcat(bsend,"<tr><td>");
 	itoa(i+1,buff,10);
@@ -11906,8 +11925,11 @@ static esp_err_t pblemonok_get_handler(httpd_req_t *req)
 	char buf1[512] = {0};
 	char buf2[16] = {0};
 	char buf3[16] = {0};
+	uint8_t fsave = 0;
+	uint8_t fble_mon = ble_mon;
 	uint16_t var = 0;
 	int  ret;
+	ble_mon = 0;
 	ret = httpd_req_recv(req,buf1,512);
 	if ( ret > 0 ) {
 //ESP_LOGI(AP_TAG, "Buf: '%s'", buf1);
@@ -11918,6 +11940,11 @@ swfid=wifiname&swfpsw=wifipassword&smqsrv=192.168.1.10&smqid=esp&
 smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 
 */
+	vTaskDelay(100 / portTICK_PERIOD_MS);
+	buf3[0] = 0;
+	strcpy(buf2,"blmarfr");
+	parsuri(buf1,buf3,buf2,512,2);
+	if (buf3[0]) ble_mon_refr = atoi(buf3);
 	for (int i=0; i < BleMonNum; i++) {
 	strcpy(buf2,"blmto");
 	itoa(i,buf3,10);
@@ -11926,15 +11953,34 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	parsuri(buf1,buf3,buf2,512,5);
 	if (buf3[0]) {
 	var = atoi(buf3) * 10;
+	if (BleMR[i].sto != var) fsave = 1;
 	BleMR[i].sto = var;
 	if (var && (BleMX[i].ttick > var)) BleMX[i].ttick = var;
 	}
 	}
-	buf3[0] = 0;
-	strcpy(buf2,"blmarfr");
-	parsuri(buf1,buf3,buf2,512,2);
-	if (buf3[0]) ble_mon_refr = atoi(buf3);
 	}
+	if (fsave) {
+// write nvs
+	nvs_handle_t my_handle;
+	ret = nvs_open("storage", NVS_READWRITE, &my_handle);
+	if (ret == ESP_OK) {
+	for (int i = 0; i < BleMonNum; i++) {
+        if (!BleMR[i].sto) {
+	memset(&BleMR[i],0,sizeof(BleMR[i]));
+	memset(&BleMX[i],0,sizeof(BleMX[i]));
+	}
+	}
+	nvs_set_blob(my_handle,"sblemd",  BleMR, sizeof(BleMR));
+        ret = nvs_commit(my_handle);
+	if (ret != ESP_OK) {
+	ESP_LOGE(AP_TAG, "NVS write error");
+	}
+// Close nvs
+	nvs_close(my_handle);
+	}
+	}
+	ble_mon = fble_mon;
+	if (fsave) HDiscBlemon(mqttConnected);
 	httpd_resp_set_status(req, "303 See Other");
 	httpd_resp_set_hdr(req, "Location", "/blemon");
 	httpd_resp_send(req, NULL, 0);  // Response body can be empty
@@ -13783,7 +13829,7 @@ void app_main(void)
 	wifi_init_sta();
 //init bt
         Isscanning = false;
-        StartingScan = false;
+        StartStopScanReq = false;
 	ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
 	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
 	ret = esp_bt_controller_init(&bt_cfg);
