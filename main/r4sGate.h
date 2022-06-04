@@ -42,6 +42,7 @@
 #include "esp_timer.h"
 #include "driver/timer.h"
 #include "driver/ledc.h"
+#include "mbedtls/aes.h"
 
 //*** define ***
 //*** common ***
@@ -233,8 +234,9 @@ uint8_t  bEfficiency;
 struct BleMonRec {
 uint16_t sto;
 uint8_t  mac[16];
+uint8_t  xor[4];
 uint8_t  id;
-uint8_t  res2;
+uint8_t  res;
 };
 
 struct BleMonExt {
@@ -261,6 +263,9 @@ int16_t  ppar3;
 int16_t  ppar4;
 int16_t  ppar5;
 int16_t  ppar6;
+int8_t   cmrssi;
+uint8_t  gtnum;
+uint8_t  gttmo;
 };
 
 
@@ -285,6 +290,7 @@ static esp_ble_gap_cb_param_t scan_rstb;
 static esp_ble_gap_cb_param_t scan_rstc;
 int FND_RSSI = 0;
 uint32_t NumWfConn;
+uint32_t NumMqConn;
 
 uint16_t mqtt_port  = 1883;
 uint16_t jpg_time  = 32;
@@ -347,6 +353,7 @@ int64_t t_tinc_us = 0;
 uint8_t foffln  = 0;
 uint8_t mqtdel  = 0;
 uint8_t macauth  = 0;
+uint8_t volperc  = 0;
 int floop = 0;
 
 //static uint8_t r4sAuth[8] = { 0xb6, 0x2c, 0x27, 0xb3, 0xb8, 0xac, 0x5a, 0xef };

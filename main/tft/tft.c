@@ -1617,21 +1617,32 @@ void tfblestate()
         setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString(", V: ", sumx, 224, 2);
 	if (ptr->bCVol < 250) {
+	if (!volperc) {
 	itoa(ptr->bCVol / 10,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString(".", sumx, 224, 2);
 	itoa(ptr->bCVol % 10,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
+	} else {
+	itoa(ptr->bCVol,buff,10);
+	sumx += drawString(buff, sumx, 224, 2);
+	}	
 	} else if (ptr->bCVol == 253) sumx += drawString("???", sumx, 224, 2);
 	else if (ptr->bC1temp && ptr->bS1Energy) sumx += drawString("??", sumx, 224, 2);
 	else sumx += drawString("?", sumx, 224, 2);
 	sumx += drawString("/", sumx, 224, 2);
+	if (!volperc) {
 	itoa(ptr->bCVoll / 10,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString(".", sumx, 224, 2);
 	itoa(ptr->bCVoll % 10,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("l", sumx, 224, 2);
+	} else {
+	itoa(ptr->bCVoll,buff,10);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("%", sumx, 224, 2);
+	}	
 	}
 	} else if (ptr->DEV_TYP < 12) {
 	sumx += drawString(" Lock: ", sumx, 224, 2);

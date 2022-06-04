@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.05.20"
+#define AP_VER "2022.06.03"
 
 
 #include "r4sGate.h"
@@ -1157,7 +1157,10 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
 	if (!fcommtp) strcat(bufd,"/rsp");
-	strcat(bufd,"/volume\",\"unit_of_meas\":\"l\",\"availability_topic\":\"");
+	strcat(bufd,"/volume\",\"unit_of_meas\":\"");
+	if (volperc) strcat(bufd,"\x25");
+	else strcat(bufd,"l");
+	strcat(bufd,"\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -1192,7 +1195,10 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
 	if (!fcommtp) strcat(bufd,"/rsp");
-	strcat(bufd,"/volume_last\",\"unit_of_meas\":\"l\",\"availability_topic\":\"");
+	strcat(bufd,"/volume_last\",\"unit_of_meas\":\"");
+	if (volperc) strcat(bufd,"\x25");
+	else strcat(bufd,"l");
+	strcat(bufd,"\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3462,10 +3468,12 @@ if (p_data->read.handle == 0x2a) {
         if (p_data->write.status != ESP_GATT_OK){
 	ESP_LOGE(AP_TAG, "Write char %d failed, error status = 0x%X", blenum1, p_data->write.status);
 	if (p_data->write.status == 5) ptr->r4sAuthCount++;
+	if (ptr->DEV_TYP == 63) {
 	if (ptr->r4sAuthCount > 10) {
 	esp_ble_remove_bond_device(gl_profile_tab[blenum].remote_bda);
-	ptr->r4sAuthCount = 0;
+	ptr->r4sAuthCount = 3;
 	}
+	} else if (ptr->r4sAuthCount > 6) ptr->r4sAuthCount = 0;
 	conerr = 1;
         } else start_scan();
         break;
@@ -3818,14 +3826,14 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	uint8_t i = 0;
 	uint8_t id = 1;
 	uint8_t found = 0;
-	if ((scan_result->scan_rst.adv_data_len > 26) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x1a\xff\x4c\x00\x02\x15",6)) id = 2;
+	if ((scan_result->scan_rst.adv_data_len > 26) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x1a\xff\x4c\x00\x02\x15",6)) id = 0x42;
 	else if ((scan_result->scan_rst.adv_data_len > 18) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x12\x16\x1a\x18",4)) id = 3;
 	else if ((scan_result->scan_rst.adv_data_len > 16) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x10\x16\x1a\x18",4)) id = 3;
 
 	while ((i < BleMonNum) && (!found)) {
 	if (BleMR[i].id == id) {
-      	if (((id != 2) && !memcmp(BleMR[i].mac, scan_result->scan_rst.bda, 6)) ||
- 		((id == 2) && !memcmp(BleMR[i].mac, &scan_result->scan_rst.ble_adv[6], 16))) {
+      	if (((id < 0x40) && !memcmp(BleMR[i].mac, scan_result->scan_rst.bda, 6)) ||
+ 		((id == 0x42) && !memcmp(BleMR[i].mac, &scan_result->scan_rst.ble_adv[6], 16))) {
 	BleMX[i].state = 1;
 	if (!BleMX[i].ttick) t_lasts_us = ~t_lasts_us;
         if (BleMR[i].sto) {
@@ -3877,8 +3885,8 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	BleMX[i].mto = 0;
         BleMX[i].ttick = BleMonDefTO;
 	BleMX[i].rssi = scan_result->scan_rst.rssi;
-        if (id != 2) memcpy(BleMR[i].mac, scan_result->scan_rst.bda, 6);
-        else if (id == 2) memcpy(BleMR[i].mac, &scan_result->scan_rst.ble_adv[6], 16);
+        if (id < 0x40) memcpy(BleMR[i].mac, scan_result->scan_rst.bda, 6);
+        else if (id == 0x42) memcpy(BleMR[i].mac, &scan_result->scan_rst.ble_adv[6], 16);
 	BleMR[i].id = id;
 	if (adv_name_len) mystrcpy(BleMX[i].name, (char *)adv_name,  15);
 	else memset(BleMX[i].name,0,16);
@@ -6313,21 +6321,31 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"volume\":[");
 	if (ptr->bCVol < 250) {
+	if (!volperc) {
 	itoa(ptr->bCVol / 10,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,".");	
 	itoa(ptr->bCVol % 10,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
+	} else {
+	itoa(ptr->bCVol,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	}
 	} else if (ptr->bCVol == 253) strcat(ptr->cStatus,"\"???\"");
 	else if (ptr->bC1temp && ptr->bS1Energy) strcat(ptr->cStatus,"\"??\"");
 	else strcat(ptr->cStatus,"\"?\"");
 	}
 	strcat(ptr->cStatus,",");
+	if (!volperc) {
 	itoa(ptr->bCVoll / 10,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,".");	
 	itoa(ptr->bCVoll % 10,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
+	} else {
+	itoa(ptr->bCVoll,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	}
 	strcat(ptr->cStatus,"],\"rgb\":[");
 	itoa(ptr->RgbR,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
@@ -6359,11 +6377,17 @@ void msStatus(uint8_t blenum) {
 	ptr->bS1Energy = ptr->bSEnergy - ptr->bS1Energy;
 	ptr->bC1temp = ptr->bCtemp - ptr->bC1temp;
 	if (ptr->bCVol == 253) {     //1l calibration
-        ptr->bCVol = (4200 * ptr->bC1temp) / (ptr->bS1Energy * 36);
+        if (volperc) ptr->bCVol = (210 * ptr->bC1temp) / (ptr->bS1Energy);
+        else ptr->bCVol = (350 * ptr->bC1temp) / (ptr->bS1Energy * 3);
 	if ((ptr->bCVol > 50) && (ptr->bCVol < 100)) ptr->bEfficiency = ptr->bCVol;
-	ptr->bCVol = 10;
+	if (volperc) ptr->bCVol = 100;
+	else ptr->bCVol = 10;
+	ptr->bCVoll =ptr->bCVol;
 	} else {
-	ptr->bCVol = (ptr->bS1Energy * 36 * ptr->bEfficiency) / (420 * ptr->bC1temp); //if n=0.8 then L*10 = 10*(En*3600*0.8)/(4200*dT); 	
+	if (volperc) {
+	ptr->bCVol = (ptr->bS1Energy * 10 * ptr->bEfficiency) / (21 * ptr->bC1temp); //assume 18(1.8l) = 100% so if n=0.8 then L*10 * 100/18 = 1000/18*(En*3600*0.8)/(4200*dT); 	
+	if ((ptr->bCVol > 100) && (ptr->bCVol < 120)) ptr->bCVol = 100;
+	} else ptr->bCVol = (ptr->bS1Energy * 3 * ptr->bEfficiency) / (35 * ptr->bC1temp); //if n=0.8 then L*10 = 10*(En*3600*0.8)/(4200*dT); 	
         ptr->bCVoll = ptr->bCVol;
 	}
         ptr->bS1Energy = 0;
@@ -6803,7 +6827,7 @@ void MqSState() {
 	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].state != BleMX[i].prstate)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(ldata,tmpvar);
 	strcat(ldata,"/state");
@@ -6814,13 +6838,45 @@ void MqSState() {
 	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].rssi != BleMX[i].prrssi)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(ldata,tmpvar);
 	strcat(ldata,"/rssi");
         itoa(BleMX[i].rssi,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	BleMX[i].prrssi = BleMX[i].rssi;
+	}
+	if (mqttConnected && BleMR[i].sto) {
+	if (BleMX[i].gttmo) BleMX[i].gttmo--;
+	int8_t trssi = BleMX[i].rssi;
+	if (!trssi) trssi = -126;
+	int8_t tcmrssi = BleMX[i].cmrssi;
+	if (!tcmrssi) tcmrssi = -126;
+	if (BleMX[i].gtnum == R4SNUM) {
+	strcpy(ldata,"r4s/");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"/rssi");
+        itoa(BleMX[i].rssi,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	} else if ((trssi > tcmrssi) || !BleMX[i].gttmo) {
+	BleMX[i].gttmo = 5;
+	strcpy(ldata,"r4s/");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"/rssi");
+        itoa(BleMX[i].rssi,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	strcpy(ldata,"r4s/");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"/gtnum");
+        itoa(R4SNUM,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	}
 	}
         if (BleMR[i].id == 3) {
 	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par1 != BleMX[i].ppar1)) {
@@ -7192,12 +7248,17 @@ void MqState(uint8_t blenum) {
 	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/volume");
 	if (ptr->bCVol < 250) {
+	if (!volperc) {
 	itoa(ptr->bCVol / 10,tmpvar1,10);
 	strcpy(tmpvar,tmpvar1);
 	strcat(tmpvar,".");	
 	itoa(ptr->bCVol % 10,tmpvar1,10);
 	strcat(tmpvar,tmpvar1);
-	} else strcpy(tmpvar,"-0.0");
+	} else 	itoa(ptr->bCVol,tmpvar,10);
+	} else {
+	if (!volperc) strcpy(tmpvar,"-0.0");
+	else strcpy(tmpvar,"-0");
+	}
 	if (ptr->DEV_TYP > 3) esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	ptr->r4sppcom = 255;
 	ptr->t_ppcom_us = t_mqt_us;
@@ -7209,11 +7270,13 @@ void MqState(uint8_t blenum) {
 	strcat(ldata,ptr->tBLEAddr);
 	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/volume_last");
+	if (!volperc) {
 	itoa(ptr->bCVoll / 10,tmpvar1,10);
 	strcpy(tmpvar,tmpvar1);
 	strcat(tmpvar,".");	
 	itoa(ptr->bCVoll % 10,tmpvar1,10);
 	strcat(tmpvar,tmpvar1);
+	} else 	itoa(ptr->bCVoll,tmpvar,10);
 	if (ptr->DEV_TYP > 3) esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	ptr->r4sppcom = 255;
 	ptr->t_ppcom_us = t_mqt_us;
@@ -8722,17 +8785,24 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 
 void HDiscBlemon(bool mqtttst)
 {
-	if (mqtttst && FDHass && ble_mon) {
+	if (mqtttst && ble_mon) {
 	char llwtt[128];
 	char llwtd[512];
 	char tmpvar[64];
 	for (int i = 0; i < BleMonNum; i++) {
 	if(BleMR[i].sto) {
 //
+	strcpy(llwtt,"r4s/");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/#");
+	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
+	if (FDHass) {
 	strcpy(llwtt,"homeassistant/device_tracker/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/1x");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtt,tmpvar);
 	strcat(llwtt,"/config");
@@ -8741,37 +8811,37 @@ void HDiscBlemon(bool mqtttst)
 	strcpy(llwtd,"{\"name\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,".");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,".state\",\"icon\":\"mdi:tag\",\"uniq_id\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"_");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"_state\",\"device\":{\"identifiers\":[\"r4s_");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\"],\"name\":\"r4s.");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
-        if (BleMR[i].id == 2) strcat(llwtd,"HA beacon");
+        if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
-        if (BleMR[i].id == 2) strcat(llwtd,"Android / iOS");
+        if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\"},\"state_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"/state\",\"payload_home\":\"ON\",\"payload_not_home\":\"OFF\",\"availability_topic\":\"");
@@ -8782,7 +8852,7 @@ void HDiscBlemon(bool mqtttst)
 	strcpy(llwtt,"homeassistant/sensor/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/1x");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtt,tmpvar);
 	strcat(llwtt,"/config");
@@ -8791,42 +8861,135 @@ void HDiscBlemon(bool mqtttst)
 	strcpy(llwtd,"{\"name\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,".");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,".rssi\",\"icon\":\"mdi:bluetooth\",\"uniq_id\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"_");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"_rssi\",\"device\":{\"identifiers\":[\"r4s_");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\"],\"name\":\"r4s.");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
-        if (BleMR[i].id == 2) strcat(llwtd,"HA beacon");
+        if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
-        if (BleMR[i].id == 2) strcat(llwtd,"Android / iOS");
+        if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\"},\"state_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/");
-        if (BleMR[i].id == 2) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"/rssi\",\"unit_of_meas\":\"dBm\",\"availability_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+// common topics
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,"r4s/1x");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,"r4s");
+	strcat(llwtd,".");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".rssi\",\"icon\":\"mdi:bluetooth\",\"uniq_id\":\"");
+	strcat(llwtd,"r4s");
+	strcat(llwtd,"_");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_rssi\",\"device\":{\"identifiers\":[\"r4s_");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+        if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+        if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
+        else strcat(llwtd,"Unknown");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+        if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+        if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
+        else strcat(llwtd,"Unknown");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"state_topic\":\"");
+	strcat(llwtd,"r4s/");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/rssi\",\"unit_of_meas\":\"dBm\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,"r4s/2x");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,"r4s");
+	strcat(llwtd,".");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".gtnum\",\"icon\":\"mdi:router-wireless\",\"uniq_id\":\"");
+	strcat(llwtd,"r4s");
+	strcat(llwtd,"_");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_gtnum\",\"device\":{\"identifiers\":[\"r4s_");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+        if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+        if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
+        else strcat(llwtd,"Unknown");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+        if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+        if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
+        else strcat(llwtd,"Unknown");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"state_topic\":\"");
+	strcat(llwtd,"r4s/");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/gtnum\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 //
 	if (BleMR[i].id == 3) {
@@ -8950,6 +9113,11 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 //
+
+
+
+
+	}                 //fdhass
 	}
 	}
 	}
@@ -9077,6 +9245,8 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	for (int i = 0; i < BleMonNum; i++) {
         BleMX[i].prstate =255;
         BleMX[i].prrssi = 255;
+        BleMX[i].cmrssi = 0;
+        BleMX[i].gtnum = 255;
 	BleMX[i].ppar1 = ~BleMX[i].par1;
 	BleMX[i].ppar2 = ~BleMX[i].par2;
 	BleMX[i].ppar3 = ~BleMX[i].par3;
@@ -9544,8 +9714,6 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 	}
 
-	HDiscBlemon(true);
-
 	}
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/screen");
@@ -9578,6 +9746,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
         MqttPubSub(0, true);	
         MqttPubSub(1, true);	
         MqttPubSub(2, true);	
+	HDiscBlemon(true);
 	mqttConnected = true;
 	NumMqConn++;
 	if (!NumMqConn) NumMqConn--;
@@ -9691,7 +9860,6 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	char ttopic[64];
 	memset(ttopic,0,64);
         memcpy(ttopic, event->topic, event->topic_len);
-//	ttopic[event->topic_len] = 0;
 //ESP_LOGI(AP_TAG,"mqtopic=%s", ttopic);
 	if (BleDevStA.r4sppcom) {
         if ((t_mqt_us - BleDevStA.t_ppcom_us) > 3000000) BleDevStA.r4sppcom = 0;
@@ -9916,6 +10084,43 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	int tempsz = event->data_len;
 	if  (tempsz > 15) tempsz = 15;
 	mystrcpy(MQTT_VALP7, event->data, tempsz);
+	} else {
+	char tmpvar[64]; 
+	uint8_t i = 0;
+	int topoffm = 0;
+	while (i < BleMonNum) {
+	if (BleMR[i].sto) {
+	strcpy(tbuff,"r4s/");
+        if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+        else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(tbuff,tmpvar);
+	strcat(tbuff,"/");
+	topoffm = parsoff(event->topic,tbuff, event->topic_len);
+	if (topoffm) {
+	if (!memcmp(event->topic+topoffm, "rssi", event->topic_len-topoffm)) {
+	if (event->data_len && (event->data_len < 6)){
+	int8_t rssi = 0;
+	mystrcpy(tmpvar, event->data, event->data_len);
+	rssi = atoi(tmpvar);
+        BleMX[i].cmrssi = rssi;
+	BleMX[i].gttmo = 5;
+        i = BleMonNum;
+	}
+	} else if (!memcmp(event->topic+topoffm, "gtnum", event->topic_len-topoffm)) {
+	if (event->data_len && (event->data_len < 5)){
+	uint8_t gtn = 0;
+	mystrcpy(tmpvar, event->data, event->data_len);
+	gtn = atoi(tmpvar);
+        BleMX[i].gtnum = gtn;
+	BleMX[i].gttmo = 5;
+        i = BleMonNum;
+	}
+	}                        //cmp
+	}                        //topoffs
+	}                        //sto
+	i++;
+	}                        //while
+
 	}                        // a b c mqtt topic
 
 	}                        //datalen,topiclen
@@ -10388,10 +10593,8 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
         strcat(bsend,"<meta http-equiv=\"refresh\" content=\"5\">");
         strcat(bsend,cssDatasheet);
 	strcat(bsend,"</head><body class='bodymenu'><header class='headermenu'><h1>ESP32 r4sGate");
-	if (R4SNUM)  {
 	itoa(R4SNUM,buff,10);
 	strcat(bsend, buff);
-	}
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu active' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
@@ -10622,7 +10825,10 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	strcat(bsend,"value=\"22\">BackLight On</option><option ");
 	strcat(bsend,"value=\"23\">Beep Off</option><option ");
 	strcat(bsend,"value=\"24\">Beep On</option><option ");
-        strcat(bsend,"value=\"25\">Boil 1l On</option></select>Select state</br>");
+        strcat(bsend,"value=\"25\">Boil ");
+	if (volperc) strcat(bsend,"100%");
+	else strcat(bsend,"1l");
+	strcat(bsend," On</option></select>Select state</br>");
 	strcat(bsend,"<input name=\"stemp\" type=\"number\" value=\"0\" min=\"0\" max=\"95\" size=\"2\">Heat temp 0-95&deg;C, if 0 heat off or boil only</br>");
 	strcat(bsend,"<input name=\"rlight\" type=\"number\" value=\"");
 	itoa(ptr->RgbR,buff,10);
@@ -10997,10 +11203,8 @@ static esp_err_t pcfgdev1_get_handler(httpd_req_t *req)
         strcat(bsend,"<meta name='viewport' content='width=device-width, initial-scale=1.0'>");
         strcat(bsend,cssDatasheet);
 	strcat(bsend,"</head><body class='bodymenu'><header class='headermenu'><h1>ESP32 r4sGate");
-	if (R4SNUM)  {
 	itoa(R4SNUM,buff,10);
 	strcat(bsend, buff);
-	}
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu active' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
@@ -11286,10 +11490,8 @@ static esp_err_t pcfgdev2_get_handler(httpd_req_t *req)
         strcat(bsend,"<meta name='viewport' content='width=device-width, initial-scale=1.0'>");
         strcat(bsend,cssDatasheet);
 	strcat(bsend,"</head><body class='bodymenu'><header class='headermenu'><h1>ESP32 r4sGate");
-	if (R4SNUM)  {
 	itoa(R4SNUM,buff,10);
 	strcat(bsend, buff);
-	}
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
@@ -11575,10 +11777,8 @@ static esp_err_t pcfgdev3_get_handler(httpd_req_t *req)
         strcat(bsend,"<meta name='viewport' content='width=device-width, initial-scale=1.0'>");
         strcat(bsend,cssDatasheet);
 	strcat(bsend,"</head><body class='bodymenu'><header class='headermenu'><h1>ESP32 r4sGate");
-	if (R4SNUM)  {
 	itoa(R4SNUM,buff,10);
 	strcat(bsend, buff);
-	}
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
@@ -11861,10 +12061,8 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
         if (ble_mon_refr) strcat(bsend,"<meta http-equiv=\"refresh\" content=\"5\">");
         strcat(bsend,cssDatasheet);
 	strcat(bsend,"</head><body class='bodymenu'><header class='headermenu'><h1>ESP32 r4sGate");
-	if (R4SNUM)  {
 	itoa(R4SNUM,buff,10);
 	strcat(bsend, buff);
-	}
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
@@ -11879,14 +12077,14 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend,"<a class='menu' href='update'>&#10548;<span class='showmenulabel'>Load firmware</span></a></div>");
 
 	strcat(bsend,"</header><body><form method=\"POST\" action=\"/blemonok\"  id=\"frm1\"><table class='normal' width='80%'>");
-	strcat(bsend,"<tr class=\"header\"><th width='30px' align='left'>Pos</th><th width='210px' align='left'>ID</th><th width='140px' align='left'>Name</th><th width='70px' align='left''>RSSI</th><th width='70px' align='left''>Gap</th><th width='70px' align='left''>Last</th><th width='720px' align='left'>Advanced Data / Scan Response</th><th width='150px' align='left''>Timeout</tr>");
+	strcat(bsend,"<tr class=\"header\"><th width='30px' align='left'>Pos</th><th width='210px' align='left'>ID</th><th width='140px' align='left'>Name / Type</th><th width='80px' align='left''>RSSI</th><th width='70px' align='left''>Gap</th><th width='70px' align='left''>Last</th><th width='720px' align='left'>Advanced Data / Scan Response</th><th width='150px' align='left''>Timeout</tr>");
 	for (int i=0; i < BleMonNum; i++) {
 	(i & 1)? strcat(bsend,"<tr><td class='xbg'>") : strcat(bsend,"<tr><td>");
 	itoa(i+1,buff,10);
 	strcat(bsend,buff);	
 	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
 	buff[0] = 0;
-	if (BleMR[i].id == 2) {
+	if (BleMR[i].id == 0x42) {
 	strcat(bsend,"uuid: ");	
 	bin2hex(BleMR[i].mac,buff,4,0);
 	strcat(bsend,buff);	
@@ -11948,9 +12146,7 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend,"\" min=\"0\" max=\"6500\" size=\"4\">s");
 
 	(i & 1)? strcat(bsend,"</td></tr><tr><td class='xbg'></td><td class='xbg'>") : strcat(bsend,"</td></tr><tr><td></td><td>");
-	if (BleMR[i].id == 3) {
-	strcat(bsend,"LYWSD03MMC");	
-	} else if (BleMR[i].id == 2) {
+	if (BleMR[i].id == 0x42) {
 	bin2hex(&BleMR[i].mac[6],buff,2,0);
 	strcat(bsend,buff);	
 	strcat(bsend,"-");	
@@ -11960,9 +12156,22 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	bin2hex(&BleMR[i].mac[10],buff,6,0);
 	strcat(bsend,buff);	
 	}
-	(i & 1)? strcat(bsend,"</td><td class='xbg'></td><td class='xbg'></td><td class='xbg'></td><td class='xbg'></td><td class='xbg'>") : strcat(bsend,"</td><td></td><td></td><td></td><td></td><td>");
+	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
+	if (BleMR[i].id == 3) {
+	strcat(bsend,"LYWSD03MMC");	
+	} else if (BleMR[i].id == 0x42) {
+	strcat(bsend,"HA iBeacon");	
 
-
+	}
+	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
+	if (BleMX[i].cmrssi) {
+	itoa(BleMX[i].cmrssi,buff,10);
+	strcat(bsend,buff);	
+	strcat(bsend," dB/");
+	itoa(BleMX[i].gtnum,buff,10);
+	strcat(bsend,buff);	
+	}
+	(i & 1)? strcat(bsend,"</td><td class='xbg'></td><td class='xbg'></td><td class='xbg'>") : strcat(bsend,"</td><td></td><td></td><td>");
 	if(BleMX[i].scrsplen) {
 	bin2hex(BleMX[i].scrsp,buff,BleMX[i].scrsplen & 0x1f,0x20);
 	strcat(bsend,buff);	
@@ -12209,10 +12418,8 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
         strcat(bsend,"<meta name='viewport' content='width=device-width, initial-scale=1.0'>");
         strcat(bsend,cssDatasheet);
 	strcat(bsend,"</head><body class='bodymenu'><header class='headermenu'><h1>ESP32 r4sGate");
-	if (R4SNUM)  {
 	itoa(R4SNUM,buff,10);
 	strcat(bsend, buff);
-	}
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
@@ -12271,7 +12478,9 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 
 	strcat(bsend,"<input type=\"checkbox\" name=\"chk8\" value=\"8\"");
 	if (macauth) strcat(bsend,"checked");
-	strcat(bsend,"> Use MAC in BLE Authentication</br>");
+	strcat(bsend,"> Use MAC in BLE Authentication &emsp;<input type=\"checkbox\" name=\"chk9\" value=\"9\"");
+	if (volperc) strcat(bsend,"checked");
+	strcat(bsend,"> Volume in percent</br>");
 	strcat(bsend, "<h3>System Setting</h3></br>");
 
 	strcat(bsend, "<input name=\"auth\" type=\"text\" value=\"");
@@ -12282,7 +12491,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend, "<input name=\"r4snum\" type=\"number\" value=\"");
 	itoa(R4SNUM,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"255\" size=\"3\">r4sGate Number &emsp;<input name=\"timzon\" type=\"number\" value=\"");
+	strcat(bsend,"\" min=\"0\" max=\"99\" size=\"3\">r4sGate Number &emsp;<input name=\"timzon\" type=\"number\" value=\"");
 	uint8_t TmZn = TimeZone;
 	if (TmZn >127) {
 	TmZn = ~TmZn;
@@ -12571,6 +12780,11 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	macauth = 0;
 	if (buf3[0] == 0x38) macauth = 1;
 	buf3[0] = 0;
+	strcpy(buf2,"chk9");
+	parsuri(buf1,buf3,buf2,1024,2);
+	volperc = 0;
+	if (buf3[0] == 0x39) volperc = 1;
+	buf3[0] = 0;
 	strcpy(buf2,"chk0");
 	parsuri(buf1,buf3,buf2,1024,2);
 	if (buf3[0] == 0x30) {
@@ -12684,11 +12898,10 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	parsuri(buf1,buf3,buf2,1024,2);
 	if (buf3[0] == 0x31) {
 	ESP_LOGI(AP_TAG, "Delete Mqtt topics");
+
 	strcpy(buf2, "r4s");
-	if (R4SNUM)  {
 	itoa(R4SNUM,buf3,10);
 	strcat(buf2, buf3);
-	}
 	f_update = true;
 	while (BleDevStA.btauthoriz || BleDevStB.btauthoriz || BleDevStC.btauthoriz) vTaskDelay(200 / portTICK_PERIOD_MS);
 	if (FDHass) {
@@ -12747,12 +12960,73 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
 	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
 
+
+//***** Delete common topics *********************************
+	strcpy(buf2, "r4s");
+	f_update = true;
+	while (BleDevStA.btauthoriz || BleDevStB.btauthoriz || BleDevStC.btauthoriz) vTaskDelay(200 / portTICK_PERIOD_MS);
+	if (FDHass) {
+	strcpy(buf1,"homeassistant/sensor/");
+	strcat(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+	strcpy(buf1,"homeassistant/switch/");
+	strcat(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+	strcpy(buf1,"homeassistant/climate/");
+	strcat(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+	strcpy(buf1,"homeassistant/light/");
+	strcat(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+	strcpy(buf1,"homeassistant/binary_sensor/");
+	strcat(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+	strcpy(buf1,"homeassistant/select/");
+	strcat(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+	strcpy(buf1,"homeassistant/number/");
+	strcat(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+	strcpy(buf1,"homeassistant/device_tracker/");
+	strcat(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+	}
+	strcpy(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+//************************************************************
+
+
 	if (R4SNUM !=R4SNUMO) {
 	strcpy(buf2, "r4s");
-	if (R4SNUMO)  {
 	itoa(R4SNUMO,buf3,10);
 	strcat(buf2, buf3);
-	}
 	f_update = true;
 	while (BleDevStA.btauthoriz || BleDevStB.btauthoriz || BleDevStC.btauthoriz) vTaskDelay(200 / portTICK_PERIOD_MS);
 	if (FDHass) {
@@ -12854,6 +13128,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	nvs_set_u8(my_handle,  "chk6",  tft_conf);
 	nvs_set_u8(my_handle,  "chk7",  foffln);
 	nvs_set_u8(my_handle,  "chk8",  macauth);
+	nvs_set_u8(my_handle,  "chk9",  volperc);
 	nvs_set_u8(my_handle, "pnmiso", PIN_NUM_MISO);
 	nvs_set_u8(my_handle, "pnmosi", PIN_NUM_MOSI);
 	nvs_set_u8(my_handle, "pnclk", PIN_NUM_CLK);
@@ -13592,6 +13867,7 @@ void app_main(void)
 	f_update = false;
 	mqtdel  = 0;
 	macauth  = 0;
+	volperc  = 0;
 	R4SNUM = 0;
 	R4SNUMO = 0;
 	BleDevStA.r4sAuthCount = 0;
@@ -13754,6 +14030,7 @@ void app_main(void)
 	nvs_get_u8(my_handle, "chk6",   &tft_conf);
 	nvs_get_u8(my_handle, "chk7",   &foffln);
 	nvs_get_u8(my_handle, "chk8",   &macauth);
+	nvs_get_u8(my_handle, "chk9",   &volperc);
 	nvs_get_u8(my_handle, "timzon", &TimeZone);
 	nvs_get_u8(my_handle, "r4snum", &R4SNUM);
 	size_t nvsize = 32;
@@ -13797,6 +14074,11 @@ void app_main(void)
 // Close nvs
 	nvs_close(my_handle);
 	}
+
+	for (int i = 0; i < BleMonNum; i++) {
+        if (BleMR[i].id == 2) BleMR[i].id = 0x42;
+	}
+
 	strcpy(BleDevStA.RQC_NAME, BleDevStA.REQ_NAME);
 	strcpy(BleDevStB.RQC_NAME, BleDevStB.REQ_NAME);
 	strcpy(BleDevStC.RQC_NAME, BleDevStC.REQ_NAME);
@@ -13821,10 +14103,8 @@ void app_main(void)
 	BleDevStA.tBLEAddr[0] = 0;
 	char tzbuff[8];
 	strcpy(MQTT_BASE_TOPIC, "r4s");
-	if (R4SNUM)  {
 	itoa(R4SNUM,tzbuff,10);
 	strcat(MQTT_BASE_TOPIC, tzbuff);
-	}
 	if (FDHass) ftrufal = 0;
 	if (ftrufal) {
 	strcpy(strON,"true");
