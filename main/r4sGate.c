@@ -6,12 +6,10 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.06.03"
+#define AP_VER "2022.06.07"
 
 
 #include "r4sGate.h"
-
-
 //**************** my common proc *******************
 //compare uuid 128 bit
 int bt_compare_UUID128(uint8_t uuid1[ESP_UUID_LEN_128],
@@ -76,6 +74,30 @@ void bin2hex(const unsigned char *bin, char *out, size_t len, uint8_t del)
 	}
 	out[len*3-1] = '\0';
 	}
+}
+
+// hex char lowercase string to bin byte
+bool hex2bin(char *in, uint8_t *out,  size_t len)
+{
+	if (in == NULL || out == NULL || len == 0) return 0;
+	bool result = 1;
+	size_t i = 0;
+	char a;
+	char b;
+	uint8_t c;
+	while ((i < len) && (result)) {
+	a = in[i*2];
+	b =  (a <= '9') ? (a - '0') : (a - 'a' + 10);
+	if (b > 0x0f) result = 0;
+	b = (b & 0x0f) * 16;
+	a = in[i*2 + 1];
+	c =  (a <= '9') ? (a - '0') : (a - 'a' + 10);
+	if (c > 0x0f) result = 0;
+	c = (c & 0x0f) + b;
+	out[i] = c;
+	i++;
+	}	
+	return result;
 }
 
 // parse uri par=value string like this:
@@ -293,6 +315,21 @@ void cipherCrypt(uint8_t  *cin, uint8_t  *cout, uint8_t  *ctab, int size)
 	}
 }
 
+bool vstsign(uint8_t *datin, uint8_t *keyin)
+{
+	bool result = 0;
+	uint8_t datout[16];
+	uint8_t iv[16];
+	mbedtls_aes_context aes;
+	memset(iv,0,sizeof iv);
+	memcpy(iv, &keyin[16], 4);
+	mbedtls_aes_init(&aes);
+	mbedtls_aes_setkey_enc(&aes, keyin, 128);
+	mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, 16, iv, datin, datout);
+	if (!memcmp(datout, &datin[16], 4)) result = 1;
+	return result;
+}
+
 int64_t t_before_us = 0;
 
 static struct BleDevSt BleDevStA;
@@ -323,6 +360,7 @@ static void hw_timer_callback(void *arg)
 	BleMX[i].ttick--;
 	if (!BleMX[i].ttick) {
 	t_lasts_us = ~t_lasts_us;
+	if (BleMR[i].sto) {
 	BleMX[i].advdatlen = 0;
 	BleMX[i].scrsplen = 0;
 	BleMX[i].state = 0;
@@ -333,6 +371,10 @@ static void hw_timer_callback(void *arg)
 	BleMX[i].par4 = 0;
 	BleMX[i].par5 = 0;
 	BleMX[i].par6 = 0;
+	} else {
+	memset(&BleMR[i],0,sizeof(BleMR[i]));
+	memset(&BleMX[i],0,sizeof(BleMX[i]));
+	}
 	}
 	}
 	}
@@ -375,13 +417,19 @@ static void hw_timer_callback(void *arg)
 	BleDevStA.r4slppar1 = 0;
 	BleDevStA.r4slpcom = 1;
 	}
-	} else if ((BleDevStA.DEV_TYP > 15) && (BleDevStA.DEV_TYP < 63)) { 
+	} else if ((BleDevStA.DEV_TYP > 15) && (BleDevStA.DEV_TYP < 62)) { 
 	if (!BleDevStA.bState) {
 	BleDevStA.r4slppar1 = 1;
 	BleDevStA.r4slpcom = 10;
 	} else {
 	BleDevStA.r4slppar1 = 0;
 	BleDevStA.r4slpcom = 10;
+	}
+	} else if ((BleDevStA.DEV_TYP == 62)) { 
+	if (!BleDevStA.bState) {
+	BleDevStA.bState = 1;
+	BleDevStA.r4slppar1 = 0;
+	BleDevStA.r4slpcom = 62;
 	}
 	} else if ((BleDevStA.DEV_TYP == 63)) { 
 	if (!BleDevStA.bState) {
@@ -441,13 +489,19 @@ static void hw_timer_callback(void *arg)
 	BleDevStB.r4slppar1 = 0;
 	BleDevStB.r4slpcom = 1;
 	}
-	} else if ((BleDevStB.DEV_TYP > 15) && (BleDevStB.DEV_TYP < 63)) { 
+	} else if ((BleDevStB.DEV_TYP > 15) && (BleDevStB.DEV_TYP < 62)) { 
 	if (!BleDevStB.bState) {
 	BleDevStB.r4slppar1 = 1;
 	BleDevStB.r4slpcom = 10;
 	} else {
 	BleDevStB.r4slppar1 = 0;
 	BleDevStB.r4slpcom = 10;
+	}
+	} else if ((BleDevStB.DEV_TYP == 62)) { 
+	if (!BleDevStB.bState) {
+	BleDevStB.bState = 1;
+	BleDevStB.r4slppar1 = 0;
+	BleDevStB.r4slpcom = 62;
 	}
 	} else if ((BleDevStB.DEV_TYP == 63)) { 
 	if (!BleDevStB.bState) {
@@ -508,13 +562,19 @@ static void hw_timer_callback(void *arg)
 	BleDevStC.r4slppar1 = 0;
 	BleDevStC.r4slpcom = 1;
 	}
-	} else if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 63)) { 
+	} else if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 62)) { 
 	if (!BleDevStC.bState) {
 	BleDevStC.r4slppar1 = 1;
 	BleDevStC.r4slpcom = 10;
 	} else {
 	BleDevStC.r4slppar1 = 0;
 	BleDevStC.r4slpcom = 10;
+	}
+	} else if ((BleDevStC.DEV_TYP == 62)) { 
+	if (!BleDevStC.bState) {
+	BleDevStC.bState = 1;
+	BleDevStC.r4slppar1 = 0;
+	BleDevStC.r4slpcom = 62;
 	}
 	} else if ((BleDevStC.DEV_TYP == 63)) { 
 	if (!BleDevStC.bState) {
@@ -1160,7 +1220,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,"/volume\",\"unit_of_meas\":\"");
 	if (volperc) strcat(bufd,"\x25");
 	else strcat(bufd,"l");
-	strcat(bufd,"\",\"availability_topic\":\"");
+	strcat(bufd,"\",\"state_class\":\"measurement\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -1198,7 +1258,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,"/volume_last\",\"unit_of_meas\":\"");
 	if (volperc) strcat(bufd,"\x25");
 	else strcat(bufd,"l");
-	strcat(bufd,"\",\"availability_topic\":\"");
+	strcat(bufd,"\",\"state_class\":\"measurement\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -1683,7 +1743,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 //
 
 	}
-	} else if ( ptr->DEV_TYP < 63) {
+	} else if ( ptr->DEV_TYP < 62) {
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
 	strcat(buft,ptr->tBLEAddr);
@@ -2208,7 +2268,188 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
 //
 	}
-
+	} else if ( ptr->DEV_TYP == 62) {
+/*
+	strcpy(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/");
+	strcat(buft,ptr->tBLEAddr);
+	if (!fcommtp) strcat(buft,"/cmd");
+	strcat(buft,"/clear");
+	esp_mqtt_client_subscribe(mqttclient, buft, 0);
+*/
+	if (FDHass) {
+/*
+	strcpy(buft,"homeassistant/switch/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/1x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+       	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Smoke.clear\",\"icon\":\"mdi:mdi-check-circle-outline\",\"uniq_id\":\"clear_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Smoke_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+       	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Smoke\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"command_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
+	strcat(bufd,"/clear\",\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/clear\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+*/
+//
+	strcpy(buft,"homeassistant/sensor/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/1x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+       	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Smoke.rssi\",\"icon\":\"mdi:bluetooth\",\"uniq_id\":\"rssi_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Smoke_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+       	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Smoke\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"device_class\":\"signal_strength\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/rssi\",\"unit_of_meas\":\"dBm\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/sensor/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/2x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+       	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Smoke.temperature\",\"icon\":\"mdi:thermometer\",\"uniq_id\":\"temp_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Smoke_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+       	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Smoke\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"device_class\":\"temperature\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/temperature\",\"unit_of_meas\":\"\xc2\xb0\x43\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/sensor/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/3x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+       	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Smoke.battery\",\"icon\":\"mdi:battery-bluetooth\",\"uniq_id\":\"battery_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Smoke_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+       	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Smoke\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"device_class\":\"battery\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/battery\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/binary_sensor/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/1x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+       	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Smoke.alarm\",\"icon\":\"mdi:smoke-detector\",\"uniq_id\":\"alarm_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Smoke_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+       	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Smoke\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/smoke\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	}
 	} else if ( ptr->DEV_TYP == 63) {
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
@@ -2748,7 +2989,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(uint8_t));
 	esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
 	esp_ble_set_encryption(param->connect.remote_bda, ESP_BLE_SEC_ENCRYPT_MITM);
-	} else if (ptr->DEV_TYP == 63) {
+	} else if ((ptr->DEV_TYP > 61) && (ptr->DEV_TYP < 64)) {
         ESP_LOGI(AP_TAG, "CONNECT_EVT %d, set no Bond and Encryption", blenum1);
 	esp_ble_auth_req_t auth_req = ESP_LE_AUTH_REQ_SC_ONLY;     //default authentication
 	esp_ble_io_cap_t iocap = ESP_IO_CAP_NONE;           //set the IO capability to No output No input
@@ -3468,7 +3709,7 @@ if (p_data->read.handle == 0x2a) {
         if (p_data->write.status != ESP_GATT_OK){
 	ESP_LOGE(AP_TAG, "Write char %d failed, error status = 0x%X", blenum1, p_data->write.status);
 	if (p_data->write.status == 5) ptr->r4sAuthCount++;
-	if (ptr->DEV_TYP == 63) {
+	if ((ptr->DEV_TYP > 61) && (ptr->DEV_TYP < 64)) {
 	if (ptr->r4sAuthCount > 10) {
 	esp_ble_remove_bond_device(gl_profile_tab[blenum].remote_bda);
 	ptr->r4sAuthCount = 3;
@@ -3833,7 +4074,8 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
 	while ((i < BleMonNum) && (!found)) {
 	if (BleMR[i].id == id) {
       	if (((id < 0x40) && !memcmp(BleMR[i].mac, scan_result->scan_rst.bda, 6)) ||
- 		((id == 0x42) && !memcmp(BleMR[i].mac, &scan_result->scan_rst.ble_adv[6], 16))) {
+ 		((id == 0x42) && !memcmp(BleMR[i].mac, &scan_result->scan_rst.ble_adv[6], 16)) ||
+ 		((id == 0x44) && vstsign(&scan_result->scan_rst.ble_adv[11],BleMR[i].mac))) {
 	BleMX[i].state = 1;
 	if (!BleMX[i].ttick) t_lasts_us = ~t_lasts_us;
         if (BleMR[i].sto) {
@@ -3871,11 +4113,18 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
         BleMX[i].par5 = BleMX[i].advdat[17];
         BleMX[i].par6 = BleMX[i].advdat[18];
 	}
+	} else if (id == 0x44) {
+	BleMX[i].par1 = BleMX[i].advdat[11];
+	BleMX[i].par2 = BleMX[i].advdat[23];
 	}
 	found = 1;
 	}
 	}
 	i++;
+	if ((id == 0x44) && !found && (i == BleMonNum)) {
+	id = 0x04;
+	i = 0;
+	}
 	}
 	i = 0;
 	while ((i < BleMonNum) && (!found)) {
@@ -3917,6 +4166,9 @@ esp_log_buffer_hex(AP_TAG, BleDevStC.sendData, BleDevStC.sendDataLen);
         BleMX[i].par5 = BleMX[i].advdat[17];
         BleMX[i].par6 = BleMX[i].advdat[18];
 	}
+	} else if (id == 0x44) {
+	BleMX[i].par1 = BleMX[i].advdat[11];
+	BleMX[i].par2 = BleMX[i].advdat[23];
 	}
 	}
 	i++;
@@ -6168,6 +6420,26 @@ bool m51sCalibrate(uint8_t blenum) {
 	return ptr->notifyData[3] == 1;
 }
 
+bool m61sClear(uint8_t blenum) {
+	return false;
+
+	if (blenum > 2) return false;
+        struct BleDevSt *ptr;
+	switch (blenum) {
+	case 1:
+	ptr = &BleDevStB;
+	break;
+	case 2:
+	ptr = &BleDevStC;
+	break;
+	default:
+	ptr = &BleDevStA;
+	break;
+	}
+	if (r4sCommand(blenum, 0x7b, 0, 0) != 5) return false;
+	return ptr->notifyData[3] == 1;
+}
+
 bool mkSync(uint8_t blenum) {
 	if (blenum > 2) return false;
         struct BleDevSt *ptr;
@@ -6366,14 +6638,14 @@ void msStatus(uint8_t blenum) {
 	ptr->bSEnergy = (ptr->notifyData[12] << 24) + (ptr->notifyData[11] << 16) + (ptr->notifyData[10] << 8) + ptr->notifyData[9];
 	ptr->bSTime = (ptr->notifyData[8] << 24) + (ptr->notifyData[7] << 16) + (ptr->notifyData[6] << 8) + ptr->notifyData[5];
         if (ptr->bState) {
-	if (((ptr->bCtemp < 71) || (ptr->bCtemp > 95)) && (ptr->bC1temp || ptr->bS1Energy)) { 
+	if (((ptr->bCtemp < 65) || (ptr->bCtemp > 89)) && (ptr->bC1temp || ptr->bS1Energy)) { 
         ptr->bS1Energy = 0;
         ptr->bC1temp = 0;
-	} else if ((ptr->bCtemp > 70) && (ptr->bCtemp > ptr->bCStemp) && (ptr->bCtemp < 80) && !ptr->bC1temp && !ptr->bS1Energy) { 
+	} else if ((ptr->bCtemp > 64) && (ptr->bCtemp > ptr->bCStemp) && (ptr->bCtemp < 76) && !ptr->bC1temp && !ptr->bS1Energy) { 
 	ptr->bS1Energy = ptr->bSEnergy;
 	ptr->bC1temp = ptr->bCtemp;
         if (ptr->bCVol < 250) ptr->bCVol = 254;
-	} else if ((ptr->bCtemp > 90) && ptr->bC1temp && ptr->bS1Energy) {
+	} else if ((ptr->bCtemp > 84) && ptr->bC1temp && ptr->bS1Energy) {
 	ptr->bS1Energy = ptr->bSEnergy - ptr->bS1Energy;
 	ptr->bC1temp = ptr->bCtemp - ptr->bC1temp;
 	if (ptr->bCVol == 253) {     //1l calibration
@@ -6605,6 +6877,43 @@ void msStatus(uint8_t blenum) {
 	itoa(ptr->bLock,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,"}");    
+	} else if ((ptr->notifyData[2] == 6) && ( ptr->DEV_TYP == 62 ) && (retc == 20)) {
+	uint8_t s = ptr->notifyData[5] & 0x08;
+	uint8_t i = ((ptr->notifyData[5] >> 4) + 1) & 0x0f;
+	if (i < 6) {
+	ptr->bSEnergy = (ptr->notifyData[4] + (ptr->notifyData[5] << 8)) & 0x0fff; //temp C
+	if (s) ptr->bSEnergy =  (ptr->bSEnergy ^ 0x0fff) + 1;
+	while (i) {
+        ptr->bSEnergy = ptr->bSEnergy * 10;
+	i--;
+	}
+	if (s) ptr->bSEnergy =  ptr->bSEnergy | 0x80000000;
+	} else if (i > 11) {
+	ptr->bSEnergy = (ptr->notifyData[4] + (ptr->notifyData[5] << 8)) & 0x0fff; //temp C
+	if (s) ptr->bSEnergy =  (ptr->bSEnergy ^ 0x0fff) + 1;
+	while (i) {
+        ptr->bSEnergy = ptr->bSEnergy / 10;
+	i++;
+	i = i & 0x0f;
+	}
+	if (s) ptr->bSEnergy =  ptr->bSEnergy | 0x80000000;
+	}
+	ptr->bProg = ptr->notifyData[12];                   //smoke alarm
+	ptr->bCtemp = ptr->notifyData[6];                   //battery
+	strcpy(ptr->cStatus,"{\"temperature\":");
+	if (ptr->bSEnergy & 0x80000000) strcat(ptr->cStatus,"-");
+	itoa((ptr->bSEnergy & 0x7fffffff) / 10,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,".");
+	itoa((ptr->bSEnergy & 0x7fffffff) % 10,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"smoke\":");
+	itoa(ptr->bProg,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"battery\":");
+	itoa(ptr->bCtemp,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,"}");    
 	} else if ((ptr->notifyData[2] == 6) && (ptr->notifyData[7] || ptr->notifyData[8]) && ( ptr->DEV_TYP == 63 ) && (retc == 20)) {
 	uint8_t s = ptr->notifyData[5] & 0x08;
 	uint8_t i = ((ptr->notifyData[5] >> 4) + 1) & 0x0f;
@@ -6697,7 +7006,7 @@ void msStatus(uint8_t blenum) {
 	}
 	ptr->bCtemp = 0;
 	ptr->bHtemp = 0;
-	if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 63)) ptr->bProg = 255;
+	if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 62)) ptr->bProg = 255;
 	else ptr->bProg = 0;
 	ptr->bModProg = 0;
 	ptr->bLock = 0;
@@ -6802,7 +7111,7 @@ void msStatus(uint8_t blenum) {
 	}
 	ptr->bCtemp = 0;
 	ptr->bHtemp = 0;
-	if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 63)) ptr->bProg = 255;
+	if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 62)) ptr->bProg = 255;
 	else ptr->bProg = 0;
 	ptr->bModProg = 0;
 	ptr->bPHour = 0;
@@ -6860,7 +7169,7 @@ void MqSState() {
 	strcat(ldata,"/rssi");
         itoa(BleMX[i].rssi,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
-	} else if ((trssi > tcmrssi) || !BleMX[i].gttmo) {
+	} else if ((trssi > tcmrssi) || !BleMX[i].gttmo || (BleMX[i].gtnum > 99)) {
 	BleMX[i].gttmo = 5;
 	strcpy(ldata,"r4s/");
         if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
@@ -6909,7 +7218,7 @@ void MqSState() {
 	uint16_t var1 =  BleMX[i].par2;
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(ldata,tmpvar);
 	strcat(ldata,"/humidity");
         itoa(var1 / 100,tmpvar1,10);
@@ -6929,12 +7238,46 @@ void MqSState() {
 	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par4 != BleMX[i].ppar4)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
-        bin2hex(BleMR[i].mac,tmpvar,6,0);
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(ldata,tmpvar);
 	strcat(ldata,"/battery");
         itoa(BleMX[i].par4,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	BleMX[i].ppar4 = BleMX[i].par4;
+	}
+
+	} else if (BleMR[i].id == 0x44) {
+	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par1 != BleMX[i].ppar1)) {
+	uint8_t tgst = BleMX[i].par1;
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"/tgstate");
+	bin2hex(&tgst,tmpvar,1,0);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	}
+	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par2 != BleMX[i].ppar2)) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+        bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"/battery");
+	switch (BleMX[i].par2 & 0x03) {
+	case 3:
+	strcpy(tmpvar,"90");
+	break;
+	case 2:
+	strcpy(tmpvar,"15");
+	break;
+	case 1:
+	strcpy(tmpvar,"5");
+	break;
+	case 0:
+	strcpy(tmpvar,"0");
+	break;
+	}
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	}
 
 	}
@@ -7457,7 +7800,7 @@ void MqState(uint8_t blenum) {
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	ptr->bprevCMin = ptr->bCMin;
 	}
-	} else if (ptr->DEV_TYP < 63) {
+	} else if (ptr->DEV_TYP < 62) {
 	if  (ptr->bprevState != ptr->bState) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
@@ -7940,6 +8283,64 @@ void MqState(uint8_t blenum) {
 	ptr->r4sppcom = 255;
 	ptr->t_ppcom_us = t_mqt_us;
 	ptr->bprevAwarm = ptr->bAwarm;
+	}
+	} else if (ptr->DEV_TYP == 62) {
+/*
+	if  (ptr->bprevState != ptr->bState) {
+	if (ptr->r4slpcom != 62) ptr->bState = 0;
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/clear");
+	if (!ptr->bState) esp_mqtt_client_publish(mqttclient, ldata, strOFF, 0, 1, 1);
+        else if (ptr->bState == 254) esp_mqtt_client_publish(mqttclient, ldata, "offline", 0, 1, 1);
+        else esp_mqtt_client_publish(mqttclient, ldata, strON, 0, 1, 1);
+	ptr->r4sppcom = 255;
+	ptr->t_ppcom_us = t_mqt_us;
+	ptr->bprevState = ptr->bState;
+	}
+*/
+	if  (ptr->bprevProg != ptr->bProg) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/smoke");
+	if (!ptr->bProg) esp_mqtt_client_publish(mqttclient, ldata, strOFF, 0, 1, 1);
+        else if (ptr->bProg == 254) esp_mqtt_client_publish(mqttclient, ldata, "offline", 0, 1, 1);
+        else esp_mqtt_client_publish(mqttclient, ldata, strON, 0, 1, 1);
+	ptr->r4sppcom = 255;
+	ptr->t_ppcom_us = t_mqt_us;
+	ptr->bprevProg = ptr->bProg;
+	}
+	if  (ptr->bSEnergy != ptr->bprevSEnergy) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/temperature");
+        tmpvar[0] = 0;
+	if (ptr->bSEnergy & 0x80000000) strcat(tmpvar,"-");
+	itoa((ptr->bSEnergy & 0x7fffffff) / 10,tmpvar1,10);
+	strcat(tmpvar,tmpvar1);
+	strcat(tmpvar,".");	
+	itoa((ptr->bSEnergy & 0x7fffffff) % 10,tmpvar1,10);
+	strcat(tmpvar,tmpvar1);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	ptr->r4sppcom = 255;
+	ptr->t_ppcom_us = t_mqt_us;
+	ptr->bprevSEnergy = ptr->bSEnergy;
+	}
+	if  (ptr->bprevCtemp != ptr->bCtemp) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/battery");
+	itoa(ptr->bCtemp,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	ptr->bprevCtemp = ptr->bCtemp;
 	}
 
 	} else if (ptr->DEV_TYP == 63) {
@@ -8460,7 +8861,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 	}
 
-	} else if (ptr->DEV_TYP < 63) {
+	} else if (ptr->DEV_TYP < 62) {
 	//cooker
 	if (!memcmp(topic+topoff, "state", topic_len-topoff)) {
 	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
@@ -8701,6 +9102,31 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 	}
 	}
+	} else if (ptr->DEV_TYP == 62) {
+	//weather station
+	if (!memcmp(topic+topoff, "clear", topic_len-topoff)) {
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
+		|| (!incascmp("true",data,data_len))) {
+	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
+	ptr->bState = 1;
+	ptr->bprevState = 255;
+	ptr->r4slppar1 = 0;
+	ptr->r4slpcom = 62;
+	ptr->t_last_us = ~ptr->t_last_us;
+	}
+//	ESP_LOGI(AP_TAG,"MQTT_CLEAR_ON");
+	} else if ((!incascmp("0",data,data_len)) || (!incascmp("off",data,data_len))
+		|| (!incascmp("false",data,data_len))) {
+	if ((ptr->bState)  || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strOFF,data,data_len))) {
+	ptr->bState = 0;
+	ptr->bprevState = 255;
+	ptr->t_last_us = ~ptr->t_last_us;
+	}
+	}
+//	ESP_LOGI(AP_TAG,"MQTT_CLEAR_OFF");
+	}
+
 	} else if (ptr->DEV_TYP == 63) {
 	//weather station
 	if (!memcmp(topic+topoff, "calibration", topic_len-topoff)) {
@@ -8894,7 +9320,7 @@ void HDiscBlemon(bool mqtttst)
         if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
-	strcat(llwtd,"/rssi\",\"unit_of_meas\":\"dBm\",\"availability_topic\":\"");
+	strcat(llwtd,"/rssi\",\"unit_of_meas\":\"dBm\",\"device_class\":\"signal_strength\",\"state_class\":\"measurement\",\"availability_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
@@ -8943,7 +9369,7 @@ void HDiscBlemon(bool mqtttst)
         if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
         else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
-	strcat(llwtd,"/rssi\",\"unit_of_meas\":\"dBm\"}");
+	strcat(llwtd,"/rssi\",\"unit_of_meas\":\"dBm\",\"device_class\":\"signal_strength\",\"state_class\":\"measurement\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 //
 	strcpy(llwtt,"homeassistant/sensor/");
@@ -10358,6 +10784,7 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	else if (ptr->DEV_TYP < 16) strcat(bsend,"Coffee, ");
 	else if (ptr->DEV_TYP < 24) strcat(bsend,"Cooker, ");
 	else if (ptr->DEV_TYP < 32) strcat(bsend,"Oven, ");
+	else if (ptr->DEV_TYP == 62) strcat(bsend,"Smoke, ");
 	else if (ptr->DEV_TYP == 63) strcat(bsend,"Weather, ");
 	strcat(bsend,"Address: ");
 	strcat(bsend,ptr->tBLEAddr);
@@ -10429,7 +10856,7 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	itoa(ptr->bCMin,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,", ");
-	} else if (ptr->DEV_TYP < 63) {
+	} else if (ptr->DEV_TYP < 62) {
 	strcat(bsend,", State: ");
 	if (ptr->DEV_TYP == 20) {	
         if (!ptr->bState) strcat(bsend,"Off");
@@ -10476,6 +10903,22 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	itoa(ptr->bCMin,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,", ");
+	} else if (ptr->DEV_TYP == 62) {
+	strcat(bsend,", Temperature: ");
+	if (ptr->bSEnergy & 0x80000000) strcat(bsend,"-");
+	itoa((ptr->bSEnergy & 0x7fffffff) / 10,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend,".");
+	itoa((ptr->bSEnergy & 0x7fffffff) % 10,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend,"&deg;C, Smoke: ");
+        if (!ptr->bProg) strcat(bsend,"Off");
+ 	else if (ptr->bProg == 254) strcat(bsend,"Offline");
+ 	else strcat(bsend,"On");
+	strcat(bsend,", Battery: ");
+	itoa(ptr->bCtemp,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend,"&#37;, ");
 	} else if (ptr->DEV_TYP == 63) {
 	uint32_t tmp = 0;
 	strcat(bsend,", Temperature: ");
@@ -10791,7 +11234,8 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	if ((ptr->DEV_TYP > 10) && (ptr->DEV_TYP < 12)) strcat(bsend," Heater");
 	if ((ptr->DEV_TYP > 11) && (ptr->DEV_TYP < 16)) strcat(bsend," Coffee");
 	if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 24)) strcat(bsend," Cooker");
-	if ((ptr->DEV_TYP > 23) && (ptr->DEV_TYP < 63)) strcat(bsend," Oven");
+	if ((ptr->DEV_TYP > 23) && (ptr->DEV_TYP < 62)) strcat(bsend," Oven");
+	if (ptr->DEV_TYP == 62) strcat(bsend," Smoke");
 	if (ptr->DEV_TYP == 63) strcat(bsend," Weather");
 	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 70)) strcat(bsend," Kettle");
 	strcat(bsend," Control</h3><br/>");
@@ -10802,7 +11246,8 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	if ((ptr->DEV_TYP > 10) && (ptr->DEV_TYP < 12)) strcat(bsend,"Heater ");
 	if ((ptr->DEV_TYP > 11) && (ptr->DEV_TYP < 16)) strcat(bsend,"Coffee ");
 	if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 24)) strcat(bsend,"Cooker ");
-	if ((ptr->DEV_TYP > 23) && (ptr->DEV_TYP < 63)) strcat(bsend,"Oven ");
+	if ((ptr->DEV_TYP > 23) && (ptr->DEV_TYP < 62)) strcat(bsend,"Oven ");
+	if (ptr->DEV_TYP == 62) strcat(bsend,"Smoke ");
 	if (ptr->DEV_TYP == 63) strcat(bsend,"Weather ");
 	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 70)) strcat(bsend,"Kettle ");
 	strcat(bsend,ptr->RQC_NAME);
@@ -10846,6 +11291,17 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"-5\" max=\"5\" size=\"3\">Boil Time(Smart Boil)</br>");
 	}
+	} else if ( ptr->DEV_TYP == 62) {
+/*
+	strcat(bsend,"<body><form method=\"POST\" action=\"/cfgdev");
+	itoa(blenum1,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend,"ok\">");
+	strcat(bsend,"<select name=\"sstate\"><option ");
+        strcat(bsend,"value=\"62\">Clear Smoke</option></select>Select state</br>");
+*/
+	strcat(bsend,"No control available</br>");
+	strcat(bsend,"<body><form method=\"POST\" action=\"/setignore\">");
 	} else if ( ptr->DEV_TYP == 63) {
 	strcat(bsend,"<body><form method=\"POST\" action=\"/cfgdev");
 	itoa(blenum1,buff,10);
@@ -10913,7 +11369,7 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	itoa(ptr->bPMin,buff,10);
 	strcat(bsend,buff);
         strcat(bsend,"\" min=\"0\" max=\"59\" size=\"2\">Set Min</br>");
-	} else if ( ptr->DEV_TYP < 64) {
+	} else if ( ptr->DEV_TYP < 62) {
 	if (ptr->bProg < 24) {
 	if ((ptr->bDHour != ptr->bCHour) || (ptr->bDMin != ptr->bCMin)) {
 	ptr->bDHour = 0;
@@ -11434,6 +11890,11 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	BleDevStA.r4slpcom = 2;
 	if (BleDevStA.DEV_TYP > 3) BleDevStA.bCVol = 252;
 	break;
+	case 62:             //clear smoke
+	cm_done = 1;
+	BleDevStA.r4slppar1 = 0;		
+	BleDevStA.r4slpcom = 62;
+	break;
 	case 63:             //weather calibration
 	cm_done = 1;
 	BleDevStA.r4slppar1 = 0;		
@@ -11720,6 +12181,11 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	BleDevStB.r4slppar1 = 0;
 	BleDevStB.r4slpcom = 2;
 	if (BleDevStB.DEV_TYP > 3) BleDevStB.bCVol = 252;
+	break;
+	case 62:             //clear smoke
+	cm_done = 1;
+	BleDevStB.r4slppar1 = 0;		
+	BleDevStB.r4slpcom = 62;
 	break;
 	case 63:             //weather calibration
 	cm_done = 1;
@@ -12009,6 +12475,11 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	BleDevStC.r4slpcom = 2;
 	if (BleDevStC.DEV_TYP > 3) BleDevStC.bCVol = 252;
 	break;
+	case 62:             //clear smoke
+	cm_done = 1;
+	BleDevStC.r4slppar1 = 0;		
+	BleDevStC.r4slpcom = 62;
+	break;
 	case 63:             //weather calibration
 	cm_done = 1;
 	BleDevStC.r4slppar1 = 0;		
@@ -12077,7 +12548,7 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend,"<a class='menu' href='update'>&#10548;<span class='showmenulabel'>Load firmware</span></a></div>");
 
 	strcat(bsend,"</header><body><form method=\"POST\" action=\"/blemonok\"  id=\"frm1\"><table class='normal' width='80%'>");
-	strcat(bsend,"<tr class=\"header\"><th width='30px' align='left'>Pos</th><th width='210px' align='left'>ID</th><th width='140px' align='left'>Name / Type</th><th width='80px' align='left''>RSSI</th><th width='70px' align='left''>Gap</th><th width='70px' align='left''>Last</th><th width='720px' align='left'>Advanced Data / Scan Response</th><th width='150px' align='left''>Timeout</tr>");
+	strcat(bsend,"<tr class=\"header\"><th width='30px' align='left'>Pos</th><th width='210px' align='left'>ID</th><th width='140px' align='left'>Name / Type</th><th width='80px' align='left''>RSSI</th><th width='70px' align='left''>Gap</th><th width='70px' align='left''>Last</th><th width='720px' align='left'>Advanced Data / Scan Response</th><th width='150px' align='left''>Timeout etc.</tr>");
 	for (int i=0; i < BleMonNum; i++) {
 	(i & 1)? strcat(bsend,"<tr><td class='xbg'>") : strcat(bsend,"<tr><td>");
 	itoa(i+1,buff,10);
@@ -12092,6 +12563,10 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	bin2hex(&BleMR[i].mac[4],buff,2,0);
 	strcat(bsend,buff);	
 	strcat(bsend,"-");	
+	} else if (BleMR[i].id == 0x44) {
+	strcat(bsend,"key: ");	
+	bin2hex(BleMR[i].mac,buff,9,0);
+	strcat(bsend,buff);	
 	} else if (BleMR[i].id) {
 	strcat(bsend,"mac: ");	
 	bin2hex(BleMR[i].mac,buff,6,0x3a);
@@ -12121,7 +12596,7 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
 	if (BleMX[i].rssi) {
 	uint16_t tmp = 0;
-	if(BleMR[i].sto) tmp = BleMR[i].sto - BleMX[i].ttick;
+	if (BleMR[i].sto) tmp = BleMR[i].sto - BleMX[i].ttick;
         else tmp = BleMonDefTO - BleMX[i].ttick;
 	itoa(tmp / 10,buff,10);
 	strcat(bsend,buff);	
@@ -12137,14 +12612,23 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	}
 	(i & 1)? strcat(bsend,"</td><td class='xbg' rowspan='2'>") : strcat(bsend,"</td><td rowspan='2'>");
 
+	if (BleMR[i].id == 0x04) {
+	strcat(bsend,"<input name=\"blmkey");
+	itoa(i,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend,"\" type=\"text\" maxlength=\"40\" size=\"6\" placeholder=\"Key\">");
+	} else if (BleMR[i].id) {
 	strcat(bsend,"<input name=\"blmto");
 	itoa(i,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" type=\"number\" value=\"");
+	strcat(bsend,"\" type=\"number");
+	if (BleMR[i].sto) {
+	strcat(bsend,"\" value=\"");
 	itoa(BleMR[i].sto / 10,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"6500\" size=\"4\">s");
-
+	}
+	strcat(bsend,"\" min=\"0\" max=\"6500\" size=\"6\" placeholder=\"Timeout\">s");
+	}
 	(i & 1)? strcat(bsend,"</td></tr><tr><td class='xbg'></td><td class='xbg'>") : strcat(bsend,"</td></tr><tr><td></td><td>");
 	if (BleMR[i].id == 0x42) {
 	bin2hex(&BleMR[i].mac[6],buff,2,0);
@@ -12155,13 +12639,17 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend,"-");	
 	bin2hex(&BleMR[i].mac[10],buff,6,0);
 	strcat(bsend,buff);	
+	} else if (BleMR[i].id == 0x44) {
+	bin2hex(&BleMR[i].mac[9],buff,11,0);
+	strcat(bsend,buff);	
 	}
 	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
 	if (BleMR[i].id == 3) {
 	strcat(bsend,"LYWSD03MMC");	
 	} else if (BleMR[i].id == 0x42) {
 	strcat(bsend,"HA iBeacon");	
-
+	} else if (BleMR[i].id == 0x44) {
+	} else if (BleMR[i].id == 0x04) {
 	}
 	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
 	if (BleMX[i].cmrssi) {
@@ -12218,7 +12706,8 @@ static esp_err_t pblemonok_get_handler(httpd_req_t *req)
 {
 	char buf1[512] = {0};
 	char buf2[16] = {0};
-	char buf3[16] = {0};
+	char buf3[64] = {0};
+	uint8_t buf4[32] = {0};
 	uint8_t fsave = 0;
 	uint8_t fble_mon = ble_mon;
 	uint16_t var = 0;
@@ -12251,6 +12740,19 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	BleMR[i].sto = var;
 	if (var && (BleMX[i].ttick > var)) BleMX[i].ttick = var;
 	}
+	strcpy(buf2,"blmkey");
+	itoa(i,buf3,10);
+	strcat(buf2,buf3);
+	buf3[0] = 0;
+	parsuri(buf1,buf3,buf2,512,41);
+	if (buf3[0] && BleMX[i].advdatlen && (strlen(buf3) == 40)) {
+	if((hex2bin(buf3, buf4, 20)) && (vstsign(&BleMX[i].advdat[11], buf4))) {
+	memcpy(BleMR[i].mac, buf4, 20);
+	BleMR[i].id = 0x44;
+	fsave = 0;
+	}
+	}
+
 	}
 	}
 	if (fsave) {
@@ -12358,6 +12860,8 @@ void HtpDeVSett(uint8_t blenum, char* bsend) {
 	strcat(bsend,"value=\"20\">RMC-M92S</option><option ");
 	if (ptr->DEV_TYP == 24) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"24\">RO-5707S</option><option ");
+	if (ptr->DEV_TYP == 62) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"62\">RSS-61S</option><option ");
 	if (ptr->DEV_TYP == 63) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"63\">RSC-51S</option><option ");
 	if (ptr->DEV_TYP == 64) strcat(bsend,"selected ");
@@ -13761,6 +14265,15 @@ void lpcomstat(uint8_t blenum) {
 	ptr->t_last_us = ~ptr->t_last_us;
 	break;
 
+	case 62:	//smoke reset
+        MqState(blenum);
+	ptr->r4slpres = 1;
+	ptr->bprevState = 255;
+	m61sClear(blenum);
+	ptr->r4slpcom = 0;
+	ptr->t_last_us = ~ptr->t_last_us;
+	break;
+
 	case 63:	//weather calibrate
         MqState(blenum);
 	ptr->r4slpres = 1;
@@ -13805,6 +14318,16 @@ void lpcomstat(uint8_t blenum) {
         vTaskDelay(100 / portTICK_PERIOD_MS);
 	t_before_us = esp_timer_get_time();
 // every 4s get kettle state
+	if ((ptr->DEV_TYP > 61) && (ptr->DEV_TYP < 64)) {
+	if (t_before_us - ptr->t_last_us > 10000000) {
+        MqState(blenum);
+	ptr->r4slpres = 0;
+	ptr->f_Sync++;
+	if (ptr->f_Sync > 15) mkSync(blenum);	
+	if (tft_conn) tfblestate();
+	ptr->t_last_us = t_before_us;	
+	}
+	} else {
 	if (t_before_us - ptr->t_last_us > 4000000) {
         MqState(blenum);
 	ptr->r4slpres = 0;
@@ -13812,6 +14335,7 @@ void lpcomstat(uint8_t blenum) {
 	if (ptr->f_Sync > 15) mkSync(blenum);	
 	if (tft_conn) tfblestate();
 	ptr->t_last_us = t_before_us;	
+	}
 	}
 // every 1s display time and date
 	if ((tft_conn) && (t_before_us - t_clock_us > 1000000)) {
