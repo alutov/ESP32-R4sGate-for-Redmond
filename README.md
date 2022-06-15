@@ -257,4 +257,23 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
      
      
 ## 7. Сборка проекта и лицензия
-&emsp; Для сборки бинарных файлов использован [Espressif IoT Development Framework.](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/). Добавлена конфигурация для сборки в среде Platformio, спасибо [bvp](https://github.com/bvp), подробнее [здесь](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/89). Добавлена лицензия MIT.<br>
+&emsp; Для сборки бинарных файлов использовал [Espressif IoT Development Framework.](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/). Добавлена лицензия MIT. Добавлена конфигурация для сборки в среде Platformio, спасибо [bvp](https://github.com/bvp). 
+<details>
+<summary>Подробнее о Platformio</summary>
+
+## PlatformIO
+Это платформа для сборки прошивок для микроконтроллеров. Управляет инструментарием сборки, и зависимостями проекта. Всё нужное скачает сама. Со списком поддерживаемых платформ можно ознакомиться [тут](https://registry.platformio.org/search?t=platform), а фреймворков - [тут](https://registry.platformio.org/search?t=tool&q=keyword%3Aframework).
+
+platformio.ini - файл конфигурации для PlatformIO
+Собрать так - `pio run -t build` или просто `pio run`
+Загрузить прошивку - `pio run -t upload`
+Потребуется только поправить `upload_port` и `monitor_port`.
+Для Win32 значение будет вида `COM4` (поставить свой номер порта, на котором находится прошивальщик).
+Для Linux - будет `/dev/ttyUSB0` (так же поставить свой номер порта, на котором находится прошивальщик).
+Для macOS - как в прилагаемом примере.
+
+## Clang-format
+В файле описываются правила форматирования кода, согласно которым код приводится к нужному стилю. Необходим установленный `clang-format`.     
+</details>
+
+<br>
