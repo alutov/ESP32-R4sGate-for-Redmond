@@ -257,4 +257,4 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
      
      
 ## 7. Сборка проекта и лицензия
-&emsp; Для сборки бинарных файлов использован [Espressif IoT Development Framework.](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/). Добавлена лицензия MIT, что позволяет мне отказаться от всякой ответственности. Но не это главное. При написании прошивки год назад столкнулся с малым количеством примеров для этой среды разработки, по сравнению с тем же ардуино. Многое из того, что есть в ардуино, здесь пришлось писать самому. С другой стороны, тот же BLE  имеет большие возможности и работает надежнее, чем в ардуино. На красоту и эффективность кода не претендую, но можно что-то отсюда брать за основу в других Espressif IoT проектах.<br>
+&emsp; Для сборки бинарных файлов использован [Espressif IoT Development Framework.](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/). Добавлена конфигурация для сборки в среде Platformio, спасибо [bvp](https://github.com/bvp), подробнее [здесь](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/89). Добавлена лицензия MIT.<br>
