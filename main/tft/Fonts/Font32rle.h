@@ -7,5 +7,5 @@
 #define data_size_f32 8
 #define firstchr_f32 32
 
-extern const unsigned char widtbl_f32[96];
-extern const unsigned char* const chrtbl_f32[96];
+extern const unsigned char widtbl_f32[160];
+extern const unsigned char* const chrtbl_f32[160];

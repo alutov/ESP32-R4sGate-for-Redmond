@@ -724,25 +724,29 @@ uint16_t decodeUTF8(uint8_t *buf, uint16_t *index, uint16_t remaining)
   uint16_t c = buf[(*index)++];
   //Serial.print("Byte from string = 0x"); Serial.println(c, HEX);
 
-#ifdef DECODE_UTF8
   // 7 bit Unicode
-  if ((c & 0x80) == 0x00) return c;
-
+	if ((c & 0x80) == 0x00) return c;
   // 11 bit Unicode
-  if (((c & 0xE0) == 0xC0) && (remaining > 1))
-    return ((c & 0x1F)<<6) | (buf[(*index)++]&0x3F);
-
+	if (((c & 0xE0) == 0xC0) && (remaining > 1)) {
+// À - do 90 ß - do af à - do bo ï - d0 bf ð - d1 80 ÿ - d1 8f
+	c = ((c & 0x1F)<<6) | (buf[(*index)++]&0x3F);
+// move rus sym to 0x80-0xbf
+	if ((c > 0x40f) && (c < 0x450))	return (c - 0x390);
+	else return 0x20;
+	}
   // 16 bit Unicode
-  if (((c & 0xF0) == 0xE0) && (remaining > 2)) {
-    c = ((c & 0x0F)<<12) | ((buf[(*index)++]&0x3F)<<6);
-    return  c | ((buf[(*index)++]&0x3F));
-  }
+	if (((c & 0xF0) == 0xE0) && (remaining > 2)) {
+	c = ((c & 0x0F)<<12) | ((buf[(*index)++]&0x3F)<<6);
+	c = c | ((buf[(*index)++]&0x3F));
+// move rus sym to 0x80-0xbf
+	if ((c > 0x40f) && (c < 0x450))	return (c - 0x390);
+	else return 0x20;
+	}
 
   // 21 bit Unicode not supported so fall-back to extended ASCII
   // if ((c & 0xF8) == 0xF0) return c;
-#endif
 
-  return c; // fall-back to extended ASCII
+	return c; // fall-back to extended ASCII
 }
 
 uint8_t pgm_read_byte(const uint8_t *cin)
@@ -883,13 +887,14 @@ void pushImage(int32_t x, int32_t y, int32_t w, int32_t h, const uint16_t *data)
   // Any UTF-8 decoding must be done before calling drawChar()
 int16_t drawChar(uint16_t uniCode, int32_t x, int32_t y, uint8_t font)
 {
-  if (!uniCode) return 0;
 
-  if (font==1) {
+  if (font == 1) {
     return 0;
   }
 
-  if ((font>1) && (font<9) && ((uniCode < 32) || (uniCode > 127))) return 0;
+  if ((font == 2) && ((uniCode < 32) || (uniCode > 191))) return 0;
+  else if ((font == 4) && ((uniCode < 32) || (uniCode > 191))) return 0;
+  else if ((font > 4) && (font < 9) && ((uniCode < 32) || (uniCode > 127))) return 0;
 
   int32_t width  = 0;
   int32_t height = 0;
@@ -1087,7 +1092,7 @@ int16_t drawString(const char *string, int32_t poX, int32_t poY, uint8_t font)
   uint8_t padding = 1, baseline = 0;
   uint16_t cwidth = textWidth(string, font); // Find the pixel width of the string in the font
   uint16_t cheight = 8 * textsize;
-
+  uint8_t stfont = font;
 
   if (font!=1) {
     baseline = fontdata[font].baseline * textsize;
@@ -1164,7 +1169,65 @@ int16_t drawString(const char *string, int32_t poX, int32_t poY, uint8_t font)
   {
     while (n < len) {
       uint16_t uniCode = decodeUTF8((uint8_t*)string, &n, len - n);
-      sumX += drawChar(uniCode, poX+sumX, poY, font);
+	if ((uniCode == 0x5c) && len) {	
+	uniCode = decodeUTF8((uint8_t*)string, &n, len - n);
+	switch (uniCode) {
+	case 0x6e:
+   	sumX = 0;
+	poX = 0;
+	if (stfont == 2) poY = poY + 16;
+	else if (stfont == 4) poY = poY + 26;
+	break;
+	case 0x46:
+	stfont = 4;
+   	sumX = 0;
+	poX = 0;
+	poY = poY + 26;
+	break;
+	case 0x66:
+	stfont = 2;
+   	sumX = 0;
+	poX = 0;
+	poY = poY + 16;
+	break;
+
+	case 0x30:
+	setTextColor(TFT_WHITE, TFT_BLACK);
+	break;
+	case 0x31:
+	setTextColor(TFT_BLUE, TFT_BLACK);
+	break;
+	case 0x32:
+	setTextColor(TFT_GREEN, TFT_BLACK);
+	break;
+	case 0x33:
+	setTextColor(TFT_RED, TFT_BLACK);
+	break;
+	case 0x34:
+	setTextColor(TFT_CYAN, TFT_BLACK);
+	break;
+	case 0x35:
+	setTextColor(TFT_MAGENTA, TFT_BLACK);
+	break;
+	case 0x36:
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+	break;
+	case 0x37:
+	setTextColor(TFT_WHITE, TFT_NAVY);
+	break;
+	case 0x38:
+	setTextColor(TFT_WHITE, TFT_DARKGREEN);
+	break;
+	case 0x39:
+	setTextColor(TFT_WHITE, TFT_RED);
+	break;
+
+	default:
+        sumX += drawChar(0x5c, poX+sumX, poY, stfont);
+        sumX += drawChar(uniCode, poX+sumX, poY, stfont);
+	break;
+	}
+	} else sumX += drawChar(uniCode, poX+sumX, poY, stfont);
     }
   }
 
@@ -1185,9 +1248,9 @@ return sumX;
 
 
 //Initialize the display
-bool lcd_init(spi_device_handle_t spi)
+uint8_t lcd_init(spi_device_handle_t spi)
 {
-	bool result = false;
+	uint8_t result = 0;
 	int  cmd = 0;
 	uint32_t lcd_id;
 
@@ -1213,6 +1276,7 @@ bool lcd_init(spi_device_handle_t spi)
 	gpio_set_direction(PIN_NUM_DC, GPIO_MODE_OUTPUT);
 	gpio_set_direction(PIN_NUM_RST, GPIO_MODE_OUTPUT);
 	gpio_set_level(PIN_TOUCH_CS, 1);
+	gpio_set_level(PIN_NUM_RST, 1);
 
 	ledc_timer_config(&ledc_timer);
         ledc_channel_config(&ledc_channel);
@@ -1223,8 +1287,9 @@ bool lcd_init(spi_device_handle_t spi)
 	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
 
     //Reset the display
+	vTaskDelay(100 / portTICK_RATE_MS);
 	gpio_set_level(PIN_NUM_RST, 0);
-	vTaskDelay(200 / portTICK_RATE_MS);
+	vTaskDelay(100 / portTICK_RATE_MS);
 	gpio_set_level(PIN_NUM_RST, 1);
 	vTaskDelay(500 / portTICK_RATE_MS);
     //detect LCD type
@@ -1245,16 +1310,17 @@ bool lcd_init(spi_device_handle_t spi)
 	lcd_cmd(spi, ili9341_init1_cmds[0].cmd);
 	lcd_data(spi, ili9341_init1_cmds[0].data, ili9341_init1_cmds[0].databytes&0x1F);
 	}
+	vTaskDelay(100 / portTICK_RATE_MS);
 	lcd_id = lcd_get_dd(spi, 0x0f, 1);
 	ESP_LOGI(AP_TAG,"Display Self-Diagnostic Result (0x0Fh) = %x", lcd_id);
-	if (lcd_id == 0xc0) {
+	if ((lcd_id & 0x80) == 0x80) {
 	///Enable backlight
 	fillScreen(0);
         ESP_LOGI(AP_TAG, "ILI9341 TFT detected.");
 	bStateS = 255;
 	ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
 	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
-	result = true;
+	result = 1;
 	} else ESP_LOGI(AP_TAG, "ILI9341 TFT init error.");
 
 	} else if (lcd_id == 0x80f1) {  //0, ili9342
@@ -1272,17 +1338,17 @@ bool lcd_init(spi_device_handle_t spi)
 	lcd_cmd(spi, ili9342_init1_cmds[0].cmd);
 	lcd_data(spi, ili9342_init1_cmds[0].data, ili9342_init1_cmds[0].databytes&0x1F);
 	}
+	vTaskDelay(100 / portTICK_RATE_MS);
 	lcd_id = lcd_get_dd(spi, 0x0f, 1);
 	ESP_LOGI(AP_TAG,"Display Self-Diagnostic Result (0x0Fh) = %x", lcd_id);
-	if (lcd_id == 0xc0) {
+	if ((lcd_id & 0x80) == 0x80) {
 	///Enable backlight
 	fillScreen(0);
         ESP_LOGI(AP_TAG, "ILI9342 TFT detected.");
 	bStateS = 255;
 	ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
 	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
-
-	result = true;
+	result = 2;
 	} else ESP_LOGI(AP_TAG, "ILI9342 TFT init error.");
 
 	} else {
@@ -1293,9 +1359,9 @@ bool lcd_init(spi_device_handle_t spi)
 
 
 
-bool tftinit()
+uint8_t tftinit()
 {
-	bool result = false;
+	uint8_t result = 0;
 	esp_err_t ret;
 	spi_bus_config_t buscfg={
 	.miso_io_num=PIN_NUM_MISO,
@@ -1337,14 +1403,16 @@ bool tftinit()
 //Initialize the LCD
 	result = lcd_init(spi);
 	if (result) {
-	setSwapBytes(true);
-	pushImage(0, 40, 320, 240, wallpaper);
 	fillRect(0,0,320,52,TFT_BLACK);
 	setTextColor(TFT_WHITE, TFT_BLACK);
   	uint32_t sumx = 0;
-	sumx = drawString(" Starting R4S Gate version ", 0, 224, 2);
-	sumx += drawString(AP_VER, sumx, 224, 2);
+	drawString("Starting R4S Gate", 0, 0, 4);
+	sumx = drawString("ver:  ", 0, 26, 4);
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+	sumx += drawString(AP_VER, sumx, 26, 4);
 	fillRect(sumx,224,320-sumx,16,TFT_BLACK);
+	setSwapBytes(true);
+	pushImage(0, 52, 320, 240, wallpaper);
 	}
 	return result;
 }
@@ -1390,8 +1458,6 @@ void tftclock()
 	char sday[8];
 	char buff[8];
 	int  tmp;
-	uint16_t sym;
-	uint16_t bkg;
 	stime[0] = 0;	
 	sdate[0] = 0;	
 	struct tm timeinfo;
@@ -1424,86 +1490,50 @@ void tftclock()
 	strcat(sdate,buff);
 	switch (timeinfo.tm_wday) {
 	case 0:
-	strcpy(sday,"Sun");
+	strcpy(sday,"Su");
 	break;
 	case 1:
-	strcpy(sday,"Mon");
+	strcpy(sday,"M");
 	break;
 	case 2:
-	strcpy(sday,"Tue");
+	strcpy(sday,"Tu");
 	break;
 	case 3:
-	strcpy(sday,"Wed");
+	strcpy(sday,"W");
 	break;
 	case 4:
-	strcpy(sday,"Thu");
+	strcpy(sday,"Th");
 	break;
 	case 5:
-	strcpy(sday,"Fri");
+	strcpy(sday,"Fr");
 	break;
 	case 6:
-	strcpy(sday,"Sat");
+	strcpy(sday,"Sa");
 	break;
 	}
 	setTextColor(TFT_WHITE, TFT_BLACK);
 	drawString(stime,0,0,7);
 	setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx = 220;
-        sumx += drawString(sday,sumx,26,4);
-	fillRect(sumx, 26,278-sumx,26,TFT_BLACK);
-	tmp = blstnum;
-	sumx = 278;
-	if (tmp == 0) bkg = TFT_DARKB;
-	else bkg = TFT_BLACK;
-	if (!BleDevStA.btauthoriz) sym = TFT_DARKGREY;
-	else if (!BleDevStA.bState && BleDevStA.bHeat) sym = TFT_YELLOW;
-	else if (!BleDevStA.bState) sym = TFT_BLUE;
-	else if (BleDevStA.bState == 254) sym = TFT_DARKGREY;
-	else if ((BleDevStA.DEV_TYP > 15) && (BleDevStA.DEV_TYP < 24) && (BleDevStA.bState == 1)) sym = TFT_WHITE;
-	else if ((BleDevStA.DEV_TYP > 15) && (BleDevStA.DEV_TYP < 24) && (BleDevStA.bState == 5)) sym = TFT_YELLOW;
-	else sym = TFT_RED;
-	setTextColor(sym, bkg);
-        sumx += drawString("1",sumx,26,4);
-
-	if (tmp == 1) bkg = TFT_DARKB;
-	else bkg = TFT_BLACK;
-	if (!BleDevStB.btauthoriz) sym = TFT_DARKGREY;
-	else if (!BleDevStB.bState && BleDevStB.bHeat) sym = TFT_YELLOW;
-	else if (!BleDevStB.bState) sym = TFT_BLUE;
-	else if (BleDevStB.bState == 254) sym = TFT_DARKGREY;
-	else if ((BleDevStB.DEV_TYP > 15) && (BleDevStB.DEV_TYP < 24) && (BleDevStB.bState == 1)) sym = TFT_WHITE;
-	else if ((BleDevStB.DEV_TYP > 15) && (BleDevStB.DEV_TYP < 24) && (BleDevStB.bState == 5)) sym = TFT_YELLOW;
-	else sym = TFT_RED;
-	setTextColor(sym, bkg);
-        sumx += drawString("2",sumx,26,4);
-
-	if (tmp == 2) bkg = TFT_DARKB;
-	else bkg = TFT_BLACK;
-	if (!BleDevStC.btauthoriz) sym = TFT_DARKGREY;
-	else if (!BleDevStC.bState && BleDevStC.bHeat) sym = TFT_YELLOW;
-	else if (!BleDevStC.bState) sym = TFT_BLUE;
-	else if (BleDevStC.bState == 254) sym = TFT_DARKGREY;
-	else if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 24) && (BleDevStC.bState == 1)) sym = TFT_WHITE;
-	else if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 24) && (BleDevStC.bState == 5)) sym = TFT_YELLOW;
-	else sym = TFT_RED;
-	setTextColor(sym, bkg);
-        sumx += drawString("3",sumx,26,4);
-	setTextColor(TFT_GREEN, TFT_BLACK);
+        if (timeinfo.tm_year > 100) sumx += drawString(sday,sumx,26,4);
+	fillRect(sumx, 26,250-sumx,26,TFT_BLACK);
 	sumx = 220;
-        sumx += drawString(sdate,sumx,0,4);
+        if (timeinfo.tm_year > 100) sumx += drawString(sdate,sumx,0,4);
 	setTextColor(TFT_WHITE, TFT_BLACK);
 }
 
 void blstnum_inc() {
 	if (f_update) blstnum = 254;
-	else if (BleDevStA.REQ_NAME[0] || BleDevStB.REQ_NAME[0] || BleDevStC.REQ_NAME[0]) {
+	else if (BleDevStA.REQ_NAME[0] || BleDevStB.REQ_NAME[0] || BleDevStC.REQ_NAME[0] || BleDevStD.REQ_NAME[0] || BleDevStE.REQ_NAME[0]) {
 	int i = 0;
-	while (i < 3) {
+	while (i < 5) {
 	blstnum++;
-	if (blstnum > 2) blstnum = 0;
-	if ((blstnum == 0) && BleDevStA.REQ_NAME[0]) i = 3;
-	if ((blstnum == 1) && BleDevStB.REQ_NAME[0]) i = 3;
-	if ((blstnum == 2) && BleDevStC.REQ_NAME[0]) i = 3;
+	if (blstnum > 4) blstnum = 0;
+	if ((blstnum == 0) && BleDevStA.REQ_NAME[0]) i = 5;
+	if ((blstnum == 1) && BleDevStB.REQ_NAME[0]) i = 5;
+	if ((blstnum == 2) && BleDevStC.REQ_NAME[0]) i = 5;
+	if ((blstnum == 3) && BleDevStD.REQ_NAME[0]) i = 5;
+	if ((blstnum == 4) && BleDevStE.REQ_NAME[0]) i = 5;
 	i++;
 	}
 	} else blstnum = 255;
@@ -1520,19 +1550,89 @@ void tfblestate()
 	case 2:
 	ptr = &BleDevStC;
 	break;
+	case 3:
+	ptr = &BleDevStD;
+	break;
+	case 4:
+	ptr = &BleDevStE;
+	break;
 	default:
 	ptr = &BleDevStA;
 	break;
 	}
 	char buf[64];  
 	char buff[16];
-	int  mpos = 214;
-	if (f_update || BleDevStA.REQ_NAME[0] || BleDevStB.REQ_NAME[0] || BleDevStC.REQ_NAME[0]) mpos = 198;
-	if ((MQTT_VALP1[0]) || (MQTT_VALP4[0]) || (MQTT_VALP6[0])) {
-	setTextColor(TFT_GREEN, TFT_BLACK);
   	uint32_t sumx = 0;
 	uint32_t sumy = 0;
 	uint32_t sumz = 0;
+	int  mpos = 214;
+	sumx = 250;
+	uint16_t sym;
+	uint16_t bkg;
+	if (blstnum == 0) bkg = TFT_DARKB;
+	else bkg = TFT_BLACK;
+	if (!BleDevStA.btauthoriz) sym = TFT_DARKGREY;
+	else if (!BleDevStA.bState && BleDevStA.bHeat) sym = TFT_YELLOW;
+	else if (!BleDevStA.bState) sym = TFT_BLUE;
+	else if (BleDevStA.bState == 254) sym = TFT_DARKGREY;
+	else if ((BleDevStA.DEV_TYP > 15) && (BleDevStA.DEV_TYP < 24) && (BleDevStA.bState == 1)) sym = TFT_WHITE;
+	else if ((BleDevStA.DEV_TYP > 15) && (BleDevStA.DEV_TYP < 24) && (BleDevStA.bState == 5)) sym = TFT_YELLOW;
+	else sym = TFT_RED;
+	setTextColor(sym, bkg);
+        sumx += drawString("1",sumx,26,4);
+
+	if (blstnum == 1) bkg = TFT_DARKB;
+	else bkg = TFT_BLACK;
+	if (!BleDevStB.btauthoriz) sym = TFT_DARKGREY;
+	else if (!BleDevStB.bState && BleDevStB.bHeat) sym = TFT_YELLOW;
+	else if (!BleDevStB.bState) sym = TFT_BLUE;
+	else if (BleDevStB.bState == 254) sym = TFT_DARKGREY;
+	else if ((BleDevStB.DEV_TYP > 15) && (BleDevStB.DEV_TYP < 24) && (BleDevStB.bState == 1)) sym = TFT_WHITE;
+	else if ((BleDevStB.DEV_TYP > 15) && (BleDevStB.DEV_TYP < 24) && (BleDevStB.bState == 5)) sym = TFT_YELLOW;
+	else sym = TFT_RED;
+	setTextColor(sym, bkg);
+        sumx += drawString("2",sumx,26,4);
+
+	if (blstnum == 2) bkg = TFT_DARKB;
+	else bkg = TFT_BLACK;
+	if (!BleDevStC.btauthoriz) sym = TFT_DARKGREY;
+	else if (!BleDevStC.bState && BleDevStC.bHeat) sym = TFT_YELLOW;
+	else if (!BleDevStC.bState) sym = TFT_BLUE;
+	else if (BleDevStC.bState == 254) sym = TFT_DARKGREY;
+	else if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 24) && (BleDevStC.bState == 1)) sym = TFT_WHITE;
+	else if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 24) && (BleDevStC.bState == 5)) sym = TFT_YELLOW;
+	else sym = TFT_RED;
+	setTextColor(sym, bkg);
+        sumx += drawString("3",sumx,26,4);
+
+	if (blstnum == 3) bkg = TFT_DARKB;
+	else bkg = TFT_BLACK;
+	if (!BleDevStD.btauthoriz) sym = TFT_DARKGREY;
+	else if (!BleDevStD.bState && BleDevStD.bHeat) sym = TFT_YELLOW;
+	else if (!BleDevStD.bState) sym = TFT_BLUE;
+	else if (BleDevStD.bState == 254) sym = TFT_DARKGREY;
+	else if ((BleDevStD.DEV_TYP > 15) && (BleDevStD.DEV_TYP < 24) && (BleDevStD.bState == 1)) sym = TFT_WHITE;
+	else if ((BleDevStD.DEV_TYP > 15) && (BleDevStD.DEV_TYP < 24) && (BleDevStD.bState == 5)) sym = TFT_YELLOW;
+	else sym = TFT_RED;
+	setTextColor(sym, bkg);
+        sumx += drawString("4",sumx,26,4);
+
+	if (blstnum == 4) bkg = TFT_DARKB;
+	else bkg = TFT_BLACK;
+	if (!BleDevStE.btauthoriz) sym = TFT_DARKGREY;
+	else if (!BleDevStE.bState && BleDevStE.bHeat) sym = TFT_YELLOW;
+	else if (!BleDevStE.bState) sym = TFT_BLUE;
+	else if (BleDevStE.bState == 254) sym = TFT_DARKGREY;
+	else if ((BleDevStE.DEV_TYP > 15) && (BleDevStE.DEV_TYP < 24) && (BleDevStE.bState == 1)) sym = TFT_WHITE;
+	else if ((BleDevStE.DEV_TYP > 15) && (BleDevStE.DEV_TYP < 24) && (BleDevStE.bState == 5)) sym = TFT_YELLOW;
+	else sym = TFT_RED;
+	setTextColor(sym, bkg);
+        sumx += drawString("5",sumx,26,4);
+
+	if (f_update || BleDevStA.REQ_NAME[0] || BleDevStB.REQ_NAME[0] || BleDevStC.REQ_NAME[0] || BleDevStD.REQ_NAME[0] || BleDevStE.REQ_NAME[0]) mpos = 198;
+	if ((MQTT_VALP1[0]) || (MQTT_VALP4[0]) || (MQTT_VALP6[0])) {
+	setTextColor(TFT_GREEN, TFT_BLACK);
+  	sumx = 0;
 	if (MQTT_VALP1[0]) {
 	sumx += drawString(MQTT_VALP1, 0, mpos, 4);
 	if (MQTT_VALP2[0] && MQTT_VALP3[0]) {
@@ -1566,7 +1666,6 @@ void tfblestate()
         sumx += drawString(MQTT_VALP6,sumx,mpos,4);
 	if (MQTT_VALP7[0]) {
   	sumx += drawString("'/", sumx, mpos, 4);
-	fillRect(sumx, mpos,30,26,TFT_BLACK);
 	sumy = sumx;
         sumx += drawString(MQTT_VALP7,sumx, mpos,2);
   	sumx += drawString("%", sumx, mpos, 2);
@@ -1580,9 +1679,9 @@ void tfblestate()
 	if (mqttConnected) setTextColor(TFT_GREEN, TFT_BLACK);
 	else setTextColor(TFT_RED, TFT_BLACK);
 	}
-  	uint32_t sumx = 0;
+  	sumx = 0;
 
-	if (ptr->REQ_NAME[0] && (blstnum < 3)) {
+	if (ptr->REQ_NAME[0] && (blstnum < 5)) {
 	sumx = drawString("Mqtt, ", 0, 224, 2);
 	if (ptr->btauthoriz) {
 	if (!ptr->bState && ptr->bHeat) setTextColor(TFT_YELLOW, TFT_BLACK);
@@ -1606,7 +1705,6 @@ void tfblestate()
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("'", sumx, 224, 2);
         setTextColor(TFT_GREEN, TFT_BLACK);
-//	sumx += drawString(", Heat: ", sumx, 224, 2);
 	sumx += drawString("/", sumx, 224, 2);
 	if (ptr->bHtemp > 79) setTextColor(TFT_WHITE, TFT_BLACK);
 	else if (ptr->bHtemp > 39) setTextColor(TFT_YELLOW, TFT_BLACK);
@@ -1666,7 +1764,7 @@ void tfblestate()
         setTextColor(TFT_RED, TFT_BLACK);
 	sumx += drawString("On", sumx, 224, 2);
 	} else sumx += drawString("Off", sumx, 224, 2);
-	} else if (ptr->DEV_TYP < 63) {
+	} else if (ptr->DEV_TYP < 62) {
 	sumx += drawString(" P: ", sumx, 224, 2);
 	itoa(ptr->bProg,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
@@ -1684,6 +1782,18 @@ void tfblestate()
 	itoa(ptr->bCMin,buff,10);
 	if (ptr->bCMin < 10) sumx += drawString("0", sumx, 224, 2);
 	sumx += drawString(buff, sumx, 224, 2);
+	} else if (ptr->DEV_TYP == 62) {
+	sumx += drawString(" T: ", sumx, 224, 2);
+	if (ptr->bSEnergy & 0x80000000) sumx += drawString("-", sumx, 224, 2);
+	itoa((ptr->bSEnergy & 0x7fffffff) / 10,buff,10);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("'", sumx, 224, 2);
+	if (ptr->bProg) {
+	sumx += drawString(",", sumx, 224, 2);
+	setTextColor(TFT_RED, TFT_BLACK);
+	sumx += drawString("SMOKE", sumx, 224, 2);
+        setTextColor(TFT_GREEN, TFT_BLACK);
+	}
 	} else if (ptr->DEV_TYP == 63) {
 	sumx += drawString(" T/H/P: ", sumx, 224, 2);
 	if (ptr->bSEnergy & 0x80000000) sumx += drawString("-", sumx, 224, 2);
@@ -1696,6 +1806,15 @@ void tfblestate()
 	itoa(ptr->bSTime * 75 / 10000,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("mmHg", sumx, 224, 2);
+	} else if (ptr->DEV_TYP == 73) {
+	sumx += drawString(" T: ", sumx, 224, 2);
+	itoa(ptr->bCHour,buff,10);
+	if (ptr->bCHour < 10) sumx += drawString("0", sumx, 224, 2);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString(":", sumx, 224, 2);
+	itoa(ptr->bCMin,buff,10);
+	if (ptr->bCMin < 10) sumx += drawString("0", sumx, 224, 2);
+	sumx += drawString(buff, sumx, 224, 2);
 	}
         setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString(", ", sumx, 224, 2);
@@ -1753,16 +1872,14 @@ esp_err_t _http_event_handle(esp_http_client_event_t *evt)
 //            ESP_LOGI(AP_TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
             if (!esp_http_client_is_chunked_response(evt->client)) {
 	if ((MyJPGbufidx >= 0) && (MyJPGbufidx+evt->data_len < MyJPGbuflen)) {
-	memcpy(MyJPGbuf+MyJPGbufidx, (char*)evt->data, evt->data_len);
+	memcpy(MyJPGbuf + MyJPGbufidx, (char*)evt->data, evt->data_len);
 	MyJPGbufidx +=evt->data_len;
 	} else MyJPGbufidx = -1;
 
 //                printf("%.*s", evt->data_len, (char*)evt->data);
 //        esp_log_buffer_hex(AP_TAG, (char*)evt->data, evt->data_len);
 
-
-// MyJPGbuf
-            }
+	}
 
             break;
         case HTTP_EVENT_ON_FINISH:
@@ -1771,18 +1888,18 @@ esp_err_t _http_event_handle(esp_http_client_event_t *evt)
         case HTTP_EVENT_DISCONNECTED:
 //            ESP_LOGI(AP_TAG, "HTTP_EVENT_DISCONNECTED");
             break;
-    }
+	}
 	if (MyJPGbufidx >=0) return ESP_OK;
 	else return ESP_ERR_NO_MEM;	
 }
 
 //Data that is passed from the decoder function to the infunc/outfunc functions.
 typedef struct {
-    char *inData; //Pointer to jpeg data
-    uint16_t inPos;              //Current position in jpeg data
-    uint16_t *outData;          //Array of IMAGE_H pointers to arrays of IMAGE_W 16-bit pixel values
-    int outW;                    //Width of the resulting file
-    int outH;                    //Height of the resulting file
+	char *inData; //Pointer to jpeg data
+	uint16_t inPos;              //Current position in jpeg data
+	uint16_t *outData;          //Array of IMAGE_H pointers to arrays of IMAGE_W 16-bit pixel values
+	int outW;                    //Width of the resulting file
+	int outH;                    //Height of the resulting file
 } JpegDev;
 
 //Input function for jpeg decoder. Just returns bytes from the inData field of the JpegDev structure.
@@ -1793,15 +1910,15 @@ static uint16_t infunc(JDEC *decoder, uint8_t *buf, uint16_t len)
 	uint16_t llen = len;
 	if ((buf != NULL) && (len > 0)) {
 	for (int i = 0; i < len; i++) buf[i] = 0;
-    if (jd->inPos + len < MyJPGbuflen) {
+	if (jd->inPos + len < MyJPGbuflen) {
         memcpy(buf, jd->inData + jd->inPos, len);
 	} else llen = 0;
-}
+	}
 	jd->inPos += len;
 	return llen;
 }
 
-//Output function. Re-encodes the RGB888 data from the decoder as big-endian RGB565 and
+//Output jpeg function. Re-encodes the RGB888 data from the jpeg decoder as big-endian RGB565 and
 //stores it in the outData array of the JpegDev structure.
 static uint16_t outfunc(JDEC *decoder, void *bitmap, JRECT *rect)
 {
@@ -1905,64 +2022,151 @@ static uint16_t outfunc(JDEC *decoder, void *bitmap, JRECT *rect)
     return result;
 }
 
+
+
+
 //Size of the work space for the jpeg decoder.
-#define WORKSZ 6000
+#define WORKSZ 6144
 
 bool tftjpg()
 {
 	bool result = false;
-	MyJPGbufidx =0;
-	MyJPGbuf[0] = 0;
-	if (MyHttpUri[0]) {
+	MyJPGbuf = NULL;
+	char *JpHttpUri = NULL;
+	int  jstat = 0;
+	int  jlen = 0;
+	MyJPGbufidx = 0;
+	if (MyHttpUri[0] && jpg_time && (parsoff(MyHttpUri, "http://", 9) || parsoff(MyHttpUri, "https://", 10))) {
+	MyJPGbuf = malloc(MyJPGbuflen);
+	if (MyJPGbuf == NULL) {
+        ESP_LOGE(AP_TAG, "Tftjpg: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	} else {	
+	memset(MyJPGbuf,0,MyJPGbuflen);
+	esp_err_t err = ESP_OK;
+	JpHttpUri = calloc(320, 1);
+	if (JpHttpUri != NULL) {
+	memset(JpHttpUri,0,320);
+	myurlcpy(JpHttpUri, MyHttpUri, 318);
+	ESP_LOGI(AP_TAG, "Url: %s",JpHttpUri);
+	esp_http_client_config_t config = {
+	.url = JpHttpUri,
+	.event_handler = _http_event_handle,
 
-esp_http_client_config_t config = {
-   .url = MyHttpUri,
-   .event_handler = _http_event_handle,
-};
-esp_http_client_handle_t client = esp_http_client_init(&config);
-esp_err_t err = esp_http_client_perform(client);
+//	.max_authorization_retries = 3,
+//	.crt_bundle_attach = esp_crt_bundle_attach,
+//	.use_global_ca_store = true,
 
-if (err == ESP_OK) {
-   ESP_LOGI(AP_TAG, "Status = %d, content_length = %d, offset_length = %d",
-           esp_http_client_get_status_code(client),
-           esp_http_client_get_content_length(client), MyJPGbufidx);
-}
+	};
+	esp_http_client_handle_t client = esp_http_client_init(&config);
+	esp_http_client_set_url(client, JpHttpUri);
+	esp_http_client_set_header(client, "Content-Type", "image/jpeg");
+	err = esp_http_client_perform(client);
+	if (err == ESP_OK) {
+	jstat = esp_http_client_get_status_code(client);
+	jlen = esp_http_client_get_content_length(client);
+	ESP_LOGI(AP_TAG, "Status = %d, content_length = %d, offset_length = %d",
+           jstat,  jlen, MyJPGbufidx);
+	}
 	esp_http_client_cleanup(client);
-	if ((err == ESP_OK) && (MyJPGbufidx > 128) && (MyJPGbufidx < MyJPGbuflen)) {	
-    char *work = NULL;
-    JDEC decoder;
-    JpegDev jd;
-    esp_err_t ret = ESP_OK;
+	free(JpHttpUri);
+	} else MyJPGbufidx = -1;
+	if ((err != ESP_OK) || (jlen == -1)) {
+	pushImage(0, 52, 320, 240, wallpaper);
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+       	drawString("HTTP(S) connection error", 8, 60, 4);
+        MyHttpMqtt = MyHttpMqtt | 0x40;
+	result = true;
+	} else if (MyJPGbufidx == -1) {
+	pushImage(0, 52, 320, 240, wallpaper);
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+       	drawString("Not enough memory", 8, 60, 4);
+        MyHttpMqtt = MyHttpMqtt | 0x40;
+	result = true;
+	} else if ((err == ESP_OK) && jstat && (jstat != 200)) {
+	pushImage(0, 52, 320, 240, wallpaper);
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+	strcpy(MyJPGbuf,"Status:  ");
+	itoa(jstat,MyJPGbuf+8,10);
+       	drawString(MyJPGbuf, 8, 60, 4);
+        MyHttpMqtt = MyHttpMqtt | 0x40;
+	result = true;
+	} else if ((err == ESP_OK) && jstat && (MyJPGbufidx > 15) && (MyJPGbufidx < MyJPGbuflen)) {	
+	if ((!memcmp(&MyJPGbuf[0],"\xff\xd8\xff",3)) && (MyJPGbufidx > 128)) {
+	char *work = NULL;
+	JDEC decoder;
+	JpegDev jd;
+	esp_err_t ret = ESP_OK;
 
     //Allocate the work space for the jpeg decoder.
-    work = calloc(WORKSZ, 1);
-    if (work == NULL) {
+	work = calloc(WORKSZ, 1);
+	if (work == NULL) {
         ESP_LOGE(AP_TAG, "Cannot allocate workspace");
         ret = ESP_ERR_NO_MEM;
-    } else {	
+	pushImage(0, 52, 320, 240, wallpaper);
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+       	drawString("JPEG: no memory", 8, 60, 4);
+        MyHttpMqtt = MyHttpMqtt | 0x40;
+	result = true;
+	} else {	
     //Populate fields of the JpegDev struct.
-    jd.inData = MyJPGbuf;
-    jd.inPos = 0;
-    jd.outData = NULL;
-    jd.outW = 320; //IMAGE_W;
-    jd.outH = 176; //IMAGE_H;
+	jd.inData = MyJPGbuf;
+	jd.inPos = 0;
+	jd.outData = NULL;
+	jd.outW = 320; //IMAGE_W;
+	jd.outH = 176; //IMAGE_H;
     //Prepare and decode the jpeg.
-    ret = jd_prepare(&decoder, infunc, work, WORKSZ, (void *)&jd);
-    if (ret != JDR_OK) {
+	ret = jd_prepare(&decoder, infunc, work, WORKSZ, (void *)&jd);
+	if (ret != JDR_OK) {
         ESP_LOGE(AP_TAG, "Image decoder: jd_prepare failed (%d)", ret);
-    } else {
-    ret = jd_decomp(&decoder, outfunc, 0);
-    if (ret != JDR_OK) {
+	pushImage(0, 52, 320, 240, wallpaper);
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+       	drawString("JPEG: not supported", 8, 60, 4);
+        MyHttpMqtt = MyHttpMqtt | 0x40;
+	result = true;
+	} else {
+	if (MyHttpMqtt & 0x40) {
+	fillRect(0,52,320,240,TFT_BLACK);
+        MyHttpMqtt = MyHttpMqtt & 0xbf;
+	}
+	ret = jd_decomp(&decoder, outfunc, 0);
+	if (ret != JDR_OK) {
         ESP_LOGE(AP_TAG, "Image decoder: jd_decode failed (%d)", ret);
-    } else {
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+       	drawString("JPEG: decoder error", 8, 60, 4);
+        MyHttpMqtt = MyHttpMqtt | 0x40;
+	result = true;
+	} else {
 //	ESP_LOGI(AP_TAG, "Image decoder: jd_decode Ok");
 	result = true;
 	}
 	}
-    free(work);
-}
-}
-}
+	free(work);
+	}
+	} else {
+	pushImage(0, 52, 320, 240, wallpaper);
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+       	drawString("Content not supported", 8, 60, 4);
+        MyHttpMqtt = MyHttpMqtt | 0x40;
+//ESP_LOGI(AP_TAG, "String: %s",MyHttpUri);
+//esp_log_buffer_hex(AP_TAG, MyHttpUri, strlen(MyHttpUri));
+	result = true;
+}        //jpg
+}        //load ok
+	free(MyJPGbuf);
+}        //alloc
+
+} else if (MyHttpUri[0] && jpg_time) { //if not uri
+	if (MyHttpMqtt & 0x40) {
+//	fillRect(0,52,320,240,TFT_WHITE);
+	fillRect(0,52,320,240,TFT_BLACK);
+        MyHttpMqtt = MyHttpMqtt & 0xbf;
+	}
+	setTextColor(TFT_WHITE, TFT_BLACK);
+       	drawString(MyHttpUri , 0, 60, 2);
+	result = true;
+}        //uri&time
 	return result;
 }
 

@@ -43,21 +43,17 @@
 #include "driver/timer.h"
 #include "driver/ledc.h"
 #include "mbedtls/aes.h"
+#include "esp_tls.h"
+#include "esp_crt_bundle.h"
 
 //*** define ***
 //*** common ***
 #define AP_TAG "R4S"
-//????
-#define MQTT_CMD_TOPIC "/cmd"
-#define MQTT_RSP_TOPIC "/rsp"
-#define MQTT_STAT_TOPIC "/stat"
 
 //*** wifi ***
 #define WIFI_MAXIMUM_RETRY  10
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
-
-
 
 
 //*** bt ***
@@ -108,15 +104,35 @@
 //013784cf-f7e3-55b4-6c4c-9fd140100a16
 #define XREMOTE_UPDATE_UUID  {0x16, 0x0a, 0x10, 0x40, 0xd1, 0x9f, 0x4c, 0x6c, 0xb4, 0x55, 0xe3, 0xf7, 0xcf, 0x84, 0x37, 0x01}
 
-#define PROFILE_NUM      3
+//galcon
+// GLREMOTE_SERVICE_UUID  "e8680100-9c4b-11e4-b5f7-0002a5d5c51b"
+#define GLREMOTE_SERVICE_UUID  {0x1b, 0xc5, 0xd5, 0xa5, 0x02, 0x00, 0xf7, 0xb5, 0xe4, 0x11, 0x4b, 0x9c, 0x00, 0x01, 0x68, 0xe8}
+// GLREMOTE_SERVICE1_UUID "e8680200-9c4b-11e4-b5f7-0002a5d5c51b"
+#define GLREMOTE_SERVICE1_UUID {0x1b, 0xc5, 0xd5, 0xa5, 0x02, 0x00, 0xf7, 0xb5, 0xe4, 0x11, 0x4b, 0x9c, 0x00, 0x02, 0x68, 0xe8}
+// GLREMOTE_SERVICE2_UUID "e8680400-9c4b-11e4-b5f7-0002a5d5c51b"
+#define GLREMOTE_SERVICE2_UUID {0x1b, 0xc5, 0xd5, 0xa5, 0x02, 0x00, 0xf7, 0xb5, 0xe4, 0x11, 0x4b, 0x9c, 0x00, 0x04, 0x68, 0xe8}
+// GLREMOTE_SETUP_UUID     "e8680401-9c4b-11e4-b5f7-0002a5d5c51b"
+#define GLREMOTE_SETUP_UUID    {0x1b, 0xc5, 0xd5, 0xa5, 0x02, 0x00, 0xf7, 0xb5, 0xe4, 0x11, 0x4b, 0x9c, 0x01, 0x04, 0x68, 0xe8}
+// GLREMOTE_AUTH_UUID     "e8680201-9c4b-11e4-b5f7-0002a5d5c51b"
+#define GLREMOTE_AUTH_UUID     {0x1b, 0xc5, 0xd5, 0xa5, 0x02, 0x00, 0xf7, 0xb5, 0xe4, 0x11, 0x4b, 0x9c, 0x01, 0x02, 0x68, 0xe8}
+// GLREMOTE_TIME_UUID     "e8680203-9c4b-11e4-b5f7-0002a5d5c51b"
+#define GLREMOTE_TIME_UUID     {0x1b, 0xc5, 0xd5, 0xa5, 0x02, 0x00, 0xf7, 0xb5, 0xe4, 0x11, 0x4b, 0x9c, 0x03, 0x02, 0x68, 0xe8}
+// GLREMOTE_TXCHAR_UUID   "e8680103-9c4b-11e4-b5f7-0002a5d5c51b"
+#define GLREMOTE_TXCHAR_UUID   {0x1b, 0xc5, 0xd5, 0xa5, 0x02, 0x00, 0xf7, 0xb5, 0xe4, 0x11, 0x4b, 0x9c, 0x03, 0x01, 0x68, 0xe8}
+// GLREMOTE_RXCHAR_UUID   "e8680102-9c4b-11e4-b5f7-0002a5d5c51b"
+#define GLREMOTE_RXCHAR_UUID   {0x1b, 0xc5, 0xd5, 0xa5, 0x02, 0x00, 0xf7, 0xb5, 0xe4, 0x11, 0x4b, 0x9c, 0x02, 0x01, 0x68, 0xe8}
+
+#define PROFILE_NUM      5
 #define PROFILE_A_APP_ID 0
 #define PROFILE_B_APP_ID 1
 #define PROFILE_C_APP_ID 2
+#define PROFILE_D_APP_ID 3
+#define PROFILE_E_APP_ID 4
 #define INVALID_HANDLE   0
 #define BLE_INPUT_BUFFSIZE 64
 #define cStatus_len 128
 #define otabufsize 2048
-#define BleMonNum 10
+#define BleMonNum 24
 #define BleMonDefTO 3000
 
 
@@ -145,6 +161,7 @@ char     RQC_NAME[16];
 char     DEV_NAME[16];
 char     tBLEAddr[16];
 uint32_t NumConn;
+uint32_t PassKey;
 uint8_t  r4scounter;
 uint8_t  r4sConnErr;
 uint8_t  r4sAuthCount;
@@ -161,9 +178,9 @@ uint8_t  r4slppar6;
 uint8_t  r4slppar7;
 uint8_t  r4slppar8;
 uint8_t  r4slpres;
-int64_t  t_ppcom_us;
-int64_t  t_ppcon_us;
-int64_t  t_last_us;
+uint8_t  t_ppcon;
+uint8_t  t_rspdel;
+uint8_t  t_rspcnt;
 uint8_t  f_Sync;
 char     cprevStatus[cStatus_len];
 char     cStatus[cStatus_len];
@@ -277,22 +294,18 @@ static uint8_t hwtdiv = 0;
 static esp_gattc_char_elem_t *char_elem_result   = NULL;
 static esp_gattc_descr_elem_t *descr_elem_result = NULL;
 
-//static esp_gattc_char_elem_t *char_elem_result_a   = NULL;
-//static esp_gattc_descr_elem_t *descr_elem_result_a = NULL;
-//static esp_gattc_char_elem_t *char_elem_result_b   = NULL;
-//static esp_gattc_descr_elem_t *descr_elem_result_b = NULL;
-//static esp_gattc_char_elem_t *char_elem_result_c   = NULL;
-//static esp_gattc_descr_elem_t *descr_elem_result_c = NULL;
 
 static esp_ble_gap_cb_param_t scan_rsta;
 static esp_ble_gap_cb_param_t scan_rstb;
 static esp_ble_gap_cb_param_t scan_rstc;
+static esp_ble_gap_cb_param_t scan_rstd;
+static esp_ble_gap_cb_param_t scan_rste;
 int FND_RSSI = 0;
 uint32_t NumWfConn;
 uint32_t NumMqConn;
+uint32_t MemErr;
 
 uint16_t mqtt_port  = 1883;
-uint16_t jpg_time  = 32;
 
 esp_mqtt_client_handle_t mqttclient; 
 
@@ -311,6 +324,19 @@ char MQTT_SERVER[33];                       // MQTT Server
 char WIFI_SSID[33];                         // network SSID for ESP32 to connect to
 char WIFI_PASSWORD[65];                     // password for the network above
 
+#ifdef USE_TFT
+//tft
+#define MyJPGbuflen 32768
+uint16_t t_ppcons = 0;
+uint16_t jpg_time  = 32;
+uint8_t tft_conn = 0;
+uint8_t tft_conf = 0;
+uint8_t tft_flip = 0; 
+uint8_t  MyHttpMqtt = 0;
+int32_t MyJPGbufidx = 0;
+char MyHttpUri[260];
+char *MyJPGbuf;
+
 char MQTT_TOPP1[33];
 char MQTT_TOPP2[25];
 char MQTT_TOPP3[25];
@@ -325,13 +351,11 @@ char MQTT_VALP4[16];
 char MQTT_VALP5[16];
 char MQTT_VALP6[16];
 char MQTT_VALP7[16];
+#endif
 
-#define MyJPGbuflen 32768
 
-char MyHttpUri[65];
-char MyJPGbuf[MyJPGbuflen];
 
-int32_t MyJPGbufidx = 0;
+
 char tESP32Addr[16];                        //esp mac
 char tESP32Addr1[32];                       //esp mac
 
@@ -342,20 +366,17 @@ uint8_t R4SNUMO = 0;                        //r4s number
 uint8_t r4sppcoms = 0;
 uint16_t bStateS = 0;
 uint16_t bprevStateS = 0;
-int64_t t_ppcoms_us = 0;
-int64_t t_lasts_us = 0;
-int64_t t_clock_us = 0;
-int64_t t_jpg_us = 0;
-int64_t t_tinc_us = 0;
 
+uint8_t t_lasts = 0;
+uint8_t  t_clock = 0;
+uint16_t t_jpg = 0;
+uint8_t  t_tinc = 0;
 
 uint8_t foffln  = 0;
 uint8_t mqtdel  = 0;
 uint8_t macauth  = 0;
 uint8_t volperc  = 0;
 int floop = 0;
-
-//static uint8_t r4sAuth[8] = { 0xb6, 0x2c, 0x27, 0xb3, 0xb8, 0xac, 0x5a, 0xef };
 
 //                       boilOrLight    scale_from rand  rgb1       scale_mid  rand   rgb_mid     scale_to   rand  rgb2
 uint8_t nl_settings[] = {1,             0,         94,   0, 0, 0,   50,        94,    0, 0, 0,    100,       94,   0, 0, 0};
@@ -372,10 +393,8 @@ int   iprevRssiESP = 0;
 uint8_t FDHass = 0; 
 uint8_t fcommtp = 0; 
 uint8_t ftrufal = 0; 
-uint8_t tft_flip = 0; 
 uint8_t ble_mon = 0; 
 uint8_t ble_mon_refr = 0; 
-uint8_t tft_conf = 0;
 
 uint8_t  TimeZone = 0;
 // NightLight colours
@@ -405,11 +424,9 @@ int  cntgpio5 = 0;
 
 
 bool f_update = false;
-//tft
-bool tft_conn = false;
 
 
-char cssDatasheet[] = ""     // CSS
+const char cssDatasheet[] = ""     // CSS
                         ""  // some CSS from ESP Easy Mega
                         "<style>* {font-family: sans-serif; font-size: 12pt; margin: 0px; padding: 0px; box-sizing: border-box; }"
                         "h1 {font-size: 16pt; color: #07D; margin: 8px 0; font-weight: bold; }"
