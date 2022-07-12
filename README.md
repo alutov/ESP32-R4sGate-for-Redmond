@@ -6,9 +6,9 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 > **[Скрипт на базе PHP сервера в локальной сети с доступом к интернету для показа погоды на экране шлюза](https://github.com/artt652/Weather-for-ESP32-R4S-gate).<br>**
 
 
-#### [Текущая версия 2022.06.07](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin).
+#### [Текущая версия 2022.07.12](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin).
+* 2022.07.12. Поддерка 5 одновременных BLE соединений и отслеживания 24 устройств в BLE мониторе. Добавлен датчик дыма RSS-61S. Процессот работает на 240MHz.
 * 2022.06.07. Добавлен датчик дыма RSS-61S. Окно определения количества воды при нагреве 65-85&deg;C. Добавлена конфигурация для сборки в среде Platformio, спасибо [bvp](https://github.com/bvp), подробнее [здесь](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/89).
-
 <details>
      <summary>Последние версии...</summary>
 
