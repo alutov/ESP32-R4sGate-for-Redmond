@@ -1179,20 +1179,20 @@ int16_t drawString(const char *string, int32_t poX, int32_t poY, uint8_t font)
 	else if (stfont == 4) poY = poY + 26;
 	break;
 	case 0x46:
-	stfont = 4;
-	if (sumX) {
-   	sumX = 0;
-	poX = 0;
-	poY = poY + 26;
-	}
-	break;
-	case 0x66:
-	stfont = 2;
-	if (sumX) {
+	if ((sumX) && (stfont == 2)) {
    	sumX = 0;
 	poX = 0;
 	poY = poY + 16;
 	}
+	stfont = 4;
+	break;
+	case 0x66:
+	if ((sumX) && (stfont == 4)) {
+   	sumX = 0;
+	poX = 0;
+	poY = poY + 26;
+	}
+	stfont = 2;
 	break;
 
 	case 0x30:
