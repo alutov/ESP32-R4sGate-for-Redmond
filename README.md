@@ -244,7 +244,7 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 <br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft3.jpg)
 Картинка 9. Изображение.<br><br>
-&emsp;На картинке 10 пример вывода на экран Mqtt строки (символ градуса можно вывести на экран, используя обратный апостроф):
+&emsp;На картинке 10 пример вывода на экран Mqtt строки (символ градуса можно вывести на экран используя обратный апостроф):
 <td>\F\0` English \1color \2text\3 example\n\4Русский \5цветной \6текст\n\7text1 \8text2 \9text3\f\0` English \1color \2text\3 example\n\4Русский \5цветной \6текст\n\7text1 \8text2 \9text3</td><br>    
   
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft9.jpg)
