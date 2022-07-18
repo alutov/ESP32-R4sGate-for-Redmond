@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.07.12"
+#define AP_VER "2022.07.17"
 
 // If use ili9341 320*240 tft
 #define USE_TFT
@@ -197,6 +197,7 @@ void myurlcpy(char *cout, char *cin, int osize)
 	int i = 0;
 	int j = 0;
 	int f = 0;
+	uint8_t g = 0;
 	uint8_t a;
 	cout[j] = 0;
 	while (j < osize) {
@@ -205,7 +206,8 @@ void myurlcpy(char *cout, char *cin, int osize)
 	if  ((a > 0x20) && (a < 0x80)) {
 	if (f && ((a < 0x30) || (a > 0x39))) j = osize;
 	else {
-	if ((a == 0x3a) && (i > 7)) f = j + 6;
+	if ((a == 0x3a) && (i > 7) && !g) f = j + 6;
+	if ((a == 0x3d) || (a == 0x3f)) g = 1;
 	cout[j] = a;
 	j++;
 	cout[j] = 0;
@@ -11041,6 +11043,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 
+#ifdef USE_TFT
 	strcpy(llwtt,"homeassistant/number/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/2x");
@@ -11076,6 +11079,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+#endif
 
 	strcpy(llwtt,"homeassistant/button/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
@@ -11658,7 +11662,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
         memcpy(ttopic, event->topic, event->topic_len);
         mqtdel = 20;
 	if (event->data_len) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
-	} else if ((event->data_len) && (event->data_len < 256) && (event->topic_len) && (event->topic_len < 64)) {
+	} else if ((event->data_len) && (event->data_len < 384) && (event->topic_len) && (event->topic_len < 64)) {
 	int topoffa = 0;
 	int topoffb = 0;
 	int topoffc = 0;
@@ -15354,7 +15358,7 @@ static esp_err_t pupdating_get_handler(httpd_req_t *req)
 	}
 
 	f_update = true;
-	t_tinc = 40;	
+	t_tinc = 0;	
 	char otabuf[otabufsize] ={0};
 	char filnam[128] ={0};
 	int  otabufoffs = 0;
@@ -15501,7 +15505,7 @@ static httpd_handle_t start_webserver(void)
 	httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 	config.max_uri_handlers = 19;
 //	config.max_resp_headers = 16;
-	config.stack_size = 10240;
+	config.stack_size = 8192;
 	// Start the httpd server
 //	ESP_LOGI(AP_TAG, "Starting server on port: '%d'", config.server_port);
 //	ESP_LOGI(AP_TAG, "Max URI handlers: '%d'", config.max_uri_handlers);
@@ -15538,18 +15542,18 @@ static httpd_handle_t start_webserver(void)
 	return NULL;
 }
 
+/*
 static void stop_webserver(httpd_handle_t server)
 {
 // Stop the httpd server
 	httpd_stop(server);
 }
-
 static void disconnect_handler(void* arg, esp_event_base_t event_base, 
                                int32_t event_id, void* event_data)
 {
 	httpd_handle_t* server = (httpd_handle_t*) arg;
 	if (*server) {
-	ESP_LOGI(AP_TAG, "Stopping webserver");
+//	ESP_LOGI(AP_TAG, "Stopping webserver");
 	stop_webserver(*server);
 	*server = NULL;
 	}
@@ -15560,11 +15564,11 @@ static void connect_handler(void* arg, esp_event_base_t event_base,
 {
 	httpd_handle_t* server = (httpd_handle_t*) arg;
 	if (*server == NULL) {
-	ESP_LOGI(AP_TAG, "Starting webserver");
+//	ESP_LOGI(AP_TAG, "Starting webserver");
 	*server = start_webserver();
 	}
 }
-
+*/
 
 void lpcomstat(uint8_t blenum) {
 	if (blenum > 4) return;
@@ -16003,7 +16007,7 @@ void lpcomstat(uint8_t blenum) {
 //******************* Main **********************
 void app_main(void)
 {
-	static httpd_handle_t server = NULL;
+//	static httpd_handle_t server = NULL;
 	printf("Starting r4sGate...\n");
 	floop = 0;
 	NumWfConn = 0;
@@ -16576,10 +16580,11 @@ to get MSK (GMT + 3) I need to write GMT-3
 	strcat (tESP32Addr,tzbuf);
 
 //Initialize http server
-	ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
-	ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, &server));
+//	ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
+//	ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, &server));
 /* Start the server for the first time */
-	server = start_webserver();
+//	server = start_webserver();
+	start_webserver();
 
 
 // mark as valid boot for prevent rollback after ota

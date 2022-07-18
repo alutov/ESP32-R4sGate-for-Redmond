@@ -731,21 +731,62 @@ uint16_t decodeUTF8(uint8_t *buf, uint16_t *index, uint16_t remaining)
 // À - do 90 ß - do af à - do bo ï - d0 bf ð - d1 80 ÿ - d1 8f
 	c = ((c & 0x1F)<<6) | (buf[(*index)++]&0x3F);
 // move rus sym to 0x80-0xbf
+ESP_LOGI(AP_TAG,"sym=0x%X", c);
 	if ((c > 0x40f) && (c < 0x450))	return (c - 0x390);
+//	if ((c > 0x40f) && (c < 0x450))	return (c - 0x350);
+	else if (c == 0xb0) return 0x27;
 	else return 0x20;
 	}
   // 16 bit Unicode
 	if (((c & 0xF0) == 0xE0) && (remaining > 2)) {
 	c = ((c & 0x0F)<<12) | ((buf[(*index)++]&0x3F)<<6);
 	c = c | ((buf[(*index)++]&0x3F));
-// move rus sym to 0x80-0xbf
-	if ((c > 0x40f) && (c < 0x450))	return (c - 0x390);
-	else return 0x20;
+// move weather
+	if ((c > 0x218f) && (c < 0x219a)) return (c - 0x209a);
+	else switch (c) {
+	case 0x2600:
+	c = 0xf0;	
+	break;
+	case 0x2601:
+	c = 0xf1;	
+	break;
+	case 0x26C5:
+	c = 0xf2;	
+	break;
+	case 0x26C8:
+	c = 0xf3;	
+	break;
+	case 0x2744:
+	c = 0xf4;	
+	break;
+	default:
+ESP_LOGI(AP_TAG,"sym=0x%X", c);
+	c = 0x20;	
+	break;
+	}
+	return c;
 	}
 
   // 21 bit Unicode not supported so fall-back to extended ASCII
-  // if ((c & 0xF8) == 0xF0) return c;
-
+	if ((c & 0xF8) == 0xF0) { 
+	uint32_t d = ((c & 0x0F)<<18) | ((buf[(*index)++]&0x3F)<<12);
+	d = d | ((buf[(*index)++]&0x3F)<<6);
+	d = d | ((buf[(*index)++]&0x3F));
+// move weather
+	if ((d > 0x1f323) && (d < 0x1f32a)) return (d - 0x1F23A);
+	else switch (d) {
+/*
+	case 0x2600:
+	c = 0xf0;	
+	break;
+*/
+	default:
+ESP_LOGI(AP_TAG,"sym=0x%X", d);
+	c = 0x20;	
+	break;
+	}
+	return c;
+	}
 	return c; // fall-back to extended ASCII
 }
 
@@ -892,8 +933,8 @@ int16_t drawChar(uint16_t uniCode, int32_t x, int32_t y, uint8_t font)
     return 0;
   }
 
-  if ((font == 2) && ((uniCode < 32) || (uniCode > 191))) return 0;
-  else if ((font == 4) && ((uniCode < 32) || (uniCode > 191))) return 0;
+  if ((font == 2) && ((uniCode < 32) || (uniCode > 255))) return 0;
+  else if ((font == 4) && ((uniCode < 32) || (uniCode > 255))) return 0;
   else if ((font > 4) && (font < 9) && ((uniCode < 32) || (uniCode > 127))) return 0;
 
   int32_t width  = 0;
@@ -914,7 +955,7 @@ int16_t drawChar(uint16_t uniCode, int32_t x, int32_t y, uint8_t font)
 //      width = pgm_read_byte( (uint8_t *)pgm_read_dword( &(fontdata[font].widthtbl ) ) + uniCode );
 //      height= pgm_read_byte( &fontdata[font].height );
       width = *(fontdata[font].widthtbl + uniCode );
-      height= fontdata[font].height;
+      height = fontdata[font].height;
 
     }
 
@@ -923,10 +964,11 @@ int16_t drawChar(uint16_t uniCode, int32_t x, int32_t y, uint8_t font)
   int32_t pY      = y;
   uint8_t line = 0;
 
+    if (x + width * textsize > (int16_t)_width) return width * textsize ;
+    if (y - 4 + height * textsize > (int16_t)_height) return width * textsize ;
   if (font == 2) {
     w = w + 6; // Should be + 7 but we need to compensate for width increment
     w = w / 8;
-    if (x + width * textsize >= (int16_t)_width) return width * textsize ;
 
     if (textcolor == textbgcolor || textsize != 1) {
       //begin_tft_write();          // Sprite class can use this function, avoiding begin_tft_write()
@@ -1094,7 +1136,7 @@ int16_t drawString(const char *string, int32_t poX, int32_t poY, uint8_t font)
   uint16_t cheight = 8 * textsize;
   uint8_t stfont = font;
 
-  if (font!=1) {
+  if (font != 1) {
     baseline = fontdata[font].baseline * textsize;
     cheight = fontdata[font].height * textsize;
   }
@@ -1168,11 +1210,17 @@ int16_t drawString(const char *string, int32_t poX, int32_t poY, uint8_t font)
 
   {
     while (n < len) {
-      uint16_t uniCode = decodeUTF8((uint8_t*)string, &n, len - n);
+	uint16_t uniCode = decodeUTF8((uint8_t*)string, &n, len - n);
 	if ((uniCode == 0x5c) && len) {	
 	uniCode = decodeUTF8((uint8_t*)string, &n, len - n);
 	switch (uniCode) {
 	case 0x6e:
+   	sumX = 0;
+	poX = 0;
+	if (stfont == 2) poY = poY + 16;
+	else if (stfont == 4) poY = poY + 26;
+	break;
+	case 0x5c:
    	sumX = 0;
 	poX = 0;
 	if (stfont == 2) poY = poY + 16;
@@ -1227,7 +1275,7 @@ int16_t drawString(const char *string, int32_t poX, int32_t poY, uint8_t font)
 	break;
 
 	default:
-        sumX += drawChar(0x5c, poX+sumX, poY, stfont);
+        sumX += drawChar((int16_t)0x5c, poX+sumX, poY, stfont);
         sumX += drawChar(uniCode, poX+sumX, poY, stfont);
 	break;
 	}
@@ -1238,6 +1286,114 @@ int16_t drawString(const char *string, int32_t poX, int32_t poY, uint8_t font)
 return sumX;
 }
 
+/***************************************************************************************
+** Function name:           drawHString (with or without user defined font)
+** Description :            draw string with padding if it is defined
+***************************************************************************************/
+// With font number. Note: font number is over-ridden if a smooth font is loaded
+int16_t drawHString(const char *string, int32_t poX, int32_t poY, uint8_t font)
+{
+  int16_t sumX = 0;
+  uint8_t padding = 1, baseline = 0;
+  uint16_t cwidth = textWidth(string, font); // Find the pixel width of the string in the font
+  uint16_t cheight = 8 * textsize;
+  uint8_t stfont = font;
+
+  if (font != 1) {
+    baseline = fontdata[font].baseline * textsize;
+    cheight = fontdata[font].height * textsize;
+  }
+
+  if (textdatum || padX) {
+
+    switch(textdatum) {
+      case TC_DATUM:
+        poX -= cwidth/2;
+        padding += 1;
+        break;
+      case TR_DATUM:
+        poX -= cwidth;
+        padding += 2;
+        break;
+      case ML_DATUM:
+        poY -= cheight/2;
+        //padding += 0;
+        break;
+      case MC_DATUM:
+        poX -= cwidth/2;
+        poY -= cheight/2;
+        padding += 1;
+        break;
+      case MR_DATUM:
+        poX -= cwidth;
+        poY -= cheight/2;
+        padding += 2;
+        break;
+      case BL_DATUM:
+        poY -= cheight;
+        //padding += 0;
+        break;
+      case BC_DATUM:
+        poX -= cwidth/2;
+        poY -= cheight;
+        padding += 1;
+        break;
+      case BR_DATUM:
+        poX -= cwidth;
+        poY -= cheight;
+        padding += 2;
+        break;
+      case L_BASELINE:
+        poY -= baseline;
+        //padding += 0;
+        break;
+      case C_BASELINE:
+        poX -= cwidth/2;
+        poY -= baseline;
+        padding += 1;
+        break;
+      case R_BASELINE:
+        poX -= cwidth;
+        poY -= baseline;
+        padding += 2;
+        break;
+    }
+    // Check coordinates are OK, adjust if not
+    if (poX < 0) poX = 0;
+    if (poX+cwidth > width())   poX = width() - cwidth;
+    if (poY < 0) poY = 0;
+    if (poY+cheight-baseline> height()) poY = height() - cheight;
+  }
+
+
+//  int8_t xo = 0;
+
+  uint16_t len = strlen(string);
+  uint16_t n = 0;
+  uint8_t  h = 0;
+  uint16_t p1 = 0;
+  uint16_t p2 = 0;
+  uint16_t p3 = 0;
+
+  {
+    while (n < len) {
+	uint16_t uniCode = decodeUTF8((uint8_t*)string, &n, len - n);
+	p3 = p2;
+	p2 = p1;
+	p1 = uniCode;
+	if ((p3 == 0x3c) && (p2 == 0x62) && (p1 == 0x72)) {
+   	sumX = 0;
+	poX = 0;
+	if (stfont == 2) poY = poY + 16;
+	else if (stfont == 4) poY = poY + 26;
+	} else if (uniCode == 0x3C) h = 1;
+	if(!h) sumX += drawChar(uniCode, poX+sumX, poY, stfont);
+        if (uniCode == 0x3E) h = 0;
+    }
+  }
+
+return sumX;
+}
 
 
 
@@ -2049,16 +2205,16 @@ bool tftjpg()
 	} else {	
 	memset(MyJPGbuf,0,MyJPGbuflen);
 	esp_err_t err = ESP_OK;
-	JpHttpUri = calloc(320, 1);
+	JpHttpUri = calloc(520, 1);
 	if (JpHttpUri != NULL) {
-	memset(JpHttpUri,0,320);
-	myurlcpy(JpHttpUri, MyHttpUri, 318);
+	memset(JpHttpUri,0,520);
+	myurlcpy(JpHttpUri, MyHttpUri, 518);
 	ESP_LOGI(AP_TAG, "Url: %s",JpHttpUri);
 	esp_http_client_config_t config = {
 	.url = JpHttpUri,
 	.event_handler = _http_event_handle,
 
-//	.max_authorization_retries = 3,
+	.max_authorization_retries = 3,
 //	.crt_bundle_attach = esp_crt_bundle_attach,
 //	.use_global_ca_store = true,
 
@@ -2149,12 +2305,26 @@ bool tftjpg()
 	free(work);
 	}
 	} else {
+	uint16_t htoff = 0;
+//	if (MyHttpMqtt & 0x40) {
+	fillRect(0,52,320,240,TFT_BLACK);
+        MyHttpMqtt = MyHttpMqtt & 0xbf;
+//	}
+	setTextColor(TFT_WHITE, TFT_BLACK);
+	htoff = parsoff(MyJPGbuf ,"<body", MyJPGbuflen);
+	if(htoff) {	
+	if (htoff > 5) htoff = htoff - 5;
+       	drawHString(MyJPGbuf + htoff, 0, 60, 2);
+	} else drawString(MyJPGbuf, 0, 60, 2); 
+
+/*
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
        	drawString("Content not supported", 8, 60, 4);
         MyHttpMqtt = MyHttpMqtt | 0x40;
-//ESP_LOGI(AP_TAG, "String: %s",MyHttpUri);
-//esp_log_buffer_hex(AP_TAG, MyHttpUri, strlen(MyHttpUri));
+*/
+//ESP_LOGI(AP_TAG, "String: %s",MyJPGbuf);
+//esp_log_buffer_hex(AP_TAG, MyJPGbuf, 256);
 	result = true;
 }        //jpg
 }        //load ok
