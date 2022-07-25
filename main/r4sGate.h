@@ -378,6 +378,7 @@ uint8_t foffln  = 0;
 uint8_t fmssl = 0; 
 uint8_t fmsslbundle = 0; 
 uint8_t fmsslhost = 0; 
+uint8_t fmwss = 0; 
 uint8_t mqtdel  = 0;
 uint8_t macauth  = 0;
 uint8_t volperc  = 0;

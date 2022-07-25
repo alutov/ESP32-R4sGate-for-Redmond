@@ -12097,15 +12097,21 @@ static void mqtt_app_start(void)
 	char buff[16];
 	char luri[128];
 	char llwtt[16];
+	if (fmwss) {
+	(fmssl)? strcpy(luri,"wss://") : strcpy(luri,"ws://");
+	} else {
 	(fmssl)? strcpy(luri,"mqtts://") : strcpy(luri,"mqtt://");
+	}
 	strcat(luri,MQTT_USER);
 	strcat(luri,":");
 	strcat(luri,MQTT_PASSWORD);
 	strcat(luri,"@");
 	strcat(luri,MQTT_SERVER);
+	if (mqtt_port) {
 	strcat(luri,":");
 	itoa(mqtt_port,buff,10);
 	strcat(luri,buff);
+	}
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/status");
 //
@@ -14531,7 +14537,9 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (bcertsz) mycertcpy(bsend + strlen(bsend), bufcert + bcertofs, bcertsz);
 	strcat(bsend,"\"size=\"20\">Certificate</br><input type=\"checkbox\" name=\"smssl\" value=\"1\"");
 	if (fmssl) strcat(bsend,"checked");
-        strcat(bsend,"> Use SSL / TLS&emsp;<input type=\"checkbox\" name=\"smsslb\" value=\"2\"");
+        strcat(bsend,"> Use SSL / TLS&emsp;<input type=\"checkbox\" name=\"smwss\" value=\"4\"");
+	if (fmwss) strcat(bsend,"checked");
+        strcat(bsend,"> Use WS&emsp;<input type=\"checkbox\" name=\"smsslb\" value=\"2\"");
 	if (fmsslbundle) strcat(bsend,"checked");
 	strcat(bsend,"> Use x509 Bundle&emsp;<input type=\"checkbox\" name=\"smsslh\" value=\"3\"");
 	if (fmsslhost) strcat(bsend,"checked");
@@ -14967,6 +14975,11 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	fmsslhost = 0;
 	if (buf3[0] == 0x33) fmsslhost = 1;
 	buf3[0] = 0;
+	strcpy(buf2,"smwss");
+	parsuri(buf1,buf3,buf2,4096,2);
+	fmwss = 0;
+	if (buf3[0] == 0x34) fmwss = 1;
+	buf3[0] = 0;
 	strcpy(buf2,"chk0");
 	parsuri(buf1,buf3,buf2,4096,2);
 	if ((buf3[0] == 0x30) || f_nvs) {
@@ -15360,6 +15373,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	if (fmssl) nvtemp = nvtemp | 0x400;
 	if (fmsslbundle) nvtemp = nvtemp | 0x800;
 	if (fmsslhost) nvtemp = nvtemp | 0x1000;
+	if (fmwss) nvtemp = nvtemp | 0x2000;
 	nvs_set_u64(my_handle, "cmbits", nvtemp);
 
 /*
@@ -16400,6 +16414,7 @@ void app_main(void)
 	fmssl = 0;
 	fmsslbundle = 0;
 	fmsslhost = 0;
+	fmwss = 0;
 	bcertofs = 0;
 	bcertsz = 0;
 	foffln = 0;
@@ -16496,6 +16511,7 @@ void app_main(void)
 	fmssl = 0;
 	fmsslbundle = 0;
 	fmsslhost = 0;
+	fmwss = 0;
         ble_mon =  nvtemp & 0x03;
 	if (nvtemp & 0x04) FDHass = 1;
 	if (nvtemp & 0x08) fcommtp = 1;
@@ -16512,6 +16528,7 @@ void app_main(void)
 	if (nvtemp & 0x400) fmssl = 1;
 	if (nvtemp & 0x800) fmsslbundle = 1;
 	if (nvtemp & 0x1000) fmsslhost = 1;
+	if (nvtemp & 0x2000) fmwss = 1;
 	} else {
 	f_nvs = 1;
 	nvs_get_u8(my_handle,  "sreqtpa", &BleDevStA.DEV_TYP);
