@@ -6,10 +6,13 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.07.17"
+#define AP_VER "2022.07.25"
 
+#ifndef CONFIG_IDF_TARGET_ESP32C3
 // If use ili9341 320*240 tft
 #define USE_TFT
+#endif
+
 
 #include "r4sGate.h"
 //**************** my common proc *******************
@@ -147,6 +150,91 @@ void parsuri(char *cin, char *cout, char *ckey, int isize, int osize)
 	i++; j++;
 	cout[j] = 0;
 	} else found = 0;
+	}
+}
+// parse certificate string
+void parscertstr(char *cin, char *cout, char *ckey, int isize, int osize)
+{
+	int i = 0;
+	int j = 0;
+	char found = 0;
+	char a;
+	char b;
+	char c;
+	while ((i < isize) && (!found)) {
+	a = cin[i];
+	b = ckey[j];
+	i++;
+	j++;
+	if (a != b) {
+	if ((a == 0x3d) && (b == 0)) {                 //0x3d-> =
+	found = 1;
+	cout[0] = 0;
+	}
+	if (a < 0x20) i = isize;
+	j = 0;
+	}
+	}	
+	j = 0;
+
+	a = 0;
+	if (i < isize) a = cin[i];
+	if (a == 0x2d) {                               //remove begin certificate line if exist
+	c = 0;
+	b = 0;
+	while (c < 2) {
+	if (a > 0x2b) b = a;
+	i++;
+	a = cin[i];
+	if (a < 0x20) { 
+	c = 2;
+	i = isize;
+	} else if ((a > 0x2d) && (b == 0x2d)) c++;	
+	}
+	}
+	while ((i < isize) && (j < osize) && (found)) {
+	a = cin[i];
+	if ((a > 0x1f) && (a != 0x26) && (a != 0x2d)) {       //0x26-> &  2d -> remove end certificate line
+	if (a == 0x25) {
+	i++;
+	a = cin[i];
+	b =  (a <= '9') ? (a - '0') : (a - 'A' + 10);
+	b = (b & 0xf)*16;
+	i++;
+	a = cin[i];
+	c =  (a <= '9') ? (a - '0') : (a - 'A' + 10);
+	c = (c & 0xf) + b;
+	cout[j] = c;
+	} else if (a == 0x2b) {
+	cout[j] = 0x0a;
+	} else cout[j] = cin[i];
+	i++; j++;
+	cout[j] = 0;
+	} else found = 0;
+	}
+	if (j) j--;                     //remove \n
+	while (j) {
+	if (cout[j] == 0x0a) {
+	cout[j] = 0;
+	j--;	
+	} else j = 0;
+	}
+}
+//my cert copy include dest buf limit
+void mycertcpy(char *cout, char *cin, int osize)
+{
+	int i = 0;
+	char a;
+	while (i < osize) {
+	a = cin[i];
+	if  (a) {
+	if  (a < 0x20) a = 0x20;
+	cout[i] = a;
+	i++;
+	cout[i] = 0;
+	} else {
+	i = osize;
+	}		
 	}
 }
 
@@ -391,8 +479,13 @@ static intr_handle_t s_timer_handle;
 static void hw_timer_callback(void *arg)
 {
 //Reset irq and set for next time
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	TIMERG0.int_clr_timers.t0_int_clr = 1;
+	TIMERG0.hw_timer[0].config.tx_alarm_en = 1;
+#else
 	TIMERG0.int_clr_timers.t0 = 1;
 	TIMERG0.hw_timer[0].config.alarm_en = 1;
+#endif
 //
         if (!hwtdiv) {
 	if (BleDevStA.t_rspdel) BleDevStA.t_rspdel--;
@@ -12004,7 +12097,7 @@ static void mqtt_app_start(void)
 	char buff[16];
 	char luri[128];
 	char llwtt[16];
-	strcpy(luri,"mqtt://");
+	(fmssl)? strcpy(luri,"mqtts://") : strcpy(luri,"mqtt://");
 	strcat(luri,MQTT_USER);
 	strcat(luri,":");
 	strcat(luri,MQTT_PASSWORD);
@@ -12015,7 +12108,7 @@ static void mqtt_app_start(void)
 	strcat(luri,buff);
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/status");
-
+//
 	esp_mqtt_client_config_t mqtt_cfg = {
 	.uri = luri,
 	.lwt_topic = llwtt,
@@ -12024,7 +12117,16 @@ static void mqtt_app_start(void)
 	.client_id = MQTT_BASE_TOPIC,
 	.buffer_size = 2048,
 	};
-//	ESP_LOGI(AP_TAG,"Mqtt url: %s", luri);
+	ESP_LOGI(AP_TAG,"Mqtt url: %s", luri);
+	if (fmssl && (bufcert[0] || fmsslbundle)) {
+	if (!fmsslhost) mqtt_cfg.skip_cert_common_name_check = 1;
+        if (fmsslbundle) {
+	mqtt_cfg.crt_bundle_attach = esp_crt_bundle_attach;
+	} else if (!fmsslbundle && bufcert[0]) {
+	mqtt_cfg.cert_pem = bufcert;
+	ESP_LOGI(AP_TAG,"Mqtt certificate: %s", mqtt_cfg.cert_pem);
+	}
+	}
 	mqttConnected = false;
 	mqttclient = esp_mqtt_client_init(&mqtt_cfg);
 	esp_mqtt_client_register_event(mqttclient, ESP_EVENT_ANY_ID, mqtt_event_handler, mqttclient);
@@ -14378,7 +14480,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	ble_mon_refr = ble_mon_refr & 0xfd;
 //	char bsend[18500];
 	char *bsend = NULL;
-	bsend = malloc(18500);
+	bsend = malloc(20500);
 	if (bsend == NULL) {
         ESP_LOGE(AP_TAG, "Http setting: No memory");
 	MemErr++;
@@ -14418,14 +14520,22 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (WIFI_PASSWORD[0]) strcat(bsend,WIFI_PASSWORD);
 	strcat(bsend,"\"size=\"31\">Password</br><h3>MQTT Setting</h3><br/><input name=\"smqsrv\" value=\"");
 	if (MQTT_SERVER[0]) strcat(bsend,MQTT_SERVER);
-	strcat(bsend,"\"size=\"32\">Server &emsp;<input name=\"smqprt\" type=\"number\" value=\"");
+	strcat(bsend,"\"size=\"20\">Server &emsp;<input name=\"smqprt\" type=\"number\" value=\"");
 	itoa(mqtt_port,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"65535\" size=\"5\">Port &emsp;<input name=\"smqid\" value=\"");
 	if (MQTT_USER[0]) strcat(bsend,MQTT_USER);
 	strcat(bsend,"\"size=\"15\">Login &emsp;<input type=\"password\" input name=\"smqpsw\" value=\"");
 	if (MQTT_PASSWORD[0]) strcat(bsend,MQTT_PASSWORD);
-	strcat(bsend,"\"size=\"19\">Password</br><input type=\"checkbox\" name=\"chk1\" value=\"1\"");
+	strcat(bsend,"\"size=\"19\">Password &emsp;<input name=\"smcert\" value=\"");
+	if (bcertsz) mycertcpy(bsend + strlen(bsend), bufcert + bcertofs, bcertsz);
+	strcat(bsend,"\"size=\"20\">Certificate</br><input type=\"checkbox\" name=\"smssl\" value=\"1\"");
+	if (fmssl) strcat(bsend,"checked");
+        strcat(bsend,"> Use SSL / TLS&emsp;<input type=\"checkbox\" name=\"smsslb\" value=\"2\"");
+	if (fmsslbundle) strcat(bsend,"checked");
+	strcat(bsend,"> Use x509 Bundle&emsp;<input type=\"checkbox\" name=\"smsslh\" value=\"3\"");
+	if (fmsslhost) strcat(bsend,"checked");
+        strcat(bsend,"> Hostname verify&emsp;<input type=\"checkbox\" name=\"chk1\" value=\"1\"");
 	if (FDHass) strcat(bsend,"checked");
 	strcat(bsend,"> Hass Discovery&emsp;<input type=\"checkbox\" name=\"chk2\" value=\"2\"");
 	if (fcommtp) strcat(bsend,"checked");
@@ -14451,7 +14561,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (MQTT_TOPP7[0]) strcat(bsend,MQTT_TOPP7);
 	strcat(bsend,"\"size=\"32\">Outdoor Humidity</br>");
 #endif
-	strcat(bsend,"<h3>Devices Setting</h3></br>");
+	strcat(bsend,"<h3>BLE Devices Setting</h3></br>");
 
 	HtpDeVSett(0, bsend);
 	HtpDeVSett(1, bsend);
@@ -14625,7 +14735,18 @@ static esp_err_t psetsave_get_handler(httpd_req_t *req)
 		return ESP_OK;
 	}
 
-	char buf1[2048] = {0};
+//	char buf1[2048] = {0};
+	char *buf1 = NULL;
+	buf1 = malloc(4096);
+	if (buf1 == NULL) {
+        ESP_LOGE(AP_TAG, "Http blemon: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	httpd_resp_set_status(req, "303 See Other");
+	httpd_resp_set_hdr(req, "Location", "/");
+	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	} else {	
+	buf1[0] = 0;
 	char buf2[16] = {0};
 	char buf3[16] = {0};
 	uint8_t pintemp;
@@ -14640,7 +14761,7 @@ static esp_err_t psetsave_get_handler(httpd_req_t *req)
         }
 	}
 	int  ret;
-	ret = httpd_req_recv(req,buf1,2048);
+	ret = httpd_req_recv(req,buf1,4096);
 	if ( ret > 0 ) {
 //ESP_LOGI(AP_TAG, "Buf: '%s'", buf1);
 /*
@@ -14649,188 +14770,206 @@ swfid=wifiname&swfpsw=wifipassword&smqsrv=192.168.1.10&smqid=esp&
 smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 */
 	strcpy(buf2,"swfid");
-	parsuri(buf1,WIFI_SSID,buf2,2048,33);
+	parsuri(buf1,WIFI_SSID,buf2,4096,33);
 	strcpy(buf2,"swfpsw");
-	parsuri(buf1,WIFI_PASSWORD,buf2,2048,65);
+	parsuri(buf1,WIFI_PASSWORD,buf2,4096,65);
 	strcpy(buf2,"smqsrv");
-	parsuri(buf1,MQTT_SERVER,buf2,2048,32);
+	parsuri(buf1,MQTT_SERVER,buf2,4096,32);
 	strcpy(buf2,"smqid");
-	parsuri(buf1,MQTT_USER,buf2,2048,16);
+	parsuri(buf1,MQTT_USER,buf2,4096,16);
 	strcpy(buf2,"smqpsw");
-	parsuri(buf1,MQTT_PASSWORD,buf2,2048,20);
+	parsuri(buf1,MQTT_PASSWORD,buf2,4096,20);
 #ifdef USE_TFT
 	strcpy(buf2,"smtopp1");
-	parsuri(buf1,MQTT_TOPP1,buf2,2048,32);
+	parsuri(buf1,MQTT_TOPP1,buf2,4096,32);
 	strcpy(buf2,"smtopp2");
-	parsuri(buf1,MQTT_TOPP2,buf2,2048,24);
+	parsuri(buf1,MQTT_TOPP2,buf2,4096,24);
 	strcpy(buf2,"smtopp3");
-	parsuri(buf1,MQTT_TOPP3,buf2,2048,24);
+	parsuri(buf1,MQTT_TOPP3,buf2,4096,24);
 	strcpy(buf2,"smtopp4");
-	parsuri(buf1,MQTT_TOPP4,buf2,2048,32);
+	parsuri(buf1,MQTT_TOPP4,buf2,4096,32);
 	strcpy(buf2,"smtopp5");
-	parsuri(buf1,MQTT_TOPP5,buf2,2048,32);
+	parsuri(buf1,MQTT_TOPP5,buf2,4096,32);
 	strcpy(buf2,"smtopp6");
-	parsuri(buf1,MQTT_TOPP6,buf2,2048,32);
+	parsuri(buf1,MQTT_TOPP6,buf2,4096,32);
 	strcpy(buf2,"smtopp7");
-	parsuri(buf1,MQTT_TOPP7,buf2,2048,32);
+	parsuri(buf1,MQTT_TOPP7,buf2,4096,32);
 #endif
 	strcpy(buf2,"sreqnma");
-	parsuri(buf1,BleDevStA.REQ_NAME,buf2,2048,16);
+	parsuri(buf1,BleDevStA.REQ_NAME,buf2,4096,16);
 	strcpy(buf2,"sreqnmb");
-	parsuri(buf1,BleDevStB.REQ_NAME,buf2,2048,16);
+	parsuri(buf1,BleDevStB.REQ_NAME,buf2,4096,16);
 	strcpy(buf2,"sreqnmc");
-	parsuri(buf1,BleDevStC.REQ_NAME,buf2,2048,16);
+	parsuri(buf1,BleDevStC.REQ_NAME,buf2,4096,16);
 	strcpy(buf2,"sreqnmd");
-	parsuri(buf1,BleDevStD.REQ_NAME,buf2,2048,16);
+	parsuri(buf1,BleDevStD.REQ_NAME,buf2,4096,16);
 	strcpy(buf2,"sreqnme");
-	parsuri(buf1,BleDevStE.REQ_NAME,buf2,2048,16);
+	parsuri(buf1,BleDevStE.REQ_NAME,buf2,4096,16);
 	strcpy(buf2,"rlighta");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStA.RgbR = atoi(buf3);
 	strcpy(buf2,"glighta");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStA.RgbG = atoi(buf3);
 	strcpy(buf2,"blighta");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStA.RgbB = atoi(buf3);
 	strcpy(buf2,"rlightb");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStB.RgbR = atoi(buf3);
 	strcpy(buf2,"glightb");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStB.RgbG = atoi(buf3);
 	strcpy(buf2,"blightb");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStB.RgbB = atoi(buf3);
 	strcpy(buf2,"rlightc");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStC.RgbR = atoi(buf3);
 	strcpy(buf2,"glightc");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStC.RgbG = atoi(buf3);
 	strcpy(buf2,"blightc");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStC.RgbB = atoi(buf3);
 	strcpy(buf2,"rlightd");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStD.RgbR = atoi(buf3);
 	strcpy(buf2,"glightd");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStD.RgbG = atoi(buf3);
 	strcpy(buf2,"blightd");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStD.RgbB = atoi(buf3);
 	strcpy(buf2,"rlighte");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStE.RgbR = atoi(buf3);
 	strcpy(buf2,"glighte");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStE.RgbG = atoi(buf3);
 	strcpy(buf2,"blighte");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStE.RgbB = atoi(buf3);
 	strcpy(buf2,"ltempa");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStA.bLtemp = atoi(buf3);
 	strcpy(buf2,"ltempb");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStB.bLtemp = atoi(buf3);
 	strcpy(buf2,"ltempc");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStC.bLtemp = atoi(buf3);
 	strcpy(buf2,"ltempd");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStD.bLtemp = atoi(buf3);
 	strcpy(buf2,"ltempe");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStE.bLtemp = atoi(buf3);
 	strcpy(buf2,"sreqtpa");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStA.DEV_TYP = atoi(buf3);
 	strcpy(buf2,"sreqtpb");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStB.DEV_TYP = atoi(buf3);
 	strcpy(buf2,"sreqtpc");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStC.DEV_TYP = atoi(buf3);
 	strcpy(buf2,"sreqtpd");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStD.DEV_TYP = atoi(buf3);
 	strcpy(buf2,"sreqtpe");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	BleDevStE.DEV_TYP = atoi(buf3);
 #ifdef USE_TFT
 	strcpy(buf2,"sjpgtim");
-	parsuri(buf1,buf3,buf2,2048,8);
+	parsuri(buf1,buf3,buf2,4096,8);
 	jpg_time = atoi(buf3);
 #endif
 	strcpy(buf2,"smqprt");
-	parsuri(buf1,buf3,buf2,2048,8);
+	parsuri(buf1,buf3,buf2,4096,8);
 	mqtt_port = atoi(buf3);
 	strcpy(buf2,"timzon");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	TimeZone = atoi(buf3);
 	strcpy(buf2, "auth");
-	parsuri(buf1, AUTH_BASIC, buf2, 1024, 50);
+	parsuri(buf1, AUTH_BASIC, buf2, 4096, 50);
 	strcpy(buf2,"r4snum");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
 	R4SNUM = atoi(buf3);
+	memset (bufcert,0,sizeof(bufcert));
+	strcpy(buf2,"smcert");
+	parscertstr(buf1,bufcert,buf2,4096,2047);
 #ifdef USE_TFT
 	strcpy(buf2,"smjpuri");
-	parsuri(buf1,MyHttpUri,buf2,2048,128);
+	parsuri(buf1,MyHttpUri,buf2,4096,128);
 #endif
 	buf3[0] = 0;
 	strcpy(buf2,"chk1");
-	parsuri(buf1,buf3,buf2,2048,2);
+	parsuri(buf1,buf3,buf2,4096,2);
 	FDHass = 0;
 	if (buf3[0] == 0x31) FDHass = 1;
 	buf3[0] = 0;
 	strcpy(buf2,"chk2");
-	parsuri(buf1,buf3,buf2,2048,2);
+	parsuri(buf1,buf3,buf2,4096,2);
 	fcommtp = 0;
 	if (buf3[0] == 0x32) fcommtp = 1;
 	buf3[0] = 0;
 	strcpy(buf2,"chk3");
-	parsuri(buf1,buf3,buf2,2048,2);
+	parsuri(buf1,buf3,buf2,4096,2);
 	ftrufal = 0;
 	if ((buf3[0] == 0x33) && !FDHass) ftrufal = 1;
 	buf3[0] = 0;
 #ifdef USE_TFT
 	strcpy(buf2,"chk4");
-	parsuri(buf1,buf3,buf2,2048,2);
+	parsuri(buf1,buf3,buf2,4096,2);
 	tft_flip = 0;
 	if (buf3[0] == 0x34) tft_flip = 1;
 	buf3[0] = 0;
 #endif
 	strcpy(buf2,"chk5");
-	parsuri(buf1,buf3,buf2,2048,2);
+	parsuri(buf1,buf3,buf2,4096,2);
 	ble_mon = atoi(buf3);
 #ifdef USE_TFT
 	buf3[0] = 0;
 	strcpy(buf2,"chk6");
-	parsuri(buf1,buf3,buf2,2048,2);
+	parsuri(buf1,buf3,buf2,4096,2);
 	tft_conf = 0;
 	if (buf3[0] == 0x36) tft_conf = 1;
 #endif
 	buf3[0] = 0;
 	strcpy(buf2,"chk7");
-	parsuri(buf1,buf3,buf2,2048,2);
+	parsuri(buf1,buf3,buf2,4096,2);
 	foffln = 0;
 	if (buf3[0] == 0x37) foffln = 1;
 	buf3[0] = 0;
 	strcpy(buf2,"chk8");
-	parsuri(buf1,buf3,buf2,2048,2);
+	parsuri(buf1,buf3,buf2,4096,2);
 	macauth = 0;
 	if (buf3[0] == 0x38) macauth = 1;
 	buf3[0] = 0;
 	strcpy(buf2,"chk9");
-	parsuri(buf1,buf3,buf2,2048,2);
+	parsuri(buf1,buf3,buf2,4096,2);
 	volperc = 0;
 	if (buf3[0] == 0x39) volperc = 1;
 	buf3[0] = 0;
+	strcpy(buf2,"smssl");
+	parsuri(buf1,buf3,buf2,4096,2);
+	fmssl = 0;
+	if (buf3[0] == 0x31) fmssl = 1;
+	buf3[0] = 0;
+	strcpy(buf2,"smsslb");
+	parsuri(buf1,buf3,buf2,4096,2);
+	fmsslbundle = 0;
+	if (buf3[0] == 0x32) fmsslbundle = 1;
+	buf3[0] = 0;
+	strcpy(buf2,"smsslh");
+	parsuri(buf1,buf3,buf2,4096,2);
+	fmsslhost = 0;
+	if (buf3[0] == 0x33) fmsslhost = 1;
+	buf3[0] = 0;
 	strcpy(buf2,"chk0");
-	parsuri(buf1,buf3,buf2,2048,2);
-	if (buf3[0] == 0x30) {
+	parsuri(buf1,buf3,buf2,4096,2);
+	if ((buf3[0] == 0x30) || f_nvs) {
 	ESP_LOGI(AP_TAG, "Format NVS");
 	nvs_flash_erase();
 	nvs_flash_init();
@@ -14842,97 +14981,97 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 #ifdef USE_TFT
 	tft_conn = 0;
 	strcpy(buf2,"pnmiso");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) PIN_NUM_MISO = pintemp;
 	else tft_conf = 0;
 	strcpy(buf2,"pnmosi");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) PIN_NUM_MOSI = pintemp;
 	else tft_conf = 0;
 	strcpy(buf2,"pnclk");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) PIN_NUM_CLK = pintemp;
 	else tft_conf = 0;
 	strcpy(buf2,"pncs");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) PIN_NUM_CS = pintemp;
 	else tft_conf = 0;
 	strcpy(buf2,"pndc");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) PIN_NUM_DC = pintemp;
 	else tft_conf = 0;
 	strcpy(buf2,"pnrst");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) PIN_NUM_RST = pintemp;
 	else tft_conf = 0;
 	strcpy(buf2,"pnbckl");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) PIN_NUM_BCKL = pintemp;
 	else tft_conf = 0;
 	strcpy(buf2,"pntouchcs");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) PIN_TOUCH_CS = pintemp;
 	else tft_conf = 0;
 #endif
 	strcpy(buf2,"ppin1");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) {
 	bgpio1 = pintemp;
 	strcpy(buf2,"popt1");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	bgpio1 = bgpio1  | pintemp;
 	} else bgpio1 = 0;
 
 	strcpy(buf2,"ppin2");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) {
 	bgpio2 = pintemp;
 	strcpy(buf2,"popt2");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	bgpio2 = bgpio2  | pintemp;
 	} else bgpio2 = 0;
 
 	strcpy(buf2,"ppin3");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) {
 	bgpio3 = pintemp;
 	strcpy(buf2,"popt3");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	bgpio3 = bgpio3  | pintemp;
 	} else bgpio3 = 0;
 
 	strcpy(buf2,"ppin4");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) {
 	bgpio4 = pintemp;
 	strcpy(buf2,"popt4");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	bgpio4 = bgpio4  | pintemp;
 	} else bgpio4 = 0;
 
 	strcpy(buf2,"ppin5");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) {
 	bgpio5 = pintemp;
 	strcpy(buf2,"popt5");
-	parsuri(buf1,buf3,buf2,2048,4);
+	parsuri(buf1,buf3,buf2,4096,4);
         pintemp = atoi(buf3);
 	bgpio5 = bgpio5  | pintemp;
 	} else bgpio1 = 0;
@@ -14951,7 +15090,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 
 	buf3[0] = 0;
 	strcpy(buf2,"mqtdel");
-	parsuri(buf1,buf3,buf2,2048,2);
+	parsuri(buf1,buf3,buf2,4096,2);
 	if (buf3[0] == 0x31) {
 	ESP_LOGI(AP_TAG, "Delete Mqtt topics");
 
@@ -15166,11 +15305,64 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	nvs_handle_t my_handle;
 	ret = nvs_open("storage", NVS_READWRITE, &my_handle);
 	if (ret == ESP_OK) {
+	uint64_t nvtemp = 0;
 	nvs_set_str(my_handle, "auth", AUTH_BASIC);
 #ifdef USE_TFT
 	nvs_set_u16(my_handle, "sjpgtim", jpg_time);
 #endif
 	nvs_set_u16(my_handle, "smqprt", mqtt_port);
+
+	nvtemp = BleDevStE.DEV_TYP;
+	nvtemp = nvtemp << 32;
+	nvtemp = nvtemp | BleDevStA.DEV_TYP | (BleDevStB.DEV_TYP << 8) | (BleDevStC.DEV_TYP << 16) | (BleDevStD.DEV_TYP << 24);	
+	nvs_set_u64(my_handle,  "sreqtp", nvtemp);
+	nvtemp = BleDevStE.RgbR;
+	nvtemp = nvtemp << 32;
+	nvtemp = nvtemp | BleDevStA.RgbR | (BleDevStB.RgbR << 8) | (BleDevStC.RgbR << 16) | (BleDevStD.RgbR << 24);	
+	nvs_set_u64(my_handle,  "rlight", nvtemp);
+	nvtemp = BleDevStE.RgbG;
+	nvtemp = nvtemp << 32;
+	nvtemp = nvtemp | BleDevStA.RgbG | (BleDevStB.RgbG << 8) | (BleDevStC.RgbG << 16) | (BleDevStD.RgbG << 24);	
+	nvs_set_u64(my_handle,  "glight", nvtemp);
+	nvtemp = BleDevStE.RgbB;
+	nvtemp = nvtemp << 32;
+	nvtemp = nvtemp | BleDevStA.RgbB | (BleDevStB.RgbB << 8) | (BleDevStC.RgbB << 16) | (BleDevStD.RgbB << 24);	
+	nvs_set_u64(my_handle,  "blight", nvtemp);
+	nvtemp = BleDevStE.bLtemp;
+	nvtemp = nvtemp << 32;
+	nvtemp = nvtemp | BleDevStA.bLtemp | (BleDevStB.bLtemp << 8) | (BleDevStC.bLtemp << 16) | (BleDevStD.bLtemp << 24);	
+	nvs_set_u64(my_handle,  "ltemp", nvtemp);
+	nvtemp = BleDevStE.bEfficiency;
+	nvtemp = nvtemp << 32;
+	nvtemp = nvtemp | BleDevStA.bEfficiency | (BleDevStB.bEfficiency << 8) | (BleDevStC.bEfficiency << 16) | (BleDevStD.bEfficiency << 24);	
+	nvs_set_u64(my_handle,  "effic", nvtemp);
+#ifdef USE_TFT
+	nvtemp = PIN_NUM_DC | (PIN_NUM_RST << 8) | (PIN_NUM_BCKL << 16) | (PIN_TOUCH_CS << 24);	
+	nvtemp = nvtemp << 32;
+	nvtemp = nvtemp | PIN_NUM_MISO | (PIN_NUM_MOSI << 8) | (PIN_NUM_CLK << 16) | (PIN_NUM_CS << 24);	
+	nvs_set_u64(my_handle,  "ppci", nvtemp);
+#endif
+	nvtemp = bgpio5;
+	nvtemp = nvtemp << 32;
+	nvtemp = nvtemp | bgpio1 | (bgpio2 << 8) | (bgpio3 << 16) | (bgpio4 << 24);	
+	nvs_set_u64(my_handle,  "bgpio", nvtemp);
+	nvtemp = ble_mon & 0x03;
+	if (FDHass) nvtemp = nvtemp | 0x04;
+	if (fcommtp) nvtemp = nvtemp | 0x08;
+	if (ftrufal) nvtemp = nvtemp | 0x10;
+	if (foffln) nvtemp = nvtemp | 0x20;
+	if (macauth) nvtemp = nvtemp | 0x40;
+	if (volperc) nvtemp = nvtemp | 0x80;
+#ifdef USE_TFT
+	if (tft_conf) nvtemp = nvtemp | 0x100;
+	if (tft_flip) nvtemp = nvtemp | 0x200;
+#endif
+	if (fmssl) nvtemp = nvtemp | 0x400;
+	if (fmsslbundle) nvtemp = nvtemp | 0x800;
+	if (fmsslhost) nvtemp = nvtemp | 0x1000;
+	nvs_set_u64(my_handle, "cmbits", nvtemp);
+
+/*
 	nvs_set_u8(my_handle,  "rlighta", BleDevStA.RgbR);
 	nvs_set_u8(my_handle,  "glighta", BleDevStA.RgbG);
 	nvs_set_u8(my_handle,  "blighta", BleDevStA.RgbB);
@@ -15201,21 +15393,6 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	nvs_set_u8(my_handle,  "sreqtpc", BleDevStC.DEV_TYP);
 	nvs_set_u8(my_handle,  "sreqtpd", BleDevStD.DEV_TYP);
 	nvs_set_u8(my_handle,  "sreqtpe", BleDevStE.DEV_TYP);
-	nvs_set_u8(my_handle,  "timzon", TimeZone);
-	nvs_set_u8(my_handle,  "r4snum", R4SNUM);
-	nvs_set_u8(my_handle,  "chk1",  FDHass);
-	nvs_set_u8(my_handle,  "chk2",  fcommtp);
-	nvs_set_u8(my_handle,  "chk3",  ftrufal);
-#ifdef USE_TFT
-	nvs_set_u8(my_handle,  "chk4",  tft_flip);
-#endif
-	nvs_set_u8(my_handle,  "chk5",  ble_mon);
-#ifdef USE_TFT
-	nvs_set_u8(my_handle,  "chk6",  tft_conf);
-#endif
-	nvs_set_u8(my_handle,  "chk7",  foffln);
-	nvs_set_u8(my_handle,  "chk8",  macauth);
-	nvs_set_u8(my_handle,  "chk9",  volperc);
 #ifdef USE_TFT
 	nvs_set_u8(my_handle, "pnmiso", PIN_NUM_MISO);
 	nvs_set_u8(my_handle, "pnmosi", PIN_NUM_MOSI);
@@ -15231,6 +15408,23 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	nvs_set_u8(my_handle, "bgpio3", bgpio3);
 	nvs_set_u8(my_handle, "bgpio4", bgpio4);
 	nvs_set_u8(my_handle, "bgpio5", bgpio5);
+	nvs_set_u8(my_handle,  "chk1",  FDHass);
+	nvs_set_u8(my_handle,  "chk2",  fcommtp);
+	nvs_set_u8(my_handle,  "chk3",  ftrufal);
+#ifdef USE_TFT
+	nvs_set_u8(my_handle,  "chk4",  tft_flip);
+#endif
+	nvs_set_u8(my_handle,  "chk5",  ble_mon);
+#ifdef USE_TFT
+	nvs_set_u8(my_handle,  "chk6",  tft_conf);
+#endif
+	nvs_set_u8(my_handle,  "chk7",  foffln);
+	nvs_set_u8(my_handle,  "chk8",  macauth);
+	nvs_set_u8(my_handle,  "chk9",  volperc);
+*/
+
+	nvs_set_u8(my_handle,  "timzon", TimeZone);
+	nvs_set_u8(my_handle,  "r4snum", R4SNUM);
 	nvs_set_str(my_handle, "swfid", WIFI_SSID);
 	nvs_set_str(my_handle, "swfpsw", WIFI_PASSWORD);
 	nvs_set_str(my_handle, "smqsrv", MQTT_SERVER);
@@ -15252,6 +15446,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	nvs_set_str(my_handle, "smtopp7", MQTT_TOPP7);
 	nvs_set_str(my_handle, "smjpuri", MyHttpUri);
 #endif
+	nvs_set_blob(my_handle,"bmcert",  bufcert, strlen(bufcert) + 1);
         ret = nvs_commit(my_handle);
 	if (ret != ESP_OK) {
 	ESP_LOGE(AP_TAG, "NVS write error");
@@ -15266,10 +15461,12 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
         strcat(buf1,"\">");
         strcat(buf1, "</head><body>Setting saved. Rebooting...</body></html>");
         httpd_resp_sendstr(req, buf1);
+	free(buf1);
 
 	ESP_LOGI(AP_TAG, "Prepare to restart system!");
 	vTaskDelay(3000 / portTICK_PERIOD_MS);
 	esp_restart();
+	}
     return ESP_OK;
 }
 static const httpd_uri_t psetsave = {
@@ -16198,6 +16395,13 @@ void app_main(void)
 	BleDevStE.bBlTime = 0;
 	memset (BleMR,0,sizeof(BleMR));
 	memset (BleMX,0,sizeof(BleMX));
+	memset (bufcert,0,sizeof(bufcert));
+	FDHass = 0;
+	fmssl = 0;
+	fmsslbundle = 0;
+	fmsslhost = 0;
+	bcertofs = 0;
+	bcertsz = 0;
 	foffln = 0;
 	bgpio1 = 0;
 	bgpio2 = 0;
@@ -16209,13 +16413,107 @@ void app_main(void)
 	AUTH_BASIC[0] = 0;
 
 // read nvs
+	f_nvs = 1;
 	nvs_handle_t my_handle;
 	ret = nvs_open("storage", NVS_READWRITE, &my_handle);
 	if (ret == ESP_OK) {
+	uint64_t nvtemp = 0xffffffffffffffff;
 #ifdef USE_TFT
 	nvs_get_u16(my_handle, "sjpgtim", &jpg_time);
 #endif
 	nvs_get_u16(my_handle, "smqprt", &mqtt_port);
+//
+	nvs_get_u64(my_handle,  "sreqtp", &nvtemp);
+	if (nvtemp != 0xffffffffffffffff) {
+	f_nvs = 0;
+	BleDevStA.DEV_TYP = nvtemp & 0xff;	
+	BleDevStB.DEV_TYP = (nvtemp >> 8) & 0xff;	
+	BleDevStC.DEV_TYP = (nvtemp >> 16) & 0xff;	
+	BleDevStD.DEV_TYP = (nvtemp >> 24) & 0xff;	
+	BleDevStE.DEV_TYP = (nvtemp >> 32) & 0xff;	
+	nvtemp = 0xffffffffffffffff;
+	nvs_get_u64(my_handle, "rlight", &nvtemp);
+	BleDevStA.RgbR = nvtemp & 0xff;	
+	BleDevStB.RgbR = (nvtemp >> 8) & 0xff;	
+	BleDevStC.RgbR = (nvtemp >> 16) & 0xff;	
+	BleDevStD.RgbR = (nvtemp >> 24) & 0xff;	
+	BleDevStE.RgbR = (nvtemp >> 32) & 0xff;	
+	nvtemp = 0xffffffffffffffff;
+	nvs_get_u64(my_handle, "glight", &nvtemp);
+	BleDevStA.RgbG = nvtemp & 0xff;	
+	BleDevStB.RgbG = (nvtemp >> 8) & 0xff;	
+	BleDevStC.RgbG = (nvtemp >> 16) & 0xff;	
+	BleDevStD.RgbG = (nvtemp >> 24) & 0xff;	
+	BleDevStE.RgbG = (nvtemp >> 32) & 0xff;	
+	nvtemp = 0xffffffffffffffff;
+	nvs_get_u64(my_handle, "blight", &nvtemp);
+	BleDevStA.RgbB = nvtemp & 0xff;	
+	BleDevStB.RgbB = (nvtemp >> 8) & 0xff;	
+	BleDevStC.RgbB = (nvtemp >> 16) & 0xff;	
+	BleDevStD.RgbB = (nvtemp >> 24) & 0xff;	
+	BleDevStE.RgbB = (nvtemp >> 32) & 0xff;	
+	nvtemp = 0;
+	nvs_get_u64(my_handle, "ltemp", &nvtemp);
+	BleDevStA.bLtemp = nvtemp & 0xff;	
+	BleDevStB.bLtemp = (nvtemp >> 8) & 0xff;	
+	BleDevStC.bLtemp = (nvtemp >> 16) & 0xff;	
+	BleDevStD.bLtemp = (nvtemp >> 24) & 0xff;	
+	BleDevStE.bLtemp = (nvtemp >> 32) & 0xff;	
+	nvtemp = 0x5050505050505050;
+	nvs_get_u64(my_handle, "effic", &nvtemp);
+	BleDevStA.bEfficiency = nvtemp & 0xff;	
+	BleDevStB.bEfficiency = (nvtemp >> 8) & 0xff;	
+	BleDevStC.bEfficiency = (nvtemp >> 16) & 0xff;	
+	BleDevStD.bEfficiency = (nvtemp >> 24) & 0xff;	
+	BleDevStE.bEfficiency = (nvtemp >> 32) & 0xff;	
+#ifdef USE_TFT
+	nvtemp = 0x2115121110131719;
+	nvs_get_u64(my_handle, "ppci", &nvtemp);
+	PIN_NUM_MISO = nvtemp & 0xff;	
+	PIN_NUM_MOSI = (nvtemp >> 8) & 0xff;	
+	PIN_NUM_CLK = (nvtemp >> 16) & 0xff;	
+	PIN_NUM_CS = (nvtemp >> 24) & 0xff;	
+	PIN_NUM_DC = (nvtemp >> 32) & 0xff;	
+	PIN_NUM_RST = (nvtemp >> 40) & 0xff;	
+	PIN_NUM_BCKL = (nvtemp >> 48) & 0xff;	
+	PIN_TOUCH_CS = (nvtemp >> 56) & 0xff;	
+#endif
+	nvtemp = 0;
+	nvs_get_u64(my_handle, "bgpio", &nvtemp);
+	bgpio1 = nvtemp & 0xff;	
+	bgpio2 = (nvtemp >> 8) & 0xff;	
+	bgpio3 = (nvtemp >> 16) & 0xff;	
+	bgpio4 = (nvtemp >> 24) & 0xff;	
+	bgpio5 = (nvtemp >> 32) & 0xff;	
+	nvtemp = 0;
+	nvs_get_u64(my_handle, "cmbits", &nvtemp);
+	FDHass = 0;
+	fcommtp = 0;
+	ftrufal = 0;
+	foffln = 0;
+	macauth = 0;
+	volperc = 0;
+	fmssl = 0;
+	fmsslbundle = 0;
+	fmsslhost = 0;
+        ble_mon =  nvtemp & 0x03;
+	if (nvtemp & 0x04) FDHass = 1;
+	if (nvtemp & 0x08) fcommtp = 1;
+	if (nvtemp & 0x10) ftrufal = 1;
+	if (nvtemp & 0x20) foffln = 1;
+	if (nvtemp & 0x40) macauth = 1;
+	if (nvtemp & 0x80) volperc = 1;
+#ifdef USE_TFT
+	tft_conf = 0;
+	tft_flip = 0;
+        if (nvtemp & 0x100) tft_conf = 1;
+	if (nvtemp & 0x200) tft_flip = 1;
+#endif
+	if (nvtemp & 0x400) fmssl = 1;
+	if (nvtemp & 0x800) fmsslbundle = 1;
+	if (nvtemp & 0x1000) fmsslhost = 1;
+	} else {
+	f_nvs = 1;
 	nvs_get_u8(my_handle,  "sreqtpa", &BleDevStA.DEV_TYP);
 	nvs_get_u8(my_handle,  "sreqtpb", &BleDevStB.DEV_TYP);
 	nvs_get_u8(my_handle,  "sreqtpc", &BleDevStC.DEV_TYP);
@@ -16261,6 +16559,20 @@ void app_main(void)
 	nvs_get_u8(my_handle, "bgpio3", &bgpio3);
 	nvs_get_u8(my_handle, "bgpio4", &bgpio4);
 	nvs_get_u8(my_handle, "bgpio5", &bgpio5);
+	nvs_get_u8(my_handle, "chk1",   &FDHass);
+	nvs_get_u8(my_handle, "chk2",   &fcommtp);
+	nvs_get_u8(my_handle, "chk3",   &ftrufal);
+#ifdef USE_TFT
+	nvs_get_u8(my_handle, "chk4",   &tft_flip);
+#endif
+	nvs_get_u8(my_handle, "chk5",   &ble_mon);
+#ifdef USE_TFT
+	nvs_get_u8(my_handle, "chk6",   &tft_conf);
+#endif
+	nvs_get_u8(my_handle, "chk7",   &foffln);
+	nvs_get_u8(my_handle, "chk8",   &macauth);
+	nvs_get_u8(my_handle, "chk9",   &volperc);
+	}
 	BleDevStA.PRgbR = ~BleDevStA.RgbR;
 	BleDevStA.PRgbG = ~BleDevStA.RgbG;
 	BleDevStA.PRgbB = ~BleDevStA.RgbB;
@@ -16276,19 +16588,6 @@ void app_main(void)
 	BleDevStE.PRgbR = ~BleDevStE.RgbR;
 	BleDevStE.PRgbG = ~BleDevStE.RgbG;
 	BleDevStE.PRgbB = ~BleDevStE.RgbB;
-	nvs_get_u8(my_handle, "chk1",   &FDHass);
-	nvs_get_u8(my_handle, "chk2",   &fcommtp);
-	nvs_get_u8(my_handle, "chk3",   &ftrufal);
-#ifdef USE_TFT
-	nvs_get_u8(my_handle, "chk4",   &tft_flip);
-#endif
-	nvs_get_u8(my_handle, "chk5",   &ble_mon);
-#ifdef USE_TFT
-	nvs_get_u8(my_handle, "chk6",   &tft_conf);
-#endif
-	nvs_get_u8(my_handle, "chk7",   &foffln);
-	nvs_get_u8(my_handle, "chk8",   &macauth);
-	nvs_get_u8(my_handle, "chk9",   &volperc);
 	nvs_get_u8(my_handle, "timzon", &TimeZone);
 	nvs_get_u8(my_handle, "r4snum", &R4SNUM);
 	size_t nvsize = 32;
@@ -16334,6 +16633,17 @@ void app_main(void)
 	nvsize = 128;
 	nvs_get_str(my_handle,"smjpuri", MyHttpUri,&nvsize);
 #endif
+	strcpy(bufcert,"-----BEGIN CERTIFICATE-----\n");
+	bcertofs = strlen(bufcert);
+	nvsize = (sizeof(bufcert) - 64);   //64 bytes for begin & end headers
+	bcertsz = nvsize;
+	nvs_get_blob(my_handle,"bmcert",  bufcert + bcertofs,&nvsize);
+	if ((bcertsz == nvsize) || !nvsize) {  //if bcertsz == nvsize record not found
+	bcertofs = 0;
+	bcertsz = 0;
+	} else bcertsz = nvsize;
+	if (bcertsz > 16) strcat(bufcert,"\n-----END CERTIFICATE-----\n");
+	else memset (bufcert,0,sizeof(bufcert));
 // Close nvs
 	nvs_close(my_handle);
 	}

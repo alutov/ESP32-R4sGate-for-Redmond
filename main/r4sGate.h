@@ -360,7 +360,9 @@ char tESP32Addr[16];                        //esp mac
 char tESP32Addr1[32];                       //esp mac
 
 char AUTH_BASIC[51];
-
+char bufcert[2048];
+uint16_t bcertofs;
+uint16_t bcertsz;
 uint8_t R4SNUM = 0;                         //r4s number
 uint8_t R4SNUMO = 0;                        //r4s number
 uint8_t r4sppcoms = 0;
@@ -373,6 +375,9 @@ uint16_t t_jpg = 0;
 uint8_t  t_tinc = 0;
 
 uint8_t foffln  = 0;
+uint8_t fmssl = 0; 
+uint8_t fmsslbundle = 0; 
+uint8_t fmsslhost = 0; 
 uint8_t mqtdel  = 0;
 uint8_t macauth  = 0;
 uint8_t volperc  = 0;
@@ -395,6 +400,7 @@ uint8_t fcommtp = 0;
 uint8_t ftrufal = 0; 
 uint8_t ble_mon = 0; 
 uint8_t ble_mon_refr = 0; 
+uint8_t f_nvs = 0; 
 
 uint8_t  TimeZone = 0;
 // NightLight colours
