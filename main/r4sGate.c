@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.07.25"
+#define AP_VER "2022.07.29"
 
 #ifndef CONFIG_IDF_TARGET_ESP32C3
 // If use ili9341 320*240 tft
@@ -4332,7 +4332,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	int  write_char_data_len = 12;
         uint8_t write_char_data[12] = { 0x55,0x00,0xff,0xb6,0x2c,0x27,0xb3,0xb8,0xac,0x5a,0xef,0xaa};  //auth string
 
-	if ((ptr->DEV_TYP < 73) && !ptr->xbtauth) {
 	write_char_data[3] = write_char_data[3] + blenum;  //for each position number different auth id
 	write_char_data[5] = write_char_data[5] + R4SNUM;  //for each gate number different auth id
 	if (macauth) {                                 // for each esp32 different auth id
@@ -4343,6 +4342,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
         write_char_data[9] = binblemac [4];
         write_char_data[10] = binblemac [5];
 	}
+	if ((ptr->DEV_TYP < 73) && !ptr->xbtauth) {
 	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73)) {
         write_char_data[0] = 0x90;
         write_char_data[1] = 0xca;
@@ -16438,8 +16438,8 @@ void app_main(void)
 #endif
 	nvs_get_u16(my_handle, "smqprt", &mqtt_port);
 //
-	nvs_get_u64(my_handle,  "sreqtp", &nvtemp);
-	if (nvtemp != 0xffffffffffffffff) {
+	ret = nvs_get_u64(my_handle,  "sreqtp", &nvtemp);
+	if ((ret == ESP_OK) && (nvtemp != 0xffffffffffffffff)) {
 	f_nvs = 0;
 	BleDevStA.DEV_TYP = nvtemp & 0xff;	
 	BleDevStB.DEV_TYP = (nvtemp >> 8) & 0xff;	
