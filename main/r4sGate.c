@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.08.06"
+#define AP_VER "2022.08.22"
 
 #ifndef CONFIG_IDF_TARGET_ESP32C3
 // If use ili9341 320*240 tft
@@ -451,8 +451,7 @@ bool vstsign(uint8_t *datin, uint8_t *keyin)
 	uint8_t datout[16];
 	uint8_t iv[16];
 	mbedtls_aes_context aes;
-	memset(iv,0,sizeof iv);
-	memcpy(iv, &keyin[16], 4);
+	memcpy(iv, &keyin[16], 16);
 	mbedtls_aes_init(&aes);
 	mbedtls_aes_setkey_enc(&aes, keyin, 128);
 	mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, 16, iv, datin, datout);
@@ -4802,6 +4801,7 @@ esp_log_buffer_hex(AP_TAG, ptr->sendData, ptr->sendDataLen);
 	if ((scan_result->scan_rst.adv_data_len > 26) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x1a\xff\x4c\x00\x02\x15",6)) id = 0x42;
 	else if ((scan_result->scan_rst.adv_data_len > 18) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x12\x16\x1a\x18",4)) id = 3;
 	else if ((scan_result->scan_rst.adv_data_len > 16) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x10\x16\x1a\x18",4)) id = 3;
+	else if ((scan_result->scan_rst.adv_data_len == 31) && !memcmp(&scan_result->scan_rst.ble_adv[3],"\x03\x02\x5a\xfd\x17\x16\x5a\xfd",8)) id = 0x44;
 
 	while ((i < BleMonNum) && (!found)) {
 	if (BleMR[i].id == id) {
@@ -8464,6 +8464,7 @@ void MqSState() {
 	strcat(ldata,"/tgstate");
 	bin2hex(&tgst,tmpvar,1,0);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	BleMX[i].ppar1 = BleMX[i].par1;
 	}
 	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par2 != BleMX[i].ppar2)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
@@ -8473,7 +8474,7 @@ void MqSState() {
 	strcat(ldata,"/battery");
 	switch (BleMX[i].par2 & 0x03) {
 	case 3:
-	strcpy(tmpvar,"90");
+	strcpy(tmpvar,"100");
 	break;
 	case 2:
 	strcpy(tmpvar,"15");
@@ -8486,6 +8487,7 @@ void MqSState() {
 	break;
 	}
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	BleMX[i].ppar2 = BleMX[i].par2;
 	}
 
 	}
@@ -10585,11 +10587,13 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
-        if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
+        else if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
+        else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
-        if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
+        else if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
+        else if (BleMR[i].id == 0x44) strcat(llwtd,"Samsung Electronics");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
@@ -10635,11 +10639,13 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
-        if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
+        else if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
+        else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
-        if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
+        else if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
+        else if (BleMR[i].id == 0x44) strcat(llwtd,"Samsung Electronics");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
@@ -10685,11 +10691,13 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
-        if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
+        else if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
+        else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
-        if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
+        else if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
+        else if (BleMR[i].id == 0x44) strcat(llwtd,"Samsung Electronics");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
@@ -10731,11 +10739,13 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
-        if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
+        else if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
+        else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
         if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
-        if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
+        else if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
+        else if (BleMR[i].id == 0x44) strcat(llwtd,"Samsung Electronics");
         else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
@@ -10868,7 +10878,87 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 //
-
+	} else 	if (BleMR[i].id == 0x44) {
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/2x");
+	bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".");
+        bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".tgstate\",\"icon\":\"mdi:tag-check\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+        bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_tgstate\",\"device\":{\"identifiers\":[\"r4s_");
+        bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+        bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+        strcat(llwtd,"Smart Tag");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+        strcat(llwtd,"Samsung Electronics");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/");
+        bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/tgstate\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/3x");
+        bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".");
+        bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".battery\",\"icon\":\"mdi:battery-bluetooth\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+        bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_battery\",\"device\":{\"identifiers\":[\"r4s_");
+        bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+        bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+        strcat(llwtd,"Smart Tag");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+        strcat(llwtd,"Samsung Electronics");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"device_class\":\"battery\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/");
+        bin2hex(BleMR[i].mac,tmpvar,16,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/battery\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
 
 
 
@@ -11960,7 +12050,6 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	}
 	} else if (topoffa && BleDevStA.DEV_TYP && !BleDevStA.t_ppcon) {
 //ESP_LOGI(AP_TAG,"topoffa=%d", topoffa);
-//	BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data, int data_len) {
 	BleMqtPr(0,  topoffa, event->topic, event->topic_len, event->data, event->data_len);
 
 	} else if (topoffb && BleDevStB.DEV_TYP && !BleDevStB.t_ppcon) {
@@ -12584,7 +12673,6 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 		return ESP_OK;
 	}
 	ble_mon_refr = ble_mon_refr & 0xfd;
-//	char bsend[17000];
 	char *bsend = NULL;
 	bsend = malloc(13000);
 	if (bsend == NULL) {
@@ -13341,7 +13429,6 @@ static esp_err_t pcfgdev1_get_handler(httpd_req_t *req)
 		return ESP_OK;
 	}
 	ble_mon_refr = ble_mon_refr & 0xfd;
-//	char bsend[13000];
 	char *bsend = NULL;
 	bsend = malloc(13000);
 	if (bsend == NULL) {
@@ -13696,7 +13783,6 @@ static esp_err_t pcfgdev2_get_handler(httpd_req_t *req)
 		return ESP_OK;
 	}
 	ble_mon_refr = ble_mon_refr & 0xfd;
-//	char bsend[13000];
 	char *bsend = NULL;
 	bsend = malloc(13000);
 	if (bsend == NULL) {
@@ -13786,7 +13872,6 @@ static esp_err_t pcfgdev3_get_handler(httpd_req_t *req)
 		return ESP_OK;
 	}
 	ble_mon_refr = ble_mon_refr & 0xfd;
-//	char bsend[13000];
 	char *bsend = NULL;
 	bsend = malloc(13000);
 	if (bsend == NULL) {
@@ -13878,7 +13963,6 @@ static esp_err_t pcfgdev4_get_handler(httpd_req_t *req)
 		return ESP_OK;
 	}
 	ble_mon_refr = ble_mon_refr & 0xfd;
-//	char bsend[13000];
 	char *bsend = NULL;
 	bsend = malloc(13000);
 	if (bsend == NULL) {
@@ -13970,7 +14054,6 @@ static esp_err_t pcfgdev5_get_handler(httpd_req_t *req)
 		return ESP_OK;
 	}
 	ble_mon_refr = ble_mon_refr & 0xfd;
-//	char bsend[13000];
 	char *bsend = NULL;
 	bsend = malloc(13000);
 	if (bsend == NULL) {
@@ -14061,7 +14144,6 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	if (!test_auth(req)) {
 		return ESP_OK;
 	}
-//	char bsend[18000];
 	char *bsend = NULL;
 	bsend = malloc(18000);
 	if (bsend == NULL) {
@@ -14116,8 +14198,8 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend,buff);	
 	strcat(bsend,"-");	
 	} else if (BleMR[i].id == 0x44) {
-	strcat(bsend,"key: ");	
-	bin2hex(BleMR[i].mac,buff,9,0);
+	strcat(bsend,"id: ");	
+	bin2hex(BleMR[i].mac,buff,8,0);
 	strcat(bsend,buff);	
 	} else if (BleMR[i].id) {
 	strcat(bsend,"mac: ");	
@@ -14168,7 +14250,7 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend,"<input name=\"blmkey");
 	itoa(i,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" type=\"text\" maxlength=\"40\" size=\"6\" placeholder=\"Key\">");
+	strcat(bsend,"\" type=\"text\" maxlength=\"64\" size=\"6\" placeholder=\"Key\">");
 	} else if (BleMR[i].id) {
 	strcat(bsend,"<input name=\"blmto");
 	itoa(i,buff,10);
@@ -14192,7 +14274,8 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	bin2hex(&BleMR[i].mac[10],buff,6,0);
 	strcat(bsend,buff);	
 	} else if (BleMR[i].id == 0x44) {
-	bin2hex(&BleMR[i].mac[9],buff,11,0);
+	strcat(bsend,"&emsp; ");	
+	bin2hex(&BleMR[i].mac[8],buff,8,0);
 	strcat(bsend,buff);	
 	} else if (BleMR[i].id && (BleMR[i].id < 0x40)) {
 	strcat(bsend,"&emsp;&emsp;&ensp;");	
@@ -14205,7 +14288,9 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	} else if (BleMR[i].id == 0x42) {
 	strcat(bsend,"HA iBeacon");	
 	} else if (BleMR[i].id == 0x44) {
+	strcat(bsend,"Smart Tag");	
 	} else if (BleMR[i].id == 0x04) {
+	strcat(bsend,"Smart Tag");	
 	}
 	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
 	if (BleMX[i].cmrssi) {
@@ -14266,8 +14351,8 @@ static esp_err_t pblemonok_get_handler(httpd_req_t *req)
 {
 	char buf1[512] = {0};
 	char buf2[16] = {0};
-	char buf3[64] = {0};
-	uint8_t buf4[32] = {0};
+	char buf3[96] = {0};
+	uint8_t buf4[48] = {0};
 	uint8_t fsave = 0;
 	uint8_t fble_mon = ble_mon;
 	uint16_t var = 0;
@@ -14306,10 +14391,10 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	itoa(i,buf3,10);
 	strcat(buf2,buf3);
 	buf3[0] = 0;
-	parsuri(buf1,buf3,buf2,512,41);
-	if (buf3[0] && BleMX[i].advdatlen && (strlen(buf3) == 40)) {
-	if((hex2bin(buf3, buf4, 20)) && (vstsign(&BleMX[i].advdat[11], buf4))) {
-	memcpy(BleMR[i].mac, buf4, 20);
+	parsuri(buf1,buf3,buf2,512,65);
+	if (buf3[0] && BleMX[i].advdatlen && (strlen(buf3) == 64)) {
+	if((hex2bin(buf3, buf4, 32)) && (vstsign(&BleMX[i].advdat[11], buf4))) {
+	memcpy(BleMR[i].mac, buf4, 32);
 	BleMR[i].id = 0x44;
 	fsave = 0;
 	}
@@ -14485,7 +14570,6 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 		return ESP_OK;
 	}
 	ble_mon_refr = ble_mon_refr & 0xfd;
-//	char bsend[18500];
 	char *bsend = NULL;
 	bsend = malloc(20500);
 	if (bsend == NULL) {
@@ -14744,11 +14828,10 @@ static esp_err_t psetsave_get_handler(httpd_req_t *req)
 		return ESP_OK;
 	}
 
-//	char buf1[2048] = {0};
 	char *buf1 = NULL;
 	buf1 = malloc(4096);
 	if (buf1 == NULL) {
-        ESP_LOGE(AP_TAG, "Http blemon: No memory");
+        ESP_LOGE(AP_TAG, "Http save setting: No memory");
 	MemErr++;
 	if (!MemErr) MemErr--;
 	httpd_resp_set_status(req, "303 See Other");
@@ -15112,7 +15195,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	itoa(R4SNUM,buf3,10);
 	strcat(buf2, buf3);
 	f_update = true;
-	while (BleDevStA.btauthoriz || BleDevStB.btauthoriz || BleDevStC.btauthoriz) vTaskDelay(200 / portTICK_PERIOD_MS);
+	while (BleDevStA.btauthoriz || BleDevStB.btauthoriz || BleDevStC.btauthoriz || BleDevStD.btauthoriz || BleDevStE.btauthoriz) vTaskDelay(200 / portTICK_PERIOD_MS);
 	if (FDHass) {
 	strcpy(buf1,"homeassistant/sensor/");
 	strcat(buf1,buf2);
@@ -15179,7 +15262,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 //***** Delete common topics *********************************
 	strcpy(buf2, "r4s");
 	f_update = true;
-	while (BleDevStA.btauthoriz || BleDevStB.btauthoriz || BleDevStC.btauthoriz) vTaskDelay(200 / portTICK_PERIOD_MS);
+	while (BleDevStA.btauthoriz || BleDevStB.btauthoriz || BleDevStC.btauthoriz || BleDevStD.btauthoriz || BleDevStE.btauthoriz) vTaskDelay(200 / portTICK_PERIOD_MS);
 	if (FDHass) {
 	strcpy(buf1,"homeassistant/sensor/");
 	strcat(buf1,buf2);
@@ -15249,7 +15332,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	itoa(R4SNUMO,buf3,10);
 	strcat(buf2, buf3);
 	f_update = true;
-	while (BleDevStA.btauthoriz || BleDevStB.btauthoriz || BleDevStC.btauthoriz) vTaskDelay(200 / portTICK_PERIOD_MS);
+	while (BleDevStA.btauthoriz || BleDevStB.btauthoriz || BleDevStC.btauthoriz || BleDevStD.btauthoriz || BleDevStE.btauthoriz) vTaskDelay(200 / portTICK_PERIOD_MS);
 	if (FDHass) {
 	strcpy(buf1,"homeassistant/sensor/");
 	strcat(buf1,buf2);
@@ -15376,67 +15459,6 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	if (fmsslhost) nvtemp = nvtemp | 0x1000;
 	if (fmwss) nvtemp = nvtemp | 0x2000;
 	nvs_set_u64(my_handle, "cmbits", nvtemp);
-
-/*
-	nvs_set_u8(my_handle,  "rlighta", BleDevStA.RgbR);
-	nvs_set_u8(my_handle,  "glighta", BleDevStA.RgbG);
-	nvs_set_u8(my_handle,  "blighta", BleDevStA.RgbB);
-	nvs_set_u8(my_handle,  "rlightb", BleDevStB.RgbR);
-	nvs_set_u8(my_handle,  "glightb", BleDevStB.RgbG);
-	nvs_set_u8(my_handle,  "blightb", BleDevStB.RgbB);
-	nvs_set_u8(my_handle,  "rlightc", BleDevStC.RgbR);
-	nvs_set_u8(my_handle,  "glightc", BleDevStC.RgbG);
-	nvs_set_u8(my_handle,  "blightc", BleDevStC.RgbB);
-	nvs_set_u8(my_handle,  "rlightd", BleDevStD.RgbR);
-	nvs_set_u8(my_handle,  "glightd", BleDevStD.RgbG);
-	nvs_set_u8(my_handle,  "blightd", BleDevStD.RgbB);
-	nvs_set_u8(my_handle,  "rlighte", BleDevStE.RgbR);
-	nvs_set_u8(my_handle,  "glighte", BleDevStE.RgbG);
-	nvs_set_u8(my_handle,  "blighte", BleDevStE.RgbB);
-	nvs_set_u8(my_handle,  "ltempa", BleDevStA.bLtemp);
-	nvs_set_u8(my_handle,  "ltempb", BleDevStB.bLtemp);
-	nvs_set_u8(my_handle,  "ltempc", BleDevStC.bLtemp);
-	nvs_set_u8(my_handle,  "ltempd", BleDevStD.bLtemp);
-	nvs_set_u8(my_handle,  "ltempe", BleDevStE.bLtemp);
-	nvs_set_u8(my_handle, "effica", BleDevStA.bEfficiency);
-	nvs_set_u8(my_handle, "efficb", BleDevStB.bEfficiency);
-	nvs_set_u8(my_handle, "efficc", BleDevStC.bEfficiency);
-	nvs_set_u8(my_handle, "efficd", BleDevStD.bEfficiency);
-	nvs_set_u8(my_handle, "effice", BleDevStE.bEfficiency);
-	nvs_set_u8(my_handle,  "sreqtpa", BleDevStA.DEV_TYP);
-	nvs_set_u8(my_handle,  "sreqtpb", BleDevStB.DEV_TYP);
-	nvs_set_u8(my_handle,  "sreqtpc", BleDevStC.DEV_TYP);
-	nvs_set_u8(my_handle,  "sreqtpd", BleDevStD.DEV_TYP);
-	nvs_set_u8(my_handle,  "sreqtpe", BleDevStE.DEV_TYP);
-#ifdef USE_TFT
-	nvs_set_u8(my_handle, "pnmiso", PIN_NUM_MISO);
-	nvs_set_u8(my_handle, "pnmosi", PIN_NUM_MOSI);
-	nvs_set_u8(my_handle, "pnclk", PIN_NUM_CLK);
-	nvs_set_u8(my_handle, "pncs", PIN_NUM_CS);
-	nvs_set_u8(my_handle, "pndc", PIN_NUM_DC);
-	nvs_set_u8(my_handle, "pnrst", PIN_NUM_RST);
-	nvs_set_u8(my_handle, "pnbckl", PIN_NUM_BCKL);
-	nvs_set_u8(my_handle, "pntouchcs", PIN_TOUCH_CS);
-#endif
-	nvs_set_u8(my_handle, "bgpio1", bgpio1);
-	nvs_set_u8(my_handle, "bgpio2", bgpio2);
-	nvs_set_u8(my_handle, "bgpio3", bgpio3);
-	nvs_set_u8(my_handle, "bgpio4", bgpio4);
-	nvs_set_u8(my_handle, "bgpio5", bgpio5);
-	nvs_set_u8(my_handle,  "chk1",  FDHass);
-	nvs_set_u8(my_handle,  "chk2",  fcommtp);
-	nvs_set_u8(my_handle,  "chk3",  ftrufal);
-#ifdef USE_TFT
-	nvs_set_u8(my_handle,  "chk4",  tft_flip);
-#endif
-	nvs_set_u8(my_handle,  "chk5",  ble_mon);
-#ifdef USE_TFT
-	nvs_set_u8(my_handle,  "chk6",  tft_conf);
-#endif
-	nvs_set_u8(my_handle,  "chk7",  foffln);
-	nvs_set_u8(my_handle,  "chk8",  macauth);
-	nvs_set_u8(my_handle,  "chk9",  volperc);
-*/
 
 	nvs_set_u8(my_handle,  "timzon", TimeZone);
 	nvs_set_u8(my_handle,  "r4snum", R4SNUM);
@@ -16630,7 +16652,10 @@ void app_main(void)
 	nvs_get_str(my_handle,"sreqnme", BleDevStE.REQ_NAME,&nvsize);
 	nvsize = sizeof(BleMR);
 	nvs_get_blob(my_handle,"sblemd",  BleMR,&nvsize);
-	if (nvsize != sizeof(BleMR)) memset (BleMR,0,sizeof(BleMR));
+	if (nvsize != sizeof(BleMR)) {
+	memset (BleMR,0,sizeof(BleMR));
+	f_nvs = 1;
+	}
 	nvsize = 50;
 	nvs_get_str(my_handle, "auth", AUTH_BASIC, &nvsize);
 #ifdef USE_TFT
@@ -16870,7 +16895,6 @@ void app_main(void)
 	esp_restart();
 	}
 	esp_err_t local_mtu_ret = esp_ble_gatt_set_local_mtu(BLE_INPUT_BUFFSIZE);
-//	esp_err_t local_mtu_ret = esp_ble_gatt_set_local_mtu(200);
 	if (local_mtu_ret){
 	ESP_LOGI(AP_TAG,"Set local  MTU failed, error code = 0x%X\n", local_mtu_ret);
 	}

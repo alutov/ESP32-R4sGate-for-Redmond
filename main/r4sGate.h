@@ -250,7 +250,7 @@ uint8_t  bEfficiency;
 };
 struct BleMonRec {
 uint16_t sto;
-uint8_t  mac[20];
+uint8_t  mac[32];
 uint8_t  id;
 uint8_t  res;
 };
