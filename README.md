@@ -7,7 +7,8 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 
 
 #### [Текущая версия 2022.08.22](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin).
-* 2022.08.22. Увеличен размер таблицы BLE - монитора в NVS. После обновления нужно будет заново создать все устройства в мониторе, затем в настройках отметить пункт "Format NVS area" и далее "Save setting". Добавлена возможность отслеживания  Samsung Smart Tag.
+* 2022.09.11. Добавлена поддержка  в BLE-мониторе Xiaomi Mi Scale пока только v1.
+* 2022.08.22. Увеличен размер таблицы BLE - монитора в NVS. После обновления нужно будет заново создать все устройства в мониторе, затем в настройках отметить пункт "Format NVS area" и далее "Save setting". Добавлена возможность отслеживания  в BLE-мониторе Samsung Smart Tag.
 <details>
      <summary>Последние версии...</summary>
 
@@ -70,7 +71,7 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 </details>
 
 ## 1. Возможности
-&emsp; Шлюз ESP32 r4sGate в минимальной конфигурации (только esp32 с источником питания 3.3v) позволяет подключать BLE-совместимые устройства Redmond и чайники Xiaomi MiKettle к системе "умный дом" (Home Assistant, OpenHab, ioBroker, MajorDoMo и т.д.) по протоколу MQTT.
+&emsp; Шлюз ESP32 r4sGate в минимальной конфигурации (только esp32 с источником питания 3.3v) позволяет подключать BLE-совместимые устройства Redmond и чайники Xiaomi MiKettle к системе "умный дом" (Home Assistant, OpenHab, ioBroker, MajorDoMo и т.д.) по протоколу MQTT. Изначально проект был только под Redmond, сейчас добавляются и другие устройства. Отсюда и плюс в названии проекта.
 
 <details>
 <summary>Почему MQTT...</summary>
