@@ -6,7 +6,7 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 > **[Скрипт на базе PHP сервера в локальной сети с доступом к интернету для показа погоды на экране шлюза](https://github.com/artt652/Weather-for-ESP32-R4S-gate).<br>**
 
 
-#### [Текущая версия 2022.08.22](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin).
+#### [Текущая версия 2022.09.11](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin).
 * 2022.09.11. Добавлена поддержка  в BLE-мониторе Xiaomi Mi Scale пока только v1.
 * 2022.08.22. Увеличен размер таблицы BLE - монитора в NVS. После обновления нужно будет заново создать все устройства в мониторе, затем в настройках отметить пункт "Format NVS area" и далее "Save setting". Добавлена возможность отслеживания  в BLE-мониторе Samsung Smart Tag.
 <details>
