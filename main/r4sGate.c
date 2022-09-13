@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.09.11"
+#define AP_VER "2022.09.13"
 
 #ifndef CONFIG_IDF_TARGET_ESP32C3
 // If use ili9341 320*240 tft
@@ -4815,6 +4815,8 @@ esp_log_buffer_hex(AP_TAG, ptr->sendData, ptr->sendDataLen);
 //  0        3    5                 11                17          21
 	if (!memcmp(&scan_result->scan_rst.ble_adv[3],"\x03\x02\x1d\x18\x09\xff\x57\x01",8) && 
 		!memcmp(&scan_result->scan_rst.ble_adv[17],"\x0d\x16\x1d\x18",4)) id = 2;
+	else if (!memcmp(&scan_result->scan_rst.ble_adv[3],"\x03\x02\x1b\x18\x09\xff\x57\x01",8) && 
+		!memcmp(&scan_result->scan_rst.ble_adv[17],"\x0d\x16\x1b\x18",4)) id = 2;
 	else if (!memcmp(&scan_result->scan_rst.ble_adv[3],"\x03\x02\x5a\xfd\x17\x16\x5a\xfd",8)) id = 0x44;
 	break;
 	}
@@ -14981,6 +14983,9 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"> Delete Mqtt topics &emsp;");
 	strcat(bsend,"<input type=\"checkbox\" name=\"chk0\" value=\"0\"");
 	strcat(bsend,"> Format NVS area</br>");
+	strcat(bsend,"<input name=\"sntp\" value=\"");
+	if (NTP_SERVER[0]) strcat(bsend,NTP_SERVER);
+	strcat(bsend,"\"size=\"15\">NTP&emsp;");
 #ifdef USE_TFT
 // read nvs
 	nvs_handle_t my_handle;
@@ -15025,9 +15030,9 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">LED <input name=\"pntouchcs\" type=\"number\" value=\"");
 	itoa(PIN_TOUCH_CS,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">T_CS</br>");
+	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">T_CS");
 #endif
-        strcat(bsend,"Port GPIO/Mode<input name=\"ppin1\" type=\"number\" value=\"");
+        strcat(bsend,"</br>Port GPIO/Mode<input name=\"ppin1\" type=\"number\" value=\"");
 	itoa((bgpio1 & 0x3f),buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"39\" size=\"2\">Port1<select name=\"popt1\"><option ");
@@ -15266,6 +15271,8 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	TimeZone = atoi(buf3);
 	strcpy(buf2, "auth");
 	parsuri(buf1, AUTH_BASIC, buf2, 4096, 50);
+	strcpy(buf2, "sntp");
+	parsuri(buf1, NTP_SERVER, buf2, 4096, 33);
 	strcpy(buf2,"r4snum");
 	parsuri(buf1,buf3,buf2,4096,4);
 	R4SNUM = atoi(buf3);
@@ -15753,6 +15760,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	nvs_set_str(my_handle, "sreqnmc", BleDevStC.REQ_NAME);
 	nvs_set_str(my_handle, "sreqnmd", BleDevStD.REQ_NAME);
 	nvs_set_str(my_handle, "sreqnme", BleDevStE.REQ_NAME);
+	nvs_set_str(my_handle, "sntp", NTP_SERVER);
 	nvs_set_blob(my_handle,"sblemd",  BleMR, sizeof(BleMR));
 #ifdef USE_TFT
 	nvs_set_str(my_handle, "smtopp1", MQTT_TOPP1);
@@ -16105,6 +16113,11 @@ void lpcomstat(uint8_t blenum) {
 	ptr = &BleDevStA;
 	break;
 	}
+	if ((ptr->DEV_TYP < 10) && ptr->btauthoriz && !ptr->r4slpcom && !ptr->bState && !ptr->bProg && (ptr->bLProg == 3)) {
+	ptr->bLProg = 0;
+	ptr->r4slppar1 = 0;
+	ptr->r4slpcom = 5;
+	}
 	if (ptr->r4slpcom) {
 #ifdef USE_TFT
 	if (jpg_time) t_jpg = jpg_time * 10;	
@@ -16116,6 +16129,7 @@ void lpcomstat(uint8_t blenum) {
 	if ((ptr->DEV_TYP < 10) && (ptr->bProg || ptr->bHeat)) {
 	m171sOff(blenum);
 	m171s_ModOff(blenum);
+	ptr->bLProg = 0;
 	}
 	if ((ptr->DEV_TYP > 11) && (ptr->DEV_TYP < 16)) {
 	if (ptr->r4slppar1 == 1) m103sToff(blenum);
@@ -16132,6 +16146,8 @@ void lpcomstat(uint8_t blenum) {
 //	ptr->t_rspcnt = 1;
 	break;
 	case 2:             //boil
+	if (ptr->bProg == 3) ptr->bLProg = ptr->bProg;
+	else ptr->bLProg = 0;
 	ptr->r4slpres = 1;
 	if ((ptr->DEV_TYP < 10) && ptr->bHtemp && (ptr->bHtemp < 91)) m171sHeat(blenum, 0);
 	m171sOff(blenum);
@@ -16145,6 +16161,7 @@ void lpcomstat(uint8_t blenum) {
 //	ptr->t_rspcnt = 1;
 	break;
 	case 3:             //heat
+	ptr->bLProg = 0;
 	ptr->r4slpres = 1;
 	m171sOff(blenum);
 	ptr->bprevHtemp = 255;
@@ -16160,6 +16177,7 @@ void lpcomstat(uint8_t blenum) {
 //	ptr->t_rspcnt = 1;
 	break;
 	case 4:             //boil&heat
+	ptr->bLProg = 0;
 	ptr->r4slpres = 1;
 	m171sOff(blenum);
 	if (ptr->r4slppar1 && (ptr->r4slppar1 < 99)) m171sBoilAndHeat(blenum, ptr->r4slppar1);
@@ -16570,11 +16588,11 @@ void app_main(void)
 	volperc  = 0;
 	R4SNUM = 0;
 	R4SNUMO = 0;
-	BleDevStA.r4sAuthCount = 0;
-	BleDevStB.r4sAuthCount = 0;
-	BleDevStC.r4sAuthCount = 0;
-	BleDevStD.r4sAuthCount = 0;
-	BleDevStE.r4sAuthCount = 0;
+	memset (&BleDevStA,0,sizeof(BleDevStA));
+	memset (&BleDevStB,0,sizeof(BleDevStB));
+	memset (&BleDevStC,0,sizeof(BleDevStC));
+	memset (&BleDevStD,0,sizeof(BleDevStD));
+	memset (&BleDevStE,0,sizeof(BleDevStE));
 	BleDevStA.MiKettleID = 1;
 	BleDevStB.MiKettleID = 1;
 	BleDevStC.MiKettleID = 1;
@@ -16611,31 +16629,12 @@ void app_main(void)
 	BleDevStE.RgbG = 255;
 	BleDevStE.RgbB = 255;
 	FND_NAME[0] = 0;
-	BleDevStA.REQ_NAME[0] = 0;
-	BleDevStB.REQ_NAME[0] = 0;
-	BleDevStC.REQ_NAME[0] = 0;
-	BleDevStD.REQ_NAME[0] = 0;
-	BleDevStE.REQ_NAME[0] = 0;
-	BleDevStA.RQC_NAME[0] = 0;
-	BleDevStB.RQC_NAME[0] = 0;
-	BleDevStC.RQC_NAME[0] = 0;
-	BleDevStD.RQC_NAME[0] = 0;
-	BleDevStE.RQC_NAME[0] = 0;
-	BleDevStA.DEV_NAME[0] = 0;
-	BleDevStB.DEV_NAME[0] = 0;
-	BleDevStC.DEV_NAME[0] = 0;
-	BleDevStD.DEV_NAME[0] = 0;
-	BleDevStE.DEV_NAME[0] = 0;
-	BleDevStA.tBLEAddr[0] = 0;
-	BleDevStB.tBLEAddr[0] = 0;
-	BleDevStC.tBLEAddr[0] = 0;
-	BleDevStD.tBLEAddr[0] = 0;
-	BleDevStE.tBLEAddr[0] = 0;
 	MQTT_USER[0] = 0;
 	MQTT_PASSWORD[0] = 0;
 	MQTT_SERVER[0] = 0;
 	WIFI_SSID[0] = 0;
 	WIFI_PASSWORD[0] = 0;
+	NTP_SERVER[0] = 0;
 #ifdef USE_TFT
 	MQTT_TOPP1[0] = 0;
 	MQTT_TOPP2[0] = 0;
@@ -16654,43 +16653,8 @@ void app_main(void)
 	MyHttpUri[0] = 0;
 	MyHttpMqtt = 0;
 #endif
-	BleDevStA.xshedcom = 0;
-	BleDevStB.xshedcom = 0;
-	BleDevStC.xshedcom = 0;
-	BleDevStD.xshedcom = 0;
-	BleDevStE.xshedcom = 0;
-	BleDevStA.NumConn = 0;
-	BleDevStB.NumConn = 0;
-	BleDevStC.NumConn = 0;
-	BleDevStD.NumConn = 0;
-	BleDevStE.NumConn = 0;
 	ble_mon = 0;
 	ble_mon_refr = 0;
-	BleDevStA.bSEnergy = 0;
-	BleDevStB.bSEnergy = 0;
-	BleDevStC.bSEnergy = 0;
-	BleDevStD.bSEnergy = 0;
-	BleDevStE.bSEnergy = 0;
-	BleDevStA.bSTime = 0;  
-	BleDevStB.bSTime = 0;  
-	BleDevStC.bSTime = 0;  
-	BleDevStD.bSTime = 0;  
-	BleDevStE.bSTime = 0;  
-	BleDevStA.bSCount = 0; 
-	BleDevStB.bSCount = 0; 
-	BleDevStC.bSCount = 0; 
-	BleDevStD.bSCount = 0; 
-	BleDevStE.bSCount = 0; 
-	BleDevStA.bSHum = 0;
-	BleDevStB.bSHum = 0;
-	BleDevStC.bSHum = 0;
-	BleDevStD.bSHum = 0;
-	BleDevStE.bSHum = 0;
-	BleDevStA.bLtemp = 0;
-	BleDevStB.bLtemp = 0;
-	BleDevStC.bLtemp = 0;
-	BleDevStD.bLtemp = 0;
-	BleDevStE.bLtemp = 0;
 	BleDevStA.bEfficiency = 80;
 	BleDevStB.bEfficiency = 80;
 	BleDevStC.bEfficiency = 80;
@@ -16701,16 +16665,6 @@ void app_main(void)
 	BleDevStC.bCVol = 254;
 	BleDevStD.bCVol = 254;
 	BleDevStE.bCVol = 254;
-	BleDevStA.bCVoll = 0;
-	BleDevStB.bCVoll = 0;
-	BleDevStC.bCVoll = 0;
-	BleDevStD.bCVoll = 0;
-	BleDevStE.bCVoll = 0;
-	BleDevStA.bBlTime = 0;
-	BleDevStB.bBlTime = 0;
-	BleDevStC.bBlTime = 0;
-	BleDevStD.bBlTime = 0;
-	BleDevStE.bBlTime = 0;
 	memset (BleMR,0,sizeof(BleMR));
 	memset (BleMX,0,sizeof(BleMX));
 	memset (bufcert,0,sizeof(bufcert));
@@ -16939,6 +16893,8 @@ void app_main(void)
 	}
 	nvsize = 50;
 	nvs_get_str(my_handle, "auth", AUTH_BASIC, &nvsize);
+	nvsize = 32;
+	nvs_get_str(my_handle,"sntp", NTP_SERVER,&nvsize);
 #ifdef USE_TFT
 	nvsize = 32;
 	nvs_get_str(my_handle,"smtopp1", MQTT_TOPP1,&nvsize);
@@ -17201,8 +17157,10 @@ to get MSK (GMT + 3) I need to write GMT-3
 	tzset();
 //sntp
 	sntp_setoperatingmode(SNTP_OPMODE_POLL);
-	sntp_setservername(0, "pool.ntp.org");
+	if(!NTP_SERVER[0]) strcpy (NTP_SERVER, "pool.ntp.org");
+	sntp_setservername(0, NTP_SERVER);
 	sntp_init();
+	ESP_LOGI(AP_TAG,"NTP server: %s", NTP_SERVER);
 // get esp mac addr 
         tESP32Addr[0] = 0;
         tESP32Addr1[0] = 0;

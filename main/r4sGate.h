@@ -196,6 +196,7 @@ uint32_t bSHum;
 uint32_t bprevSHum;
 uint8_t  bLock;
 uint8_t  bProg;
+uint8_t  bLProg;
 uint8_t  bModProg;
 uint8_t  bHeat;
 uint8_t  bPHour;
@@ -323,6 +324,7 @@ char MQTT_PASSWORD[20];                     // MQTT Server password
 char MQTT_SERVER[33];                       // MQTT Server
 char WIFI_SSID[33];                         // network SSID for ESP32 to connect to
 char WIFI_PASSWORD[65];                     // password for the network above
+char NTP_SERVER[33];                       // NTP Server
 
 #ifdef USE_TFT
 //tft
