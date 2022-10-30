@@ -19,6 +19,7 @@
 /*
 
 TFT code is my attempt to port some Bodmer tft procedures from arduino to  esp-idf 
+https://github.com/Bodmer/TFT_eSPI
 
 */
 
@@ -758,7 +759,7 @@ uint16_t decodeUTF8(uint8_t *buf, uint16_t *index, uint16_t remaining)
 	c = 0xf4;	
 	break;
 	default:
-//ESP_LOGI(AP_TAG,"sym=0x%X", c);
+//if (fdebug) ESP_LOGI(AP_TAG,"sym=0x%X", c);
 	c = 0x20;	
 	break;
 	}
@@ -779,7 +780,7 @@ uint16_t decodeUTF8(uint8_t *buf, uint16_t *index, uint16_t remaining)
 	break;
 */
 	default:
-//ESP_LOGI(AP_TAG,"sym=0x%X", d);
+//if (fdebug) ESP_LOGI(AP_TAG,"sym=0x%X", d);
 	c = 0x20;	
 	break;
 	}
@@ -1452,7 +1453,7 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	vTaskDelay(500 / portTICK_RATE_MS);
     //detect LCD type
 	lcd_id = lcd_get_dd(spi, 0x04, 3);
-	ESP_LOGI(AP_TAG,"Display identification information (0x04h) = %x", lcd_id);
+	if (fdebug) ESP_LOGI(AP_TAG,"Display identification information (0x04h) = %x", lcd_id);
 	if (lcd_id == 0x0000) {         //0, ili9341
     //Send all the commands
 	while (ili9341_init_cmds[cmd].databytes!=0xff) {
@@ -1470,16 +1471,17 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	}
 	vTaskDelay(100 / portTICK_RATE_MS);
 	lcd_id = lcd_get_dd(spi, 0x0f, 1);
-	ESP_LOGI(AP_TAG,"Display Self-Diagnostic Result (0x0Fh) = %x", lcd_id);
+	if (fdebug) ESP_LOGI(AP_TAG,"Display Self-Diagnostic Result (0x0Fh) = %x", lcd_id);
 	if ((lcd_id & 0x80) == 0x80) {
 	///Enable backlight
 	fillScreen(0);
-        ESP_LOGI(AP_TAG, "ILI9341 TFT detected.");
+        if (fdebug) ESP_LOGI(AP_TAG, "ILI9341 TFT detected.");
 	bStateS = 255;
-	ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
+	if ((f_i2cdev & 0x40000000) && !(ip5306_batmode & 0x02)) ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS >>= 5);
+	else ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
 	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
 	result = 1;
-	} else ESP_LOGI(AP_TAG, "ILI9341 TFT init error.");
+	} else if (fdebug) ESP_LOGI(AP_TAG, "ILI9341 TFT init error.");
 
 	} else if (lcd_id == 0x80f1) {  //0, ili9342
     //Send all the commands
@@ -1498,19 +1500,20 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	}
 	vTaskDelay(100 / portTICK_RATE_MS);
 	lcd_id = lcd_get_dd(spi, 0x0f, 1);
-	ESP_LOGI(AP_TAG,"Display Self-Diagnostic Result (0x0Fh) = %x", lcd_id);
+	if (fdebug) ESP_LOGI(AP_TAG,"Display Self-Diagnostic Result (0x0Fh) = %x", lcd_id);
 	if ((lcd_id & 0x80) == 0x80) {
 	///Enable backlight
 	fillScreen(0);
-        ESP_LOGI(AP_TAG, "ILI9342 TFT detected.");
+        if (fdebug) ESP_LOGI(AP_TAG, "ILI9342 TFT detected.");
 	bStateS = 255;
-	ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
+	if ((f_i2cdev & 0x40000000) && !(ip5306_batmode & 0x02)) ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS >>= 5);
+	else ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
 	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
 	result = 2;
-	} else ESP_LOGI(AP_TAG, "ILI9342 TFT init error.");
+	} else if (fdebug) ESP_LOGI(AP_TAG, "ILI9342 TFT init error.");
 
 	} else {
-        ESP_LOGI(AP_TAG, "ILI TFT not found.");
+        if (fdebug) ESP_LOGI(AP_TAG, "ILI TFT not found.");
 	}
 	return result;
 }
@@ -1848,23 +1851,24 @@ void tfblestate()
 	else if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 24) && (ptr->bState == 1)) setTextColor(TFT_WHITE, TFT_BLACK);
 	else if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 20) && (ptr->bState == 5)) setTextColor(TFT_YELLOW, TFT_BLACK);
 	else if ((ptr->DEV_TYP > 19) && (ptr->DEV_TYP < 24) && (ptr->bState == 2)) setTextColor(TFT_YELLOW, TFT_BLACK);
+	else if ((ptr->DEV_TYP == 74) && !(ptr->bState & 0x01)) setTextColor(TFT_BLUE, TFT_BLACK);
 	else setTextColor(TFT_RED, TFT_BLACK);
 	sumx += drawString(ptr->DEV_NAME, sumx, 224, 2);
 	sumx += drawString(":", sumx, 224, 2);
         setTextColor(TFT_GREEN, TFT_BLACK);
 	if (!ptr->DEV_TYP) {
 	sumx += drawString(" Not Defined, ", sumx, 224, 2);
-	} else if ((ptr->DEV_TYP < 10) || (ptr->DEV_TYP > 63)) {
+	} else if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73))) {
 	sumx += drawString(" T: ", sumx, 224, 2);
-	if (ptr->bCtemp > 79) setTextColor(TFT_WHITE, TFT_BLACK);
-	else if (ptr->bCtemp > 39) setTextColor(TFT_YELLOW, TFT_BLACK);
+	if (ptr->bCtemp > 84) setTextColor(TFT_WHITE, TFT_BLACK);
+	else if (ptr->bCtemp > 64) setTextColor(TFT_YELLOW, TFT_BLACK);
 	else if (ptr->bCtemp == 0) setTextColor(TFT_DARKGREY, TFT_BLACK);
 	itoa(ptr->bCtemp,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("'", sumx, 224, 2);
         setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString("/", sumx, 224, 2);
-	if (ptr->bHtemp > 79) setTextColor(TFT_WHITE, TFT_BLACK);
+	if (ptr->bHtemp > 84) setTextColor(TFT_WHITE, TFT_BLACK);
 	else if (ptr->bHtemp > 39) setTextColor(TFT_YELLOW, TFT_BLACK);
 	itoa(ptr->bHtemp,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
@@ -1922,7 +1926,7 @@ void tfblestate()
         setTextColor(TFT_RED, TFT_BLACK);
 	sumx += drawString("On", sumx, 224, 2);
 	} else sumx += drawString("Off", sumx, 224, 2);
-	} else if (ptr->DEV_TYP < 62) {
+	} else if (ptr->DEV_TYP < 61) {
 	sumx += drawString(" P: ", sumx, 224, 2);
 	itoa(ptr->bProg,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
@@ -1940,6 +1944,31 @@ void tfblestate()
 	itoa(ptr->bCMin,buff,10);
 	if (ptr->bCMin < 10) sumx += drawString("0", sumx, 224, 2);
 	sumx += drawString(buff, sumx, 224, 2);
+	} else if (ptr->DEV_TYP == 61) {
+	sumx += drawString(" Lock: ", sumx, 224, 2);
+	if (ptr->bLock) {
+        setTextColor(TFT_RED, TFT_BLACK);
+	sumx += drawString("On", sumx, 224, 2);
+	} else sumx += drawString("Off", sumx, 224, 2);
+        setTextColor(TFT_GREEN, TFT_BLACK);
+	sumx += drawString(", Pos: ", sumx, 224, 2);
+	switch (ptr->bModProg) {
+	case 0:
+	sumx += drawString("Work", sumx, 224, 2);
+	break;
+	case 1:
+	sumx += drawString("Stnd", sumx, 224, 2);
+	break;
+	case 2:
+	sumx += drawString("Offs", sumx, 224, 2);
+	break;
+	case 3:
+	sumx += drawString("Upsd", sumx, 224, 2);
+	break;
+	case 254:
+	sumx += drawString("Offl", sumx, 224, 2);
+	break;
+	}
 	} else if (ptr->DEV_TYP == 62) {
 	sumx += drawString(" T: ", sumx, 224, 2);
 	if (ptr->bSEnergy & 0x80000000) sumx += drawString("-", sumx, 224, 2);
@@ -1973,6 +2002,17 @@ void tfblestate()
 	itoa(ptr->bCMin,buff,10);
 	if (ptr->bCMin < 10) sumx += drawString("0", sumx, 224, 2);
 	sumx += drawString(buff, sumx, 224, 2);
+	} else if (ptr->DEV_TYP == 74) {
+	sumx += drawString(" P/I/B: ", sumx, 224, 2);
+	itoa(ptr->bProg,buff,10);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("%/", sumx, 224, 2);
+	itoa(ptr->bHtemp,buff,10);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("/", sumx, 224, 2);
+	itoa(ptr->bCtemp,buff,10);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("%", sumx, 224, 2);
 	}
         setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString(", ", sumx, 224, 2);
@@ -2000,9 +2040,10 @@ void tfblestate()
 	}
 	}
 	if (blstnum == 254) {
-	setTextColor(TFT_GREEN, TFT_BLACK);
+	setTextColor(TFT_YELLOW, TFT_BLACK);
 	sumx = drawString("Update firmware in progress ...", 0, 224, 2);
 	fillRect(sumx,224,320-sumx,16,TFT_BLACK);
+	setTextColor(TFT_GREEN, TFT_BLACK);
 	}
 }
 
@@ -2011,23 +2052,23 @@ esp_err_t _http_event_handle(esp_http_client_event_t *evt)
     switch(evt->event_id) {
         case HTTP_EVENT_ERROR:
 	MyJPGbufidx = -1;
-            ESP_LOGI(AP_TAG, "HTTP_EVENT_ERROR");
+            if (fdebug) ESP_LOGI(AP_TAG, "HTTP_EVENT_ERROR");
             break;
         case HTTP_EVENT_ON_CONNECTED:
 	MyJPGbufidx = 0;
-            ESP_LOGI(AP_TAG, "HTTP_EVENT_ON_CONNECTED");
+            if (fdebug) ESP_LOGI(AP_TAG, "HTTP_EVENT_ON_CONNECTED");
             break;
         case HTTP_EVENT_HEADER_SENT:
 	MyJPGbufidx = 0;
-//            ESP_LOGI(AP_TAG, "HTTP_EVENT_HEADER_SENT");
+//            if (fdebug) ESP_LOGI(AP_TAG, "HTTP_EVENT_HEADER_SENT");
             break;
         case HTTP_EVENT_ON_HEADER:
-//            ESP_LOGI(AP_TAG, "HTTP_EVENT_ON_HEADER");
+//            if (fdebug) ESP_LOGI(AP_TAG, "HTTP_EVENT_ON_HEADER");
 	MyJPGbufidx = 0;
 //            printf("%.*s", evt->data_len, (char*)evt->data);
             break;
         case HTTP_EVENT_ON_DATA:
-//            ESP_LOGI(AP_TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
+//            if (fdebug) ESP_LOGI(AP_TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
             if (!esp_http_client_is_chunked_response(evt->client)) {
 	if ((MyJPGbufidx >= 0) && (MyJPGbufidx+evt->data_len < MyJPGbuflen)) {
 	memcpy(MyJPGbuf + MyJPGbufidx, (char*)evt->data, evt->data_len);
@@ -2035,16 +2076,16 @@ esp_err_t _http_event_handle(esp_http_client_event_t *evt)
 	} else MyJPGbufidx = -1;
 
 //                printf("%.*s", evt->data_len, (char*)evt->data);
-//        esp_log_buffer_hex(AP_TAG, (char*)evt->data, evt->data_len);
+//        if (fdebug) esp_log_buffer_hex(AP_TAG, (char*)evt->data, evt->data_len);
 
 	}
 
             break;
         case HTTP_EVENT_ON_FINISH:
-//            ESP_LOGI(AP_TAG, "HTTP_EVENT_ON_FINISH");
+//            if (fdebug) ESP_LOGI(AP_TAG, "HTTP_EVENT_ON_FINISH");
             break;
         case HTTP_EVENT_DISCONNECTED:
-//            ESP_LOGI(AP_TAG, "HTTP_EVENT_DISCONNECTED");
+//            if (fdebug) ESP_LOGI(AP_TAG, "HTTP_EVENT_DISCONNECTED");
             break;
 	}
 	if (MyJPGbufidx >=0) return ESP_OK;
@@ -2175,7 +2216,7 @@ static uint16_t outfunc(JDEC *decoder, void *bitmap, JRECT *rect)
 //  end_tft_write();
 
 
-//ESP_LOGI(AP_TAG, "Count: %d",count);
+//if (fdebug) ESP_LOGI(AP_TAG, "Count: %d",count);
 
     return result;
 }
@@ -2197,7 +2238,7 @@ bool tftjpg()
 	if (MyHttpUri[0] && jpg_time && (parsoff(MyHttpUri, "http://", 9) || parsoff(MyHttpUri, "https://", 10))) {
 	MyJPGbuf = malloc(MyJPGbuflen);
 	if (MyJPGbuf == NULL) {
-        ESP_LOGE(AP_TAG, "Tftjpg: No memory");
+        if (fdebug) ESP_LOGE(AP_TAG, "Tftjpg: No memory");
 	MemErr++;
 	if (!MemErr) MemErr--;
 	} else {	
@@ -2207,7 +2248,7 @@ bool tftjpg()
 	if (JpHttpUri != NULL) {
 	memset(JpHttpUri,0,520);
 	myurlcpy(JpHttpUri, MyHttpUri, 518);
-	ESP_LOGI(AP_TAG, "Url: %s",JpHttpUri);
+	if (fdebug) ESP_LOGI(AP_TAG, "Url: %s",JpHttpUri);
 	esp_http_client_config_t config = {
 	.url = JpHttpUri,
 	.event_handler = _http_event_handle,
@@ -2224,7 +2265,7 @@ bool tftjpg()
 	if (err == ESP_OK) {
 	jstat = esp_http_client_get_status_code(client);
 	jlen = esp_http_client_get_content_length(client);
-	ESP_LOGI(AP_TAG, "Status = %d, content_length = %d, offset_length = %d",
+	if (fdebug) ESP_LOGI(AP_TAG, "Status = %d, content_length = %d, offset_length = %d",
            jstat,  jlen, MyJPGbufidx);
 	}
 	esp_http_client_cleanup(client);
@@ -2260,7 +2301,7 @@ bool tftjpg()
     //Allocate the work space for the jpeg decoder.
 	work = calloc(WORKSZ, 1);
 	if (work == NULL) {
-        ESP_LOGE(AP_TAG, "Cannot allocate workspace");
+        if (fdebug) ESP_LOGE(AP_TAG, "Cannot allocate workspace");
         ret = ESP_ERR_NO_MEM;
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
@@ -2277,7 +2318,7 @@ bool tftjpg()
     //Prepare and decode the jpeg.
 	ret = jd_prepare(&decoder, infunc, work, WORKSZ, (void *)&jd);
 	if (ret != JDR_OK) {
-        ESP_LOGE(AP_TAG, "Image decoder: jd_prepare failed (%d)", ret);
+        if (fdebug) ESP_LOGE(AP_TAG, "Image decoder: jd_prepare failed (%d)", ret);
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
        	drawString("JPEG: not supported", 8, 60, 4);
@@ -2290,13 +2331,13 @@ bool tftjpg()
 	}
 	ret = jd_decomp(&decoder, outfunc, 0);
 	if (ret != JDR_OK) {
-        ESP_LOGE(AP_TAG, "Image decoder: jd_decode failed (%d)", ret);
+        if (fdebug) ESP_LOGE(AP_TAG, "Image decoder: jd_decode failed (%d)", ret);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
        	drawString("JPEG: decoder error", 8, 60, 4);
         MyHttpMqtt = MyHttpMqtt | 0x40;
 	result = true;
 	} else {
-//	ESP_LOGI(AP_TAG, "Image decoder: jd_decode Ok");
+//	if (fdebug) ESP_LOGI(AP_TAG, "Image decoder: jd_decode Ok");
 	result = true;
 	}
 	}
@@ -2321,8 +2362,8 @@ bool tftjpg()
        	drawString("Content not supported", 8, 60, 4);
         MyHttpMqtt = MyHttpMqtt | 0x40;
 */
-//ESP_LOGI(AP_TAG, "String: %s",MyJPGbuf);
-//esp_log_buffer_hex(AP_TAG, MyJPGbuf, 256);
+//if (fdebug) ESP_LOGI(AP_TAG, "String: %s",MyJPGbuf);
+//if (fdebug) esp_log_buffer_hex(AP_TAG, MyJPGbuf, 256);
 	result = true;
 }        //jpg
 }        //load ok

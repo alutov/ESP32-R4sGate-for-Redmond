@@ -45,6 +45,10 @@
 #include "mbedtls/aes.h"
 #include "esp_tls.h"
 #include "esp_crt_bundle.h"
+#include "phy_init_data.h"
+#include "soc/efuse_reg.h"
+#include "driver/rmt.h"
+#include "driver/i2c.h"
 
 //*** define ***
 //*** common ***
@@ -122,6 +126,15 @@
 // GLREMOTE_RXCHAR_UUID   "e8680102-9c4b-11e4-b5f7-0002a5d5c51b"
 #define GLREMOTE_RXCHAR_UUID   {0x1b, 0xc5, 0xd5, 0xa5, 0x02, 0x00, 0xf7, 0xb5, 0xe4, 0x11, 0x4b, 0x9c, 0x02, 0x01, 0x68, 0xe8}
 
+//AM43
+// AMREMOTE_SERVICE_UUID  "fe50"
+#define AMREMOTE_SERVICE_UUID 0xfe50
+
+// AMREMOTE_CHAR_UUID  "fe51"
+//#define AMREMOTE_CHAR_UUID     {0xfb, 0x34, 0x9b, 0x5f, 0x80, 0x00, 0x00, 0x80, 0x00, 0x10, 0x00, 0x00, 0x51, 0xfe, 0x00, 0x00}
+#define AMREMOTE_CHAR_UUID 0xfe51
+
+
 #define PROFILE_NUM      5
 #define PROFILE_A_APP_ID 0
 #define PROFILE_B_APP_ID 1
@@ -134,12 +147,6 @@
 #define otabufsize 2048
 #define BleMonNum 24
 #define BleMonDefTO 3000
-
-
-//uint8_t DEV_TYPA = 0; 
-//uint8_t DEV_TYPB = 0; 
-//uint8_t DEV_TYPC = 0; 
-
 
 struct BleDevSt {
 int      MiKettleID;
@@ -162,6 +169,7 @@ char     DEV_NAME[16];
 char     tBLEAddr[16];
 uint32_t NumConn;
 uint32_t PassKey;
+uint8_t  LstCmd;
 uint8_t  r4scounter;
 uint8_t  r4sConnErr;
 uint8_t  r4sAuthCount;
@@ -179,7 +187,7 @@ uint8_t  r4slppar7;
 uint8_t  r4slppar8;
 uint8_t  r4slpres;
 uint8_t  t_ppcon;
-uint8_t  t_rspdel;
+uint16_t t_rspdel;
 uint8_t  t_rspcnt;
 uint8_t  f_Sync;
 char     cprevStatus[cStatus_len];
@@ -196,7 +204,7 @@ uint32_t bSHum;
 uint32_t bprevSHum;
 uint8_t  bLock;
 uint8_t  bProg;
-uint8_t  bLProg;
+uint8_t  bKeep;
 uint8_t  bModProg;
 uint8_t  bHeat;
 uint8_t  bPHour;
@@ -274,18 +282,37 @@ int16_t  par3;
 int16_t  par4;
 int16_t  par5;
 int16_t  par6;
+int16_t  par7;
 int16_t  ppar1;
 int16_t  ppar2;
 int16_t  ppar3;
 int16_t  ppar4;
 int16_t  ppar5;
 int16_t  ppar6;
+int16_t  ppar7;
 int8_t   cmrssi;
 uint8_t  gtnum;
 uint8_t  gttmo;
 };
 
-
+struct SnPari2c {
+uint16_t  par1;
+uint16_t  par2;
+uint16_t  par3;
+uint16_t  par4;
+uint16_t  par5;
+uint16_t  par6;
+uint16_t  par7;
+uint16_t  par8;
+uint16_t  ppar1;
+uint16_t  ppar2;
+uint16_t  ppar3;
+uint16_t  ppar4;
+uint16_t  ppar5;
+uint16_t  ppar6;
+uint16_t  ppar7;
+uint16_t  ppar8;
+};
 
 static bool Isscanning = false;
 static bool IsPassiveScan = false;
@@ -316,20 +343,21 @@ char strON[8];
 uint8_t binblemac [8];
 uint8_t binwfmac [8];
 char MQTT_BASE_TOPIC[8];                    // r4s
-char FND_NAME[16];                           // last founded device name
-char FND_ADDR[16];                           // last founded device addr
-char FND_ADDRx[32];                           // last founded device addr incl :
+char FND_NAME[16];                          // last founded device name
+char FND_ADDR[16];                          // last founded device addr
+char FND_ADDRx[32];                         // last founded device addr incl :
 char MQTT_USER[16];                         // MQTT Server user
 char MQTT_PASSWORD[20];                     // MQTT Server password
 char MQTT_SERVER[33];                       // MQTT Server
 char WIFI_SSID[33];                         // network SSID for ESP32 to connect to
 char WIFI_PASSWORD[65];                     // password for the network above
-char NTP_SERVER[33];                       // NTP Server
+char NTP_SERVER[33];                        // NTP Server
+
+uint16_t t_ppcons = 0;
 
 #ifdef USE_TFT
 //tft
 #define MyJPGbuflen 32768
-uint16_t t_ppcons = 0;
 uint16_t jpg_time  = 32;
 uint8_t tft_conn = 0;
 uint8_t tft_conf = 0;
@@ -340,8 +368,8 @@ char MyHttpUri[390];
 char *MyJPGbuf;
 
 char MQTT_TOPP1[33];
-char MQTT_TOPP2[25];
-char MQTT_TOPP3[25];
+char MQTT_TOPP2[33];
+char MQTT_TOPP3[33];
 char MQTT_TOPP4[33];
 char MQTT_TOPP5[33];
 char MQTT_TOPP6[33];
@@ -376,6 +404,7 @@ uint8_t  t_clock = 0;
 uint16_t t_jpg = 0;
 uint8_t  t_tinc = 0;
 
+uint8_t fdebug  = 0;
 uint8_t foffln  = 0;
 uint8_t fmssl = 0; 
 uint8_t fmsslbundle = 0; 
@@ -384,6 +413,7 @@ uint8_t fmwss = 0;
 uint8_t mqtdel  = 0;
 uint8_t macauth  = 0;
 uint8_t volperc  = 0;
+uint8_t fkpmd  = 0;
 int floop = 0;
 
 //                       boilOrLight    scale_from rand  rgb1       scale_mid  rand   rgb_mid     scale_to   rand  rgb2
@@ -403,7 +433,6 @@ uint8_t fcommtp = 0;
 uint8_t ftrufal = 0; 
 uint8_t ble_mon = 0; 
 uint8_t ble_mon_refr = 0; 
-uint8_t f_nvs = 0; 
 
 uint8_t  TimeZone = 0;
 // NightLight colours
@@ -413,7 +442,6 @@ uint8_t bgpio2 = 0;
 uint8_t bgpio3 = 0;
 uint8_t bgpio4 = 0;
 uint8_t bgpio5 = 0;
-
 uint8_t lvgpio1 = 0;
 uint8_t lvgpio2 = 0;
 uint8_t lvgpio3 = 0;
@@ -430,7 +458,44 @@ int  cntgpio3 = 0;
 int  cntgpio4 = 0;
 int  cntgpio5 = 0;
 
+uint8_t bgpio6 = 0;
+uint16_t bprevStatG6 = 0;
+uint16_t bStatG6 = 0;
+uint16_t bprevStatG6h = 0;
+uint16_t bStatG6h = 0;
+uint8_t bgpio7 = 0;
+uint16_t bprevStatG7 = 0;
+uint16_t bStatG7 = 0;
+uint16_t bprevStatG7h = 0;
+uint16_t bStatG7h = 0;
+uint8_t bgpio8 = 0;
+uint16_t bprevStatG8 = 0;
+uint16_t bStatG8 = 0;
+uint16_t bprevStatG8h = 0;
+uint16_t bStatG8h = 0;
+uint8_t bgpio9 = 0;
+uint8_t bgpio10 = 0;
+uint8_t  f_rmds = 0;
+uint32_t s_i2cdev = 0;
+uint32_t f_i2cdev = 0;
+uint32_t i2c_errcnt = 0;
+uint8_t i2cdevnum = 0;
+uint8_t i2cdevnumo = 0;
+uint8_t  RmtDsNum = 0;
+uint8_t  ip5306_batmode = 0;
+uint8_t  ip5306_batprevmode = 0;    //mqtt
+uint8_t  ip5306_batpscrmode = 0;    //screen
+uint8_t  ip5306_batlev = 0;
+uint8_t  ip5306_batprevlev = 0;
 
+RingbufHandle_t RmtRgHd0 = 0;
+RingbufHandle_t RmtRgHd1 = 0;
+RingbufHandle_t RmtRgHd2 = 0;
+
+const uint8_t i2c_addr[30] = {0x76,0x77,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+			0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+const uint8_t i2c_bits[30] = {0x07,0x07,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+			0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
 
 bool f_update = false;
 
