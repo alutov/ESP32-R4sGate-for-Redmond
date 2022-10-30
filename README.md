@@ -73,7 +73,7 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 </details>
 
 ## 1. Возможности
-&emsp; Шлюз ESP32 r4sGate в минимальной конфигурации (только esp32 с источником питания 3.3v) позволяет подключать BLE-совместимые устройства Redmond и чайники Xiaomi MiKettle к системе "умный дом" (Home Assistant, OpenHab, ioBroker, MajorDoMo и т.д.) по протоколу MQTT. Изначально проект был только под Redmond, сейчас добавляются и другие устройства. Отсюда и плюс в названии проекта.
+&emsp; Шлюз ESP32 r4sGate в минимальной конфигурации (только esp32 с источником питания 3.3v) позволяет подключать BLE-совместимые устройства Redmond, чайники Xiaomi MiKettle и некоторые другие устройства к системе "умный дом" (Home Assistant, OpenHab, ioBroker, MajorDoMo и т.д.) по протоколу MQTT. Изначально проект был только под Redmond, сейчас добавляются и другие устройства. Отсюда и плюс в названии проекта.
 
 <details>
 <summary>Почему MQTT...</summary>
