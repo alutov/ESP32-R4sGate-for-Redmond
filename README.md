@@ -131,7 +131,7 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
      
 * Galcon GL9001A
 
-** Драйверы штор/жалюзи**
+**Драйверы штор/жалюзи**
      
 * AM43
 
