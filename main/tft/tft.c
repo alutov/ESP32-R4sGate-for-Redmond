@@ -1911,7 +1911,7 @@ void tfblestate()
 	sumx += drawString("On", sumx, 224, 2);
 	} else sumx += drawString("Off", sumx, 224, 2);
         if (ptr->DEV_TYP == 11) {
-	sumx += drawString(", Power: ", sumx, 224, 2);
+	sumx += drawString(", Pwr: ", sumx, 224, 2);
 	itoa(ptr->bHtemp,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
 	}
@@ -2004,15 +2004,26 @@ void tfblestate()
 	sumx += drawString(buff, sumx, 224, 2);
 	} else if (ptr->DEV_TYP == 74) {
 	sumx += drawString(" P/I/B: ", sumx, 224, 2);
+	if (ptr->bProg > 90) setTextColor(TFT_WHITE, TFT_BLACK);
+	else if (ptr->bProg) setTextColor(TFT_YELLOW, TFT_BLACK);
 	itoa(ptr->bProg,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
-	sumx += drawString("%/", sumx, 224, 2);
-	itoa(ptr->bHtemp,buff,10);
-	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("%", sumx, 224, 2);
+        setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString("/", sumx, 224, 2);
+	if (ptr->bSEnergy > 80) setTextColor(TFT_WHITE, TFT_BLACK);
+	else if (ptr->bSEnergy) setTextColor(TFT_YELLOW, TFT_BLACK);
+	itoa(ptr->bSEnergy,buff,10);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("%", sumx, 224, 2);
+        setTextColor(TFT_GREEN, TFT_BLACK);
+	sumx += drawString("/", sumx, 224, 2);
+	if (ptr->bCtemp < 15) setTextColor(TFT_RED, TFT_BLACK);
+	else if (ptr->bCtemp < 40) setTextColor(TFT_YELLOW, TFT_BLACK);
 	itoa(ptr->bCtemp,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("%", sumx, 224, 2);
+        setTextColor(TFT_GREEN, TFT_BLACK);
 	}
         setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString(", ", sumx, 224, 2);

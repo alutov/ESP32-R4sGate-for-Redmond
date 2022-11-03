@@ -1046,21 +1046,52 @@ bool i2c_init_bme280(uint8_t idx,uint32_t* f_i2cdev)
 	result = 1;
 	i2cbits = i2cbits | (0x0001 << idx);
 	*f_i2cdev = i2cbits;
+////???
+/*
+	} else if (id == 0x61) {  //[d0]=61/bme680
+	int32_t var1;
+	int32_t var2;
+	int32_t var3;
+	int32_t var4;
+	int32_t var5;
+// BME68X_REG_COEFF1 8a/23 BME68X_REG_COEFF2 e1/14  BME68X_REG_COEFF3 00/5 42 all
+	int32_t heatr_res_x100;
+	uint8_t heatr_res;
+
+//
+	if (!i2c_write_data(addr, 0xe0, 0xb6)) return result; //write reset command
+	vTaskDelay(10 / portTICK_PERIOD_MS);      //2ms bme280 ready time after reset
+	if ((!i2c_read_data(addr, 0x1d, &buf, 1)) || (buf & 0xe0)) return result; //eas_status_0: no meas
+	if (!i2c_write_data(addr, 0x72, 0x05)) return result; //h*16
+	if (!i2c_write_data(addr, 0x75, 0x08)) return result; //config: 000 0.10 00 IIR 4(0-off)
+	if (!i2c_write_data(addr, 0x74, 0xb4)) return result; //ctrl_meas: 101 1.01 00 t*16 p*16 sleep mode
+//
+	if (!i2c_write_data(addr, 0x71, 0x00)) return result; //10 Ctrl_gas_1: run_gas
+	if (!i2c_write_data(addr, 0x70, 0x08)) return result; //00 Ctrl_gas_0: heat_off
+//
+	if (!i2c_write_data(addr, 0x74, 0xb5)) return result; //ctrl_meas: 101 1.01 01 t*16 p*16 force mode
+	result = 1;
+	i2cbits = i2cbits | (0x0001 << idx);
+	*f_i2cdev = i2cbits;
+////???
+*/
 	} //id
 	return result;
 }
-bool i2c_read_bme280 (uint8_t idx, uint32_t* f_i2cdev, uint16_t* temp, uint16_t* humid, uint16_t* press )
+bool i2c_read_bme280 (uint8_t idx, uint32_t* f_i2cdev, uint16_t* temp, uint16_t* humid, uint16_t* press, uint32_t* res)
 {
 	bool result = 0;
 	uint32_t i2cbits = * f_i2cdev;
 	if (!(i2cbits & 0x80000000)) return result;
 	uint8_t id = 0;
+	uint8_t idv = 0;
 	uint8_t clb[42] = {0};   
-	uint8_t data[16] = {0};   
+	uint8_t data[24] = {0};   
 	uint8_t addr;            
 	if (!idx) addr = 0x76;
 	else addr = 0x77;
 	if (i2c_check(addr) && i2c_read_data(addr, 0xd0, &id, 1) && ((id == 0x60) || (id == 0x58))) { //[d0]=60/bme280, =58/bmp280 
+//bme280
 	int32_t adc_t, var1, var2, fine,  var3, var4, var5;
 	uint32_t p;
 	int16_t t2, t3, p2, p3, p4, p5, p6, p7, p8, p9, h2, h4, h5;
@@ -1155,23 +1186,185 @@ bool i2c_read_bme280 (uint8_t idx, uint32_t* f_i2cdev, uint16_t* temp, uint16_t*
 	p = (p / 5 + 1) >> 1;
         *press = p;
 	} else *press = 0;
+	*res = 0xffffffff;
 	} else {
 	*press = 0;
+	*res = 0xffffffff;
 	}
 	} else {      //if no temp no other calc because variable fine not defined
 	*temp = 0xffff;
 	*humid = 0;
 	*press = 0;
+	*res = 0xffffffff;
 	}
 	} else {     //result
 	*temp = 0xffff;
 	*humid = 0;
 	*press = 0;
+	*res = 0xffffffff;
+	}
+	} else if ((id == 0x61) && i2c_read_data(addr, 0xf0, &idv, 1)) {
+//bme68x
+// BME68X_REG_COEFF1 8a/23 BME68X_REG_COEFF2 e1/14  BME68X_REG_COEFF3 00/5 42 all
+	int32_t adc_t, var1, var2, fine,  var3, var4, var5, finesc;
+	uint32_t p, grs;
+	int16_t t2, p2, p4, p5, p8, p9, gh2;
+	uint16_t t1, h1, h2, p1;
+	int8_t t3, p3, p6, p7, h3, h4, h5, h7, gh1, gh3, htv, swer;
+	uint8_t p10, h6, htr, grng;
+//read data
+	if (i2c_read_data(addr, 0x74, &data[0], 1) && ((data[0] & 0xfc) == 0xb4)) {   //74 & verify ctrl_meas(f4)
+	if (i2c_read_data(addr, 0x8a, clb, 23)) {       //calibration 1
+	if (i2c_read_data(addr, 0xe1, &clb[23], 14)) {  //calibration 2
+	if (i2c_read_data(addr, 0x00, &clb[37], 5)) {   //calibration 3
+	if ((i2c_read_data(addr, 0x1d, data, 17)) && i2c_write_data(addr, 0x74, 0xb5)) result = 1; //read data & start next
+	else result = 0;//1f
+	} else result = 0;//00
+	} else result = 0;//e1
+	} else result = 0;//8a
+	} else result = 0;//74
+esp_log_buffer_hex(AP_TAG, clb, 42);
+esp_log_buffer_hex(AP_TAG, data, 16);
+	if (result) {
+// 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d
+//  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16
+//        p        t        h             gl    gh
+//temperature  res -> 0.1degC
+	t1 = (clb[32] << 8) + clb[31];
+	t2 = (clb[1] << 8) + clb[0];
+	t3 =  clb[2];
+	adc_t = (data[5] << 16) + (data[6] << 8) + data[7];
+	if (adc_t != 0x800000) {
+	adc_t >>= 4;
+	var1 =  (((adc_t >> 3) - ((int32_t)t1 << 1)) * (int32_t)t2) >> 11;
+	var2 = (((((adc_t >> 4) - (int32_t)t1) * ((adc_t >> 4) - (int32_t)t1)) >> 12) * (int32_t)t3) >> 14;
+	fine = var1 + var2;
+	var1 = (fine  + 256) >> 5;               //+ >> 4 in publish proc (res 0.1degC)
+	*temp = var1;
+//humidity  res -> 0.1%
+	h1 = (clb[25] << 4) | (clb[24] & 0x0f);
+	h2 = (clb[23] << 4) | (clb[24] >> 4);
+	h3 = clb[26];
+	h4 = clb[27];
+	h5 = clb[28];
+	h6 = clb[29];
+	h7 = clb[30];
+	adc_t = (data[8] << 8) + data[9];
+	if ((id == 0x60) && (adc_t != 0x8000)) {
+	finesc = (((int32_t)fine * 5) + 128) >> 8;
+	var1 = (int32_t)(adc_t - ((int32_t)((int32_t)h1 * 16))) - (((finesc * (int32_t)h3) / ((int32_t)100)) >> 1);
+	var2 = ((int32_t)h2 * (((finesc * (int32_t)h4) / ((int32_t)100)) +
+          (((finesc * ((finesc * (int32_t)h5) / ((int32_t)100))) >> 6) / ((int32_t)100)) +
+          (int32_t)(1 << 14))) >> 10;
+	var3 = var1 * var2;
+	var4 = (int32_t)h6 << 7;
+	var4 = ((var4) + ((finesc * (int32_t)h7) / ((int32_t)100))) >> 4;
+	var5 = ((var3 >> 14) * (var3 >> 14)) >> 10;
+	var5 = (var4 * var5) >> 1;
+	var5 = (((var3 + var5) >> 10) * ((int32_t)1000)) >> 12;
+	if (var5 > 100000) var5 = 100000; // Cap at 100%rH /
+	else if (var5 < 0) var5 = 0;
+	var1 = (var5 / 25 + 2) >> 2;
+	*humid = var1;
+//ESP_LOGI(AP_TAG, "h1 0x%X, h2 0x%X, h3 0x%X, h4 0x%X, h5 0x%X, h6 0x%X,  adc 0x%X, hum %d", h1,h2,h3,h4,h5,h6,adc_t,var1);
+	} else {
+	*humid = 0;
+	}
+//pressure 32bit  res -> 0.1 hPa
+	p1 = (clb[5] << 8) + clb[4];
+	p2 = (clb[7] << 8) + clb[6];
+	p3 = clb[8];
+	p4 = (clb[11] << 8) + clb[10];
+	p5 = (clb[13] << 8) + clb[12];
+	p6 = clb[15];
+	p7 = clb[14];
+	p8 = (clb[19] << 8) + clb[18];
+	p9 = (clb[21] << 8) + clb[20];
+	p10 = clb[22];
+	adc_t = (data[2] << 16) + (data[3] << 8) + data[4];
+	if (adc_t != 0x800000) {
+	adc_t >>= 4;
+	var1 = (((int32_t)fine) >> 1) - 64000;
+	var2 = ((((var1 >> 2) * (var1 >> 2)) >> 11) * (int32_t)p6) >> 2;
+	var2 = var2 + ((var1 * (int32_t)p5) << 1);
+	var2 = (var2 >> 2) + ((int32_t)p4 << 16);
+	var1 = (((((var1 >> 2) * (var1 >> 2)) >> 13) * ((int32_t)p3 << 5)) >> 3) + (((int32_t)p2 * var1) >> 1);
+	var1 = var1 >> 18;
+	var1 = ((32768 + var1) * (int32_t)p1) >> 15;
+	var4 = 1048576 - adc_t;
+	var4 = (int32_t)((var4 - (var2 >> 12)) * ((uint32_t)3125));
+	if (var4 >= (int32_t)0x40000000) var4 = ((var4 / var1) << 1);
+	else var4 = ((var4 << 1) / var1);
+	var1 = ((int32_t)p9 * (int32_t)(((var4 >> 3) * (var4 >> 3)) >> 13)) >> 12;
+	var2 = ((int32_t)(var4 >> 2) * (int32_t)p8) >> 13;
+	var3 = ((int32_t)(var4 >> 8) * (int32_t)(var4 >> 8) * (int32_t)(var4 >> 8) * (int32_t)p10) >> 17;
+	var4 = (int32_t)(var4) + ((var1 + var2 + var3 + ((int32_t)p7 << 7)) >> 4);
+	p = (var4 / 5 + 1) >> 1; 
+        *press = p;
+	} else {
+	*press = 0;
+	}
+//gas resistance
+	gh1 = clb[35];
+	gh2 = (clb[34] << 8) + clb[33];
+	gh3 = clb[36];
+	htr = (clb[39] & 0x30) >> 4;
+	htv = clb[37];
+	swer = (clb[41] & 0xf0) >> 4;
+	if (!idv) {
+//bme680
+	int64_t dvr1;
+	uint64_t dvr2;
+	int64_t dvr3;
+	uint32_t lookup_table1[16] = {
+		UINT32_C(2147483647), UINT32_C(2147483647), UINT32_C(2147483647), UINT32_C(2147483647), UINT32_C(2147483647),
+		UINT32_C(2126008810), UINT32_C(2147483647), UINT32_C(2130303777), UINT32_C(2147483647), UINT32_C(2147483647),
+		UINT32_C(2143188679), UINT32_C(2136746228), UINT32_C(2147483647), UINT32_C(2126008810), UINT32_C(2147483647),
+		UINT32_C(2147483647)
+		};
+	uint32_t lookup_table2[16] = {
+		UINT32_C(4096000000), UINT32_C(2048000000), UINT32_C(1024000000), UINT32_C(512000000), UINT32_C(255744255),
+		UINT32_C(127110228), UINT32_C(64000000), UINT32_C(32258064), UINT32_C(16016016), UINT32_C(8000000), UINT32_C(
+		4000000), UINT32_C(2000000), UINT32_C(1000000), UINT32_C(500000), UINT32_C(250000), UINT32_C(125000)
+		};
+	adc_t = (data[13] << 2) + (data[14] >> 6);
+	grng = data[14] & 0x0f;
+	dvr1 = (int64_t)((1340 + (5 * (int64_t)swer)) * ((int64_t)lookup_table1[grng])) >> 16;
+	dvr2 = (((int64_t)((int64_t)adc_t << 15) - (int64_t)(16777216)) + dvr1);
+	dvr3 = (((int64_t)lookup_table2[grng] * (int64_t)dvr1) >> 9);
+	grs = (uint32_t)((dvr3 + ((int64_t)dvr2 >> 1)) / (int64_t)dvr2);
+	*res = grs;
+	} else if (idv == 1) {
+//bme688
+	adc_t = (data[15] << 2) + (data[16] >> 6);
+	grng = data[16] & 0x0f;
+	grs = UINT32_C(262144) >> grng;
+	var1 = (int32_t)adc_t - INT32_C(512);
+	var1 *= INT32_C(3);
+	var1 = INT32_C(4096) + var1;
+	grs = (UINT32_C(10000) * grs) / (uint32_t)var1;
+	grs = grs * 100;
+	*res = grs;
+	} else {      //unsupported
+	*res = 0xffffffff;
+	}
+	} else {      //if no temp no other calc because variable fine not defined
+	*temp = 0xffff;
+	*humid = 0;
+	*press = 0;
+	*res = 0xffffffff;
+	}
+	} else {     //result
+	*temp = 0xffff;
+	*humid = 0;
+	*press = 0;
+	*res = 0xffffffff;
 	}
 	} else {     //id
 	*temp = 0xffff;
 	*humid = 0;
 	*press = 0;
+	*res = 0xffffffff;
 	} //d0
 	return result;
 }
@@ -4225,7 +4418,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
-	strcat(bufd,"/illuminance\",\"availability_topic\":\"");
+	strcat(bufd,"/illuminance\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -5318,17 +5511,18 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
 */
 	if (ptr->DEV_TYP == 74) {
-//	if ((p_data->notify.value[1] != 0xa2) || (ptr->t_rspdel > 20)){
-	if (p_data->notify.value[1] != 0xa2) {
-	memcpy(ptr->notifyData, p_data->notify.value, length);
-	ptr->notifyDataLen = length;
-	ptr->t_rspdel = 0;
-	} else if (ptr->t_rspdel > 10) ptr->t_rspdel = 0;
 	if (ptr->LstCmd && (p_data->notify.value[1] == ptr->LstCmd)) {
 	memcpy(ptr->readData, p_data->notify.value, length);
 	ptr->readDataLen = length;
 	ptr->t_rspdel = 0;
-	}
+	} else if (p_data->notify.value[1] == 0xa1) {
+	memcpy(ptr->notifyData, p_data->notify.value, length);
+	ptr->notifyDataLen = length;
+	ptr->t_rspdel = 0;
+	} else if (ptr->t_rspdel > 40) ptr->t_rspdel = 40;
+
+
+
 	} else {
 	memcpy(ptr->notifyData, p_data->notify.value, length);
 	ptr->notifyDataLen = length;
@@ -9109,6 +9303,18 @@ bool mkSync(uint8_t blenum) {
 	ptr->sendDataLen = 8;
 	ptr->sendDataHandle = 3;  //time
 	esp_ble_gap_read_rssi(gl_profile_tab[blenum].remote_bda);
+	} else if (ptr->btauthoriz && (ptr->DEV_TYP == 74)) {
+	uint8_t data[] = { 0, 0, 0, 0};
+	struct tm timeinfo;
+	time_t now;
+	time(&now);
+	if (now < 0x1000000) return false; //if data correct?
+	localtime_r(&now, &timeinfo);
+	data[0] = timeinfo.tm_wday;
+	data[1] = timeinfo.tm_hour;
+	data[2] = timeinfo.tm_min;
+	data[3] = timeinfo.tm_sec;
+	if ((am43Command(blenum, 0x14, data, 4) != 5) || (ptr->readData[3] != 0x5a)) return false;
 	} else return false;
 	ptr->f_Sync = 0;
 	return true;
@@ -10454,8 +10660,21 @@ void MqSState() {
 	SnPi2c[i].ppar3 = SnPi2c[i].par3;
 	}
 	}
+	if (i2c_bits[i] & 0x08) {
+//i2c gas resistance
+	if ((mqttConnected) && (SnPi2c[i].ppar4 != SnPi2c[i].par4)) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/i2c");
+	bin2hex(&i2c_addr[i],tmpvar,1,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"gsresist");
+	if (SnPi2c[i].par4 == 0xffffffff) strcpy(tmpvar,"-0");
+	else itoa(SnPi2c[i].par4,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	SnPi2c[i].ppar4 = SnPi2c[i].par4;
+	}
+	}
 //
-
 	} //bit i
 	} //for i
 	if  (f_i2cdev & 0x40000000) {
@@ -11673,14 +11892,14 @@ void MqState(uint8_t blenum) {
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	ptr->bprevProg = ptr->bProg;
 	}
-	if  (ptr->bprevHtemp != ptr->bHtemp) {
+	if  (ptr->bprevSEnergy != ptr->bSEnergy) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
 	strcat(ldata,ptr->tBLEAddr);
 	strcat(ldata,"/illuminance");
 	itoa(ptr->bSEnergy,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
-	ptr->bprevHtemp = ptr->bHtemp;
+	ptr->bprevSEnergy = ptr->bSEnergy;
 	}
 	if  (ptr->bprevCtemp != ptr->bCtemp) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
@@ -13488,6 +13707,53 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	bin2hex(&i2c_addr[i],tbuff,1,0);
 	strcat(llwtd,tbuff);
 	strcat(llwtd,"pressm\",\"unit_of_meas\":\"mmHg\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	}
+	if (i2c_bits[i] & 0x08) {
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/i2c");
+	bin2hex(&i2c_addr[i],tbuff,1,0);
+	strcat(llwtt,tbuff);
+	strcat(llwtt,"grx");
+	strcat(llwtt,tESP32Addr);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate.i2c");
+	bin2hex(&i2c_addr[i],tbuff,1,0);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,".gas.resist\",\"icon\":\"mdi:resistor\",\"uniq_id\":\"i2c");
+	bin2hex(&i2c_addr[i],tbuff,1,0);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"_gas_resist_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"],\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate\",\"model\":\"ESP32\",\"sw_version\":\"");
+	strcat(llwtd,AP_VER);
+	if (wbuff[0]) {
+	strcat(llwtd,"\",\"configuration_url\":\"http://");
+	strcat(llwtd,wbuff);
+	}
+	strcat(llwtd,"\",\"connections\":[[\"mac\",\"");
+	strcat(llwtd,tESP32Addr1);
+//	if (wbuff[0]) {
+//	strcat(llwtd,"\"],[\"ip\",\"");
+//	strcat(llwtd,wbuff);
+//	}
+	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/i2c");
+	bin2hex(&i2c_addr[i],tbuff,1,0);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"gsresist\",\"unit_of_meas\":\"Ohm\",\"availability_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
@@ -15723,7 +15989,6 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	if (ptr->bDMin < 10) strcat(bsend,"0");
 	itoa(ptr->bCMin,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,", ");
 	strcat(bsend,", Battery: ");
 	itoa(ptr->bCtemp,buff,10);
 	strcat(bsend,buff);
@@ -15735,7 +16000,7 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	strcat(bsend,"&#37;, Illuminance: ");
 	itoa(ptr->bSEnergy,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,", Battery: ");
+	strcat(bsend,"&#37, Battery: ");
 	itoa(ptr->bCtemp,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"&#37;, ");
@@ -15977,6 +16242,15 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	u32_strcat_p1 (SnPi2c[i].par3, bsend);
 	strcat(bsend,"hPa");
 	if (i2c_bits[i] & 0x08) strcat(bsend," / ");
+	}
+	if (i2c_bits[i] & 0x08) {
+	if (SnPi2c[i].par4 == 0xffffffff) strcat(bsend,"-0");
+	else {
+	itoa(SnPi2c[i].par4,buff,10);
+	strcat(bsend,buff);
+	}
+	strcat(bsend,"Ohm");
+	if (i2c_bits[i] & 0x10) strcat(bsend," / ");
 	}
 
 	} //bits
@@ -20218,10 +20492,10 @@ void app_main(void)
 	if ((bgpio8 > 191) && (bgpio8 < 226)) rmt_readdht(2, &f_rmds, &bStatG8, &bStatG8h, RmtRgHd2);
 	if (f_i2cdev & 0x80000000) {
 	if (f_i2cdev & 0x01) {
-	if (!i2c_read_bme280(0, &f_i2cdev, &SnPi2c[0].par1, &SnPi2c[0].par2, &SnPi2c[0].par3)) i2c_init_bme280(0, &f_i2cdev);
+	if (!i2c_read_bme280(0, &f_i2cdev, &SnPi2c[0].par1, &SnPi2c[0].par2, &SnPi2c[0].par3, &SnPi2c[0].par4)) i2c_init_bme280(0, &f_i2cdev);
 	}
 	if (f_i2cdev & 0x02) {
-	if (!i2c_read_bme280(1, &f_i2cdev, &SnPi2c[1].par1, &SnPi2c[1].par2, &SnPi2c[1].par3)) i2c_init_bme280(1, &f_i2cdev);
+	if (!i2c_read_bme280(1, &f_i2cdev, &SnPi2c[1].par1, &SnPi2c[1].par2, &SnPi2c[1].par3, &SnPi2c[1].par4)) i2c_init_bme280(1, &f_i2cdev);
 	}
 	}
 //Initialize Mqtt
@@ -20329,9 +20603,9 @@ to get MSK (GMT + 3) I need to write GMT-3
 	if ((bStatG7 != bprevStatG7) || (bStatG7h != bprevStatG7h)) t_lasts = 0;
 	if (f_i2cdev & 0x80000000) {
 	if (f_i2cdev & 0x02) {
-	if (!i2c_read_bme280(1, &f_i2cdev, &SnPi2c[1].par1, &SnPi2c[1].par2, &SnPi2c[1].par3)) i2c_init_bme280(1, &f_i2cdev);
+	if (!i2c_read_bme280(1, &f_i2cdev, &SnPi2c[1].par1, &SnPi2c[1].par2, &SnPi2c[1].par3, &SnPi2c[1].par4)) i2c_init_bme280(1, &f_i2cdev);
 	} else i2c_init_bme280(1, &f_i2cdev);
-	if ((SnPi2c[1].ppar1 != SnPi2c[1].par1) || (SnPi2c[1].ppar2 != SnPi2c[1].par2) || (SnPi2c[1].ppar3 != SnPi2c[1].par3)) t_lasts = 0;
+	if ((SnPi2c[1].ppar1 != SnPi2c[1].par1) || (SnPi2c[1].ppar2 != SnPi2c[1].par2) || (SnPi2c[1].ppar3 != SnPi2c[1].par3) || (SnPi2c[1].ppar4 != SnPi2c[1].par4)) t_lasts = 0;
 	}
 	break;
 	case 2:
@@ -20365,9 +20639,9 @@ to get MSK (GMT + 3) I need to write GMT-3
 	if ((bStatG6 != bprevStatG6) || (bStatG6h != bprevStatG6h)) t_lasts = 0;
 	if (f_i2cdev & 0x80000000) {
 	if (f_i2cdev & 0x01) {
-	if (!i2c_read_bme280(0, &f_i2cdev, &SnPi2c[0].par1, &SnPi2c[0].par2, &SnPi2c[0].par3)) i2c_init_bme280(0, &f_i2cdev);
+	if (!i2c_read_bme280(0, &f_i2cdev, &SnPi2c[0].par1, &SnPi2c[0].par2, &SnPi2c[0].par3, &SnPi2c[0].par4)) i2c_init_bme280(0, &f_i2cdev);
 	} else i2c_init_bme280(0, &f_i2cdev);
-	if ((SnPi2c[0].ppar1 != SnPi2c[0].par1) || (SnPi2c[0].ppar2 != SnPi2c[0].par2) || (SnPi2c[0].ppar3 != SnPi2c[0].par3)) t_lasts = 0;
+	if ((SnPi2c[0].ppar1 != SnPi2c[0].par1) || (SnPi2c[0].ppar2 != SnPi2c[0].par2) || (SnPi2c[0].ppar3 != SnPi2c[0].par3) || (SnPi2c[0].ppar4 != SnPi2c[0].par4)) t_lasts = 0;
 	}
 	break;
 	}

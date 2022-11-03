@@ -299,7 +299,7 @@ struct SnPari2c {
 uint16_t  par1;
 uint16_t  par2;
 uint16_t  par3;
-uint16_t  par4;
+uint32_t  par4;
 uint16_t  par5;
 uint16_t  par6;
 uint16_t  par7;
