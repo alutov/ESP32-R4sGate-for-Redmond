@@ -294,7 +294,7 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 <br>Картинка 14. TTGO T-Watcher BTC Ticker.<br><br>
 Я проверял работоспособность шлюза на TTGO T4 версии 1.3. Прошивается он через встроенный USB разъем, перед прошивкой устройства нужно соединить контакты 6 и 7 (gpio0 и gnd) в нижнем ряду разъема (картинка 15). Возможна прошивка и без установки перемычек, зависит от программы. Настройки экрана для версии 1.3: 12-MISO, 23-MOSI, 18-CLK, 27-CS, 32-DC, 5-RES, 4-LED, 0-T_CS, и для версии 1.2: 12-MISO, 23-MOSI, 18-CLK, 27-CS, 26-DC, 5-RES, 4-LED, 0-T_CS. В версии 1.2 нет управления включением и выключением экрана. Кнопки сверху вниз 38-Port1, 37-Port2, 39-Port3. Шина I2C: SCL-22, SDA-21.<br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft5.jpg)
-<br>Картинка 15. Соединить 6 и 7 пины разъема перед прошивкой TTGO T-Watcher BTC Ticker.<br><br>
+<br>Картинка 15. Соединить 6 и 7 пины разъема перед прошивкой TTGO T-Watcher.<br><br>
 
 #### [M5Stack BASIC Kit](https://docs.m5stack.com/en/core/basic)<br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft6.jpg)
