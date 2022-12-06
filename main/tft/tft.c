@@ -4,24 +4,13 @@
 #include "tjpgd.c"              //jpeg decode
 
 // tft define area
-#define SPI_PORT    HSPI_HOST
+#define SPI_PORT    SPI2_HOST
 #define DMA_CHAN    1
-/*
-#define PIN_NUM_MISO 25         //MISO
-#define PIN_NUM_MOSI 23         //MOSI
-#define PIN_NUM_CLK  19         //CLK
-#define PIN_NUM_CS   16		// Chip select control pin
-#define PIN_NUM_DC   17		// Data Command control pin
-#define PIN_NUM_RST  18		// Reset pin (could connect to RST pin)
-#define PIN_NUM_BCKL 21		// TFT_BACKLIGHT
-#define PIN_TOUCH_CS 33		// Chip select pin (T_CS) of touch screen not used always high
-*/
-/*
 
-TFT code is my attempt to port some Bodmer tft procedures from arduino to  esp-idf 
-https://github.com/Bodmer/TFT_eSPI
-
-*/
+/*-----------------------------------------------------------------------------------/
+/ TFT code is my attempt to port some Bodmer tft procedures from arduino to  esp-idf /
+/ https://github.com/Bodmer/TFT_eSPI                                                 /
+/-----------------------------------------------------------------------------------*/
 
 /***************************************************************************************
 **                         Section 5: Font datum enumeration
@@ -1416,7 +1405,7 @@ uint8_t lcd_init(spi_device_handle_t spi)
     ledc_timer_config_t ledc_timer = {
         .duty_resolution = LEDC_TIMER_8_BIT, // resolution of PWM duty
         .freq_hz = 5000,                      // frequency of PWM signal
-        .speed_mode = LEDC_HIGH_SPEED_MODE,   // timer mode
+        .speed_mode = LEDC_LOW_SPEED_MODE,   // timer mode
         .timer_num = LEDC_TIMER_0,            // timer index
         .clk_cfg = LEDC_AUTO_CLK,             // Auto select the source clock
     };
@@ -1425,16 +1414,18 @@ uint8_t lcd_init(spi_device_handle_t spi)
             .channel    = LEDC_CHANNEL_0,
             .duty       = 0,
             .gpio_num   = PIN_NUM_BCKL,
-            .speed_mode = LEDC_HIGH_SPEED_MODE,
+            .speed_mode = LEDC_LOW_SPEED_MODE,
             .hpoint     = 0,
             .timer_sel  = LEDC_TIMER_0
     };
 
 //Initialize non-SPI GPIOs
-	gpio_set_direction(PIN_TOUCH_CS, GPIO_MODE_OUTPUT);
 	gpio_set_direction(PIN_NUM_DC, GPIO_MODE_OUTPUT);
 	gpio_set_direction(PIN_NUM_RST, GPIO_MODE_OUTPUT);
+	if (PIN_TOUCH_CS) {
+	gpio_set_direction(PIN_TOUCH_CS, GPIO_MODE_OUTPUT);
 	gpio_set_level(PIN_TOUCH_CS, 1);
+	}
 	gpio_set_level(PIN_NUM_RST, 1);
 
 	ledc_timer_config(&ledc_timer);
@@ -1564,10 +1555,18 @@ uint8_t tftinit()
 //Initialize the LCD
 	result = lcd_init(spi);
 	if (result) {
+	char buf[8];
 	fillRect(0,0,320,52,TFT_BLACK);
 	setTextColor(TFT_WHITE, TFT_BLACK);
   	uint32_t sumx = 0;
-	drawString("Starting R4S Gate", 0, 0, 4);
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	itoa(CONFIG_ESP32C3_DEFAULT_CPU_FREQ_MHZ,buf,10);
+	sumx = drawString("r4s gate 32c3/", 0, 0, 4);
+#else
+	itoa(CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ,buf,10);
+	sumx = drawString("r4s gate 32/", 0, 0, 4);
+#endif
+	sumx += drawString(buf, sumx, 0, 4);
 	sumx = drawString("ver:  ", 0, 26, 4);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
 	sumx += drawString(AP_VER, sumx, 26, 4);
@@ -1578,38 +1577,6 @@ uint8_t tftinit()
 	return result;
 }
 
-
-
-/*
-void tftclock()
-{
-  	uint32_t sumx = 0;
-	time_t now;
-	char strftime_buf[64];
-	char stime[16];
-	char sdate[16];
-	char sday[8];
-	struct tm timeinfo;
-	time(&now);
-	localtime_r(&now, &timeinfo);
-	strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
-	mystrcpy(stime,&strftime_buf[11],8);
-	mystrcpy(sday,&strftime_buf[22],2);
-	strcat(sday," ");
-	mystrcpy(&sday[3],strftime_buf,4);
-	mystrcpy(sdate,&strftime_buf[4],6);
-	setTextColor(TFT_WHITE, TFT_BLACK);
-	drawString(stime,0,0,7);
-	setTextColor(TFT_GREEN, TFT_BLACK);
-	sumx = 220;
-        sumx += drawString(sday,sumx,26,4);
-	fillRect(sumx, 26,320-sumx,26,TFT_BLACK);
-	sumx = 220;
-        sumx += drawString(sdate,sumx,0,4);
-	fillRect(sumx, 0,320-sumx,26,TFT_BLACK);
-	setTextColor(TFT_WHITE, TFT_BLACK);
-}
-*/
 void tftclock()
 {
   	uint32_t sumx = 0;
@@ -1684,7 +1651,8 @@ void tftclock()
 }
 
 void blstnum_inc() {
-	if (f_update) blstnum = 254;
+	if (blstnum == 253) return;
+	else if (f_update) blstnum = 254;
 	else if (BleDevStA.REQ_NAME[0] || BleDevStB.REQ_NAME[0] || BleDevStC.REQ_NAME[0] || BleDevStD.REQ_NAME[0] || BleDevStE.REQ_NAME[0]) {
 	int i = 0;
 	while (i < 5) {
@@ -1698,6 +1666,23 @@ void blstnum_inc() {
 	i++;
 	}
 	} else blstnum = 255;
+}
+void tfststr(char* in1, char* in2, char* in3)
+{
+	if (in1 == NULL) return;
+  	uint32_t sumx = 0;
+	setTextColor(TFT_WHITE, TFT_BLACK);
+	sumx += drawString(in1, sumx, 224, 2);
+	if (in2 != NULL) {
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+	sumx += drawString(in2, sumx, 224, 2);
+	if (in3 != NULL) {
+	setTextColor(TFT_WHITE, TFT_BLACK);
+	sumx += drawString(in3, sumx, 224, 2);
+	}
+	}
+	fillRect(sumx,224,320-sumx,16,TFT_BLACK);
+	setTextColor(TFT_GREEN, TFT_BLACK);
 }
 
 void tfblestate()
@@ -1737,7 +1722,8 @@ void tfblestate()
 	else if (!BleDevStA.bState) sym = TFT_BLUE;
 	else if (BleDevStA.bState == 254) sym = TFT_DARKGREY;
 	else if ((BleDevStA.DEV_TYP > 15) && (BleDevStA.DEV_TYP < 24) && (BleDevStA.bState == 1)) sym = TFT_WHITE;
-	else if ((BleDevStA.DEV_TYP > 15) && (BleDevStA.DEV_TYP < 24) && (BleDevStA.bState == 5)) sym = TFT_YELLOW;
+	else if ((BleDevStA.DEV_TYP > 15) && (BleDevStA.DEV_TYP < 17) && (BleDevStA.bState == 5)) sym = TFT_YELLOW;
+	else if ((BleDevStA.DEV_TYP > 16) && (BleDevStA.DEV_TYP < 24) && (BleDevStA.bState == 2)) sym = TFT_YELLOW;
 	else sym = TFT_RED;
 	setTextColor(sym, bkg);
         sumx += drawString("1",sumx,26,4);
@@ -1749,7 +1735,8 @@ void tfblestate()
 	else if (!BleDevStB.bState) sym = TFT_BLUE;
 	else if (BleDevStB.bState == 254) sym = TFT_DARKGREY;
 	else if ((BleDevStB.DEV_TYP > 15) && (BleDevStB.DEV_TYP < 24) && (BleDevStB.bState == 1)) sym = TFT_WHITE;
-	else if ((BleDevStB.DEV_TYP > 15) && (BleDevStB.DEV_TYP < 24) && (BleDevStB.bState == 5)) sym = TFT_YELLOW;
+	else if ((BleDevStB.DEV_TYP > 15) && (BleDevStB.DEV_TYP < 17) && (BleDevStB.bState == 5)) sym = TFT_YELLOW;
+	else if ((BleDevStB.DEV_TYP > 16) && (BleDevStB.DEV_TYP < 24) && (BleDevStB.bState == 2)) sym = TFT_YELLOW;
 	else sym = TFT_RED;
 	setTextColor(sym, bkg);
         sumx += drawString("2",sumx,26,4);
@@ -1761,7 +1748,8 @@ void tfblestate()
 	else if (!BleDevStC.bState) sym = TFT_BLUE;
 	else if (BleDevStC.bState == 254) sym = TFT_DARKGREY;
 	else if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 24) && (BleDevStC.bState == 1)) sym = TFT_WHITE;
-	else if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 24) && (BleDevStC.bState == 5)) sym = TFT_YELLOW;
+	else if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 17) && (BleDevStC.bState == 5)) sym = TFT_YELLOW;
+	else if ((BleDevStC.DEV_TYP > 16) && (BleDevStC.DEV_TYP < 24) && (BleDevStC.bState == 2)) sym = TFT_YELLOW;
 	else sym = TFT_RED;
 	setTextColor(sym, bkg);
         sumx += drawString("3",sumx,26,4);
@@ -1773,7 +1761,8 @@ void tfblestate()
 	else if (!BleDevStD.bState) sym = TFT_BLUE;
 	else if (BleDevStD.bState == 254) sym = TFT_DARKGREY;
 	else if ((BleDevStD.DEV_TYP > 15) && (BleDevStD.DEV_TYP < 24) && (BleDevStD.bState == 1)) sym = TFT_WHITE;
-	else if ((BleDevStD.DEV_TYP > 15) && (BleDevStD.DEV_TYP < 24) && (BleDevStD.bState == 5)) sym = TFT_YELLOW;
+	else if ((BleDevStD.DEV_TYP > 15) && (BleDevStD.DEV_TYP < 17) && (BleDevStD.bState == 5)) sym = TFT_YELLOW;
+	else if ((BleDevStD.DEV_TYP > 16) && (BleDevStD.DEV_TYP < 24) && (BleDevStD.bState == 2)) sym = TFT_YELLOW;
 	else sym = TFT_RED;
 	setTextColor(sym, bkg);
         sumx += drawString("4",sumx,26,4);
@@ -1785,7 +1774,8 @@ void tfblestate()
 	else if (!BleDevStE.bState) sym = TFT_BLUE;
 	else if (BleDevStE.bState == 254) sym = TFT_DARKGREY;
 	else if ((BleDevStE.DEV_TYP > 15) && (BleDevStE.DEV_TYP < 24) && (BleDevStE.bState == 1)) sym = TFT_WHITE;
-	else if ((BleDevStE.DEV_TYP > 15) && (BleDevStE.DEV_TYP < 24) && (BleDevStE.bState == 5)) sym = TFT_YELLOW;
+	else if ((BleDevStE.DEV_TYP > 15) && (BleDevStE.DEV_TYP < 17) && (BleDevStE.bState == 5)) sym = TFT_YELLOW;
+	else if ((BleDevStE.DEV_TYP > 16) && (BleDevStE.DEV_TYP < 24) && (BleDevStE.bState == 2)) sym = TFT_YELLOW;
 	else sym = TFT_RED;
 	setTextColor(sym, bkg);
         sumx += drawString("5",sumx,26,4);
@@ -1835,22 +1825,35 @@ void tfblestate()
 	}
 	fillRect(sumx, mpos,320-sumx,26,TFT_BLACK);
 	}
-	if (!MQTT_SERVER[0]) setTextColor(TFT_DARKGREY, TFT_BLACK);
-	else {
 	if (mqttConnected) setTextColor(TFT_GREEN, TFT_BLACK);
-	else setTextColor(TFT_RED, TFT_BLACK);
-	}
+	else if (!wf_retry_cnt) {
+	if (!MQTT_SERVER[0]) setTextColor(TFT_DARKGREY, TFT_BLACK);
+	else setTextColor(TFT_YELLOW, TFT_BLACK);
+	} else setTextColor(TFT_RED, TFT_BLACK);
   	sumx = 0;
 
 	if (ptr->REQ_NAME[0] && (blstnum < 5)) {
-	sumx = drawString("Mqtt, ", 0, 224, 2);
+	if (!iRssiESP || (iRssiESP < -80)) sumx += drawString("\xe5 ", sumx, 224, 2);
+	else if (iRssiESP < -70) sumx += drawString("\xe6 ", sumx, 224, 2);
+	else if (iRssiESP < -60) sumx += drawString("\xe7 ", sumx, 224, 2);
+	else sumx += drawString("\xe8 ", sumx, 224, 2);
+	if (f_i2cdev & 0x40000000) {
+	if (!(ip5306_batmode & 0x02)) setTextColor(TFT_YELLOW, TFT_BLACK);
+	else if (!(ip5306_batmode & 0x01)) setTextColor(TFT_WHITE, TFT_BLACK);
+	else setTextColor(TFT_GREEN, TFT_BLACK);
+	if (ip5306_batlev == 100) sumx += drawString("\xe4 ", sumx, 224, 2);
+	else if (ip5306_batlev == 75) sumx += drawString("\xe3 ", sumx, 224, 2);
+	else if (ip5306_batlev == 50) sumx += drawString("\xe2 ", sumx, 224, 2);
+	else if (ip5306_batlev == 25) sumx += drawString("\xe1 ", sumx, 224, 2);
+	else sumx += drawString("\xe0 ", sumx, 224, 2);
+	}
 	if (ptr->btauthoriz) {
 	if (!ptr->bState && ptr->bHeat) setTextColor(TFT_YELLOW, TFT_BLACK);
 	else if (!ptr->bState) setTextColor(TFT_BLUE, TFT_BLACK);
 	else if (ptr->bState == 254) setTextColor(TFT_DARKGREY, TFT_BLACK);
 	else if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 24) && (ptr->bState == 1)) setTextColor(TFT_WHITE, TFT_BLACK);
-	else if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 20) && (ptr->bState == 5)) setTextColor(TFT_YELLOW, TFT_BLACK);
-	else if ((ptr->DEV_TYP > 19) && (ptr->DEV_TYP < 24) && (ptr->bState == 2)) setTextColor(TFT_YELLOW, TFT_BLACK);
+	else if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 17) && (ptr->bState == 5)) setTextColor(TFT_YELLOW, TFT_BLACK);
+	else if ((ptr->DEV_TYP > 16) && (ptr->DEV_TYP < 24) && (ptr->bState == 2)) setTextColor(TFT_YELLOW, TFT_BLACK);
 	else if ((ptr->DEV_TYP == 74) && !(ptr->bState & 0x01)) setTextColor(TFT_BLUE, TFT_BLACK);
 	else setTextColor(TFT_RED, TFT_BLACK);
 	sumx += drawString(ptr->DEV_NAME, sumx, 224, 2);
@@ -1933,10 +1936,13 @@ void tfblestate()
 	sumx += drawString("/", sumx, 224, 2);
 	itoa(ptr->bModProg,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
+	if (ptr->DEV_TYP != 48) {
 	sumx += drawString("/", sumx, 224, 2);
 	itoa(ptr->bHtemp,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
-	sumx += drawString("', T: ", sumx, 224, 2);
+	sumx += drawString("'", sumx, 224, 2);
+	}
+	sumx += drawString(", T: ", sumx, 224, 2);
 	itoa(ptr->bCHour,buff,10);
 	if (ptr->bCHour < 10) sumx += drawString("0", sumx, 224, 2);
 	sumx += drawString(buff, sumx, 224, 2);
@@ -2051,7 +2057,7 @@ void tfblestate()
 	}
 	}
 	if (blstnum == 254) {
-	setTextColor(TFT_YELLOW, TFT_BLACK);
+	setTextColor(TFT_WHITE, TFT_BLACK);
 	sumx = drawString("Update firmware in progress ...", 0, 224, 2);
 	fillRect(sumx,224,320-sumx,16,TFT_BLACK);
 	setTextColor(TFT_GREEN, TFT_BLACK);

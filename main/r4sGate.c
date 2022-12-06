@@ -6,13 +6,15 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.10.30"
+#define AP_VER "2022.12.06"
 #define NVS_VER 4  //NVS config version (even only)
-
-#ifndef CONFIG_IDF_TARGET_ESP32C3
 // If use ili9341 320*240 tft
 #define USE_TFT
-#endif
+// If use IR TX
+#define USE_IRTX
+// Init WIFI setting
+#define INIT_WIFI_SSID "r4s"
+#define INIT_WIFI_PASSWORD "12345678"
 
 
 #include "r4sGate.h"
@@ -606,15 +608,814 @@ bool vstsign(uint8_t *datin, uint8_t *keyin)
 	return result;
 }
 
-//***************** 1w 18b20 ******************
-//https://github.com/DavidAntliff/esp32-owb
-bool rmt_init (uint8_t idx, uint8_t  gpio_num, RingbufHandle_t RmtRgHd)
+//****************** IR TX ********************
+/*
+----------------------------------------------------------------
+https://www.sbprojects.net/knowledge/ir/index.php
+----------------------------------------------------------------
+code topic: r4sx/ir6code
+data: 8 hex digits(0-9,a-f), 2-protocol(01-nec,02-necx16,03-rc5,
+04-rc6,05-samsung,6-sircx12,07-sircx15,08-sircx20,09-panasonic),
+4-addr, 2-cmd 
+----------------------------------------------------------------
+tested:
+nec pioneer vsx-830 pwr: addr 165, cmd 28, code 0100a51c
+necx16 lg dvd dks-2000h, pwr: addr 11565, cmd 48, code 022d2d30 
+rc6 philips 40pfs6609, pwr: addr 0, cmd 12, code 0400000c
+samsung ue32n5300, pwr: addr 7, cmd 2, code 05000702
+sircx12 sony cmtsx7, pwr: addr:16, cmd: 21, code 06001015
+sircx20 sony ubp-x800 pwr: addr 7258, cmd 21, code 081c5a15
+panasonic sa-pm20 pwr: addr 2588, cmd 61, code 090a1c3d
+panasonic dmp ub900 pwr: addr 2816, cmd 61, code 090a1c3d
+----------------------------------------------------------------
+freq/div:
+36004: 101*22
+37002: 94*23
+38222: 161*13
+38095: 84*25
+38022: 263*8
+38004: 421*5
+37986: 81*26
+*/
+
+#ifdef USE_IRTX
+bool rmtir_init (uint8_t idx, uint8_t  gpio_num)
 {
 	bool result = 0;
-	if (idx > 3) return result;
+	uint8_t tidx;
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (idx > 1) return result;
+	tidx = idx;
+#else
+	if (idx > 2) return result;
+	tidx = idx << 1;
+#endif
 //rmt tx init
 	rmt_config_t rmt_tx = {0};
-	rmt_tx.channel = (idx << 1);
+	rmt_tx.channel = tidx;
+	rmt_tx.gpio_num = gpio_num;
+	rmt_tx.mem_block_num = 1;
+	rmt_tx.clk_div = 80;
+	rmt_tx.tx_config.loop_en = false;
+	rmt_tx.tx_config.carrier_en = true;
+	rmt_tx.tx_config.carrier_duty_percent = 33;
+	rmt_tx.tx_config.carrier_freq_hz = 38000;
+	rmt_tx.tx_config.carrier_level = 1;
+	rmt_tx.tx_config.idle_level = 0;
+	rmt_tx.tx_config.idle_output_en = true;
+	rmt_tx.rmt_mode = RMT_MODE_TX;
+	if (rmt_config(&rmt_tx) == ESP_OK) {  //1
+	rmt_set_source_clk(rmt_tx.channel, RMT_BASECLK_APB);
+	if (rmt_driver_install(rmt_tx.channel, 0, ESP_INTR_FLAG_LOWMED
+			| ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_SHARED) == ESP_OK) result = 1;
+//end of init	
+	}  //1
+	return result;
+}
+bool rmtir_send (uint8_t idx,  uint16_t* ptxcmd, uint16_t* pprtxcmd, uint16_t* ptaddr)
+{
+	bool result = 0;
+	uint16_t txcmd;
+	txcmd = *ptxcmd;
+	if (!(txcmd & 0xff00)) return result;
+	uint8_t tidx;
+	uint16_t prtxcmd, taddr;
+	prtxcmd = *pprtxcmd;
+	taddr = *ptaddr;
+	if (fdebug) ESP_LOGI(AP_TAG, "IR Tx code: %02X%04x%02x", ((txcmd >> 8) & 0xff), taddr, (txcmd & 0xff));
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (idx > 1) return result;
+	tidx = idx;
+#else
+	if (idx > 2) return result;
+	tidx = idx << 1;
+#endif
+	switch ((txcmd >> 8) & 0xff) {
+	case 0x01:                        //nec
+	if ((rmt_set_clk_div(tidx, 81) == ESP_OK) && 
+	(rmt_set_tx_carrier(tidx, true, 9 * 81, 17 * 81,  1) == ESP_OK)) {
+//12.5ns * 81(= 1.0125us) * 26 = 26.325us(37986.7Hz)  T = 556 (~562.5us/1.0125)
+	uint16_t T = 556;                 //~562.5us/1.0125
+	uint8_t tnum = 24;
+	uint8_t out;
+	rmt_item32_t tx_items[36] = {0};
+	rmt_item32_t tx_ritems[4] = {0};
+//first
+	tx_items[0].level0 = 1;           //sb
+	tx_items[0].duration0 = 16 * T;
+	tx_items[0].level1 = 0;
+	tx_items[0].duration1 = 8 * T;
+	out = taddr & 0xff;
+	for (int i = 1; i < 9; i++) {     //a0-a7 1
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) {
+	tx_items[i].duration1 = 3 * T;
+	tnum += 2;
+	} else tx_items[i].duration1 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	out = ~taddr & 0xff;
+	for (int i = 9; i < 17; i++) {    //~a0-a7 2
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) {
+	tx_items[i].duration1 = 3 * T;
+	tnum += 2;
+	} else tx_items[i].duration1 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	out = txcmd & 0xff;
+	for (int i = 17; i < 25; i++) {   //d0-d7 1
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) {
+	tx_items[i].duration1 = 3 * T;
+	tnum += 2;
+	} else tx_items[i].duration1 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	out = ~txcmd & 0xff;
+	for (int i = 25; i < 33; i++) {   //~d0-d7 2
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) {
+	tx_items[i].duration1 = 3 * T;
+	tnum += 2;
+	} else tx_items[i].duration1 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	tx_items[33].level0 = 1;          //end bit
+	tx_items[33].duration0 = T;
+	tx_items[33].level1 = 0;
+	tx_items[33].duration1 = T;
+	tnum += 2;
+	T = 54320 - ((tnum >> 1) * T);    //s2s 110ms, 110000/1.0125/2=54320
+ 	tx_items[34].level0 = 0;
+	tx_items[34].duration0 = T;
+	tx_items[34].level1 = 0;
+	tx_items[34].duration1 = T;
+	tx_items[35].level0 = 0;          //end
+	tx_items[35].duration0 = 0;
+	tx_items[35].level1 = 0;
+	tx_items[35].duration1 = 0;
+//repeat
+	tx_ritems[0].level0 = 1;          //sb
+	tx_ritems[0].duration0 = 16 * T;
+	tx_ritems[0].level1 = 0;
+	tx_ritems[0].duration1 = 4 * T;
+	tx_ritems[1].level0 = 1;          //end bit
+	tx_ritems[1].duration0 = T;
+	tx_ritems[1].level1 = 0;
+	tx_ritems[1].duration1 = T;
+ 	tx_ritems[2].level0 = 0;          //sp 96ms
+	tx_ritems[2].duration0 = 32500;
+	tx_ritems[2].level1 = 0;
+	tx_ritems[2].duration1 = 32500;
+	tx_ritems[3].level0 = 0;
+	tx_ritems[3].duration0 = 31408;
+	tx_ritems[3].level1 = 0;          //end
+	tx_ritems[3].duration1 = 0;
+	out = 0;
+	if (rmt_write_items(tidx, tx_items, 36, true) != ESP_OK) out = 255;
+	while (out < 3) {
+	if (rmt_write_items(tidx, tx_ritems, 4, true) != ESP_OK) out = 255;
+	out++;
+	}
+	if (fdebug) {
+	if (out != 255) ESP_LOGI(AP_TAG, "IR NEC Tx addr: 0x%X, cmd: 0x%X", (taddr & 0xff), (txcmd & 0xff));
+	else  ESP_LOGI(AP_TAG, "IR NEC Tx error");
+	}
+	if (out != 255) result = 1;
+	}
+	break;
+	case 0x02:                        //necx16
+	if ((rmt_set_clk_div(tidx, 81) == ESP_OK) && 
+	(rmt_set_tx_carrier(tidx, true, 9 * 81, 17 * 81,  1) == ESP_OK)) {
+//12.5ns * 81(= 1.0125us) * 26 = 26.325us(37986.7Hz)  T = 556 (~562.5us/1.0125)
+	uint16_t T = 556;                 //~562.5us/1.0125
+	uint8_t tnum = 24;
+	uint8_t out;
+	rmt_item32_t tx_items[36] = {0};
+	rmt_item32_t tx_ritems[4] = {0};
+//first
+	tx_items[0].level0 = 1;           //sb
+	tx_items[0].duration0 = 16 * T;
+	tx_items[0].level1 = 0;
+	tx_items[0].duration1 = 8 * T;
+	out = taddr & 0xff;
+	for (int i = 1; i < 9; i++) {     //a0-a7 1
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) {
+	tx_items[i].duration1 = 3 * T;
+	tnum += 2;
+	} else tx_items[i].duration1 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	out = (taddr >> 8) & 0xff;
+	for (int i = 9; i < 17; i++) {    //a8-a15 2
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) {
+	tx_items[i].duration1 = 3 * T;
+	tnum += 2;
+	} else tx_items[i].duration1 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	out = txcmd & 0xff;
+	for (int i = 17; i < 25; i++) {   //d0-d7 1
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) {
+	tx_items[i].duration1 = 3 * T;
+	tnum += 2;
+	} else tx_items[i].duration1 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	out = ~txcmd & 0xff;
+	for (int i = 25; i < 33; i++) {   //~d0-d7 2
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) {
+	tx_items[i].duration1 = 3 * T;
+	tnum += 2;
+	} else tx_items[i].duration1 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	tx_items[33].level0 = 1;          //end bit
+	tx_items[33].duration0 = T;
+	tx_items[33].level1 = 0;
+	tx_items[33].duration1 = T;
+	tnum += 2;
+	T = 54320 - ((tnum >> 1) * T);    //s2s 110ms, 110000/1.0125/2=54320
+ 	tx_items[34].level0 = 0;
+	tx_items[34].duration0 = T;
+	tx_items[34].level1 = 0;
+	tx_items[34].duration1 = T;
+	tx_items[35].level0 = 0;          //end
+	tx_items[35].duration0 = 0;
+	tx_items[35].level1 = 0;
+	tx_items[35].duration1 = 0;
+//repeat
+	tx_ritems[0].level0 = 1;          //sb
+	tx_ritems[0].duration0 = 16 * T;
+	tx_ritems[0].level1 = 0;
+	tx_ritems[0].duration1 = 4 * T;
+	tx_ritems[1].level0 = 1;          //end bit
+	tx_ritems[1].duration0 = T;
+	tx_ritems[1].level1 = 0;
+	tx_ritems[1].duration1 = T;
+ 	tx_ritems[2].level0 = 0;          //sp 96ms
+	tx_ritems[2].duration0 = 32500;
+	tx_ritems[2].level1 = 0;
+	tx_ritems[2].duration1 = 32500;
+	tx_ritems[3].level0 = 0;
+	tx_ritems[3].duration0 = 31408;
+	tx_ritems[3].level1 = 0;          //end
+	tx_ritems[3].duration1 = 0;
+	out = 0;
+	if (rmt_write_items(tidx, tx_items, 36, true) != ESP_OK) out = 255;
+	while (out < 3) {
+	if (rmt_write_items(tidx, tx_ritems, 4, true) != ESP_OK) out = 255;
+	out++;
+	}
+	if (fdebug) {
+	if (out != 255) ESP_LOGI(AP_TAG, "IR NECx16 Tx addr: 0x%X, cmd: 0x%X", taddr, (txcmd & 0xff));
+	else  ESP_LOGI(AP_TAG, "IR NECx16 Tx error");
+	}
+	if (out != 255) result = 1;
+	}
+	break;
+	case 0x03:                        //rc5
+	if ((rmt_set_clk_div(tidx, 101) == ESP_OK) && 
+	(rmt_set_tx_carrier(tidx, true, 7 * 101, 15 * 101,  1) == ESP_OK)) {
+//https://www.st.com/resource/en/application_note/an2957-implementing-an-rc5-infrared-transmitter-using-the-ir-timer-modulator-of-the-stm8l10x-microcontroller-stmicroelectronics.pdf
+//12.5ns * 101(= 1.2625us) * 22 = 27.775us(36003.6Hz) T = 704 (22*32)
+	uint16_t T = 704;                 //888.8us(22 * 32)
+	uint8_t out = 0;                  //frame 14 * 2T = 24.886ms
+	rmt_item32_t tx_items[15] = {0};
+
+	tx_items[0].level0 = 0;           //sb 1
+	tx_items[0].duration0 = T;
+	tx_items[0].level1 = 1;
+	tx_items[0].duration1 = T;
+	tx_items[1].duration0 = T;        //sb 2
+	tx_items[1].duration1 = T;
+	if (txcmd & 0x40) {               //if rc5ext
+	tx_items[1].level0 = 1;           //cmd ~bit6 
+	tx_items[1].level1 = 0;
+	} else {
+	tx_items[1].level0 = 0;           
+	tx_items[1].level1 = 1;
+	}
+	tx_items[2].level0 = 1;           //tb
+	tx_items[2].duration0 = T;
+	tx_items[2].level1 = 0;
+	tx_items[2].duration1 = T;
+	out = (taddr << 3) & 0xff;
+	for (int i = 2; i < 7; i++) {     //a4-a0
+	tx_items[i].duration0 = T;
+	tx_items[i].duration1 = T;
+	if (out & 0x80) {
+	tx_items[i].level0 = 0;
+	tx_items[i].level1 = 1;
+	} else {
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	}
+	out <<= 1;
+	}
+	out = (txcmd << 2) & 0xff;
+	for (int i = 7; i < 13; i++) {    //d5-d0
+	tx_items[i].duration0 = T;
+	tx_items[i].duration1 = T;
+	if (out & 0x80) {
+	tx_items[i].level0 = 0;
+	tx_items[i].level1 = 1;
+	} else {
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	}
+	out <<= 1;
+	}
+	tx_items[13].level0 = 0;          //sp 88.880ms  88880/1.2625=70400
+	tx_items[13].duration0 = 30000;
+	tx_items[13].level1 = 0;
+	tx_items[13].duration1 = 30000;
+	tx_items[14].level0 = 0;
+	tx_items[14].duration0 = 10400;
+	tx_items[14].level1 = 0;
+	tx_items[14].duration1 = 0;       //end
+	out = 0;
+	while (out < 3) {
+	if (rmt_write_items(tidx, tx_items, 15, true) != ESP_OK) out = 255;
+	out++;
+	}
+	if (fdebug) {
+	if (out != 255) ESP_LOGI(AP_TAG, "IR RC5 Tx addr: 0x%X, cmd: 0x%X", (taddr & 0x1f), (txcmd & 0x7f));
+	else  ESP_LOGI(AP_TAG, "IR RC5 Tx error");
+	}
+	if (out != 255) result = 1;
+	}
+	break;
+	case 0x04:                        //rc6
+	if ((rmt_set_clk_div(tidx, 101) == ESP_OK) && 
+	(rmt_set_tx_carrier(tidx, true, 7 * 101, 15 * 101,  1) == ESP_OK)) {
+//12.5ns * 101(= 1.2625us) * 22 = 27.775us(36003.6Hz)  T = 352 (22*16)
+	uint16_t T = 352;                 //444.4us(22 * 16)
+	uint8_t out = 0;
+	rmt_item32_t tx_items[24] = {0};
+
+	tx_items[0].level0 = 1;           //ls
+	tx_items[0].duration0 = 6 * T;
+	tx_items[0].level1 = 0;
+	tx_items[0].duration1 = 2 * T;
+	tx_items[1].level0 = 1;           //sb
+	tx_items[1].duration0 = T;
+	tx_items[1].level1 = 0;
+	tx_items[1].duration1 = T;
+	out = taddr >> 3;
+	for (int i = 2; i < 5; i++) {     //mb2-mb0
+	tx_items[i].duration0 = T;
+	tx_items[i].duration1 = T;
+	if (out & 0x80) {
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	} else {
+	tx_items[i].level0 = 0;
+	tx_items[i].level1 = 1;
+	}
+	out <<= 1;
+	}
+	tx_items[5].level0 = 0;           //tr
+	tx_items[5].duration0 = 2 * T;
+	tx_items[5].level1 = 1;
+	tx_items[5].duration1 = 2 * T;
+	out = taddr & 0xff;
+	for (int i = 6; i < 14; i++) {    //a7-a0
+	tx_items[i].duration0 = T;
+	tx_items[i].duration1 = T;
+	if (out & 0x80) {
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	} else {
+	tx_items[i].level0 = 0;
+	tx_items[i].level1 = 1;
+	}
+	out <<= 1;
+	}
+	out = txcmd & 0xff;
+	for (int i = 14; i < 22; i++) {   //d7-d0
+	tx_items[i].duration0 = T;
+	tx_items[i].duration1 = T;
+	if (out & 0x80) {
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	} else {
+	tx_items[i].level0 = 0;
+	tx_items[i].level1 = 1;
+	}
+	out <<= 1;
+	}
+	tx_items[22].level0 = 0;          //sp 88.880ms  88880/1.2625=70400
+	tx_items[22].duration0 = 30000;
+	tx_items[22].level1 = 0;
+	tx_items[22].duration1 = 30000;
+	tx_items[23].level0 = 0;
+	tx_items[23].duration0 = 10400;
+	tx_items[23].level1 = 0;
+	tx_items[23].duration1 = 0;       //end
+	out = 0;
+	while (out < 3) {
+	if (rmt_write_items(tidx, tx_items, 24, true) != ESP_OK) out = 255;
+	out++;
+	}
+	if (fdebug) {
+	if (out != 255) ESP_LOGI(AP_TAG, "IR RC6 Tx addr: 0x%X, cmd: 0x%X", (taddr & 0x3ff), (txcmd & 0xff));
+	else  ESP_LOGI(AP_TAG, "IR RC6 Tx error");
+	}
+	if (out != 255) result = 1;
+	}
+	break;
+	case 0x05:                        //samsung
+	if ((rmt_set_clk_div(tidx, 81) == ESP_OK) && 
+	(rmt_set_tx_carrier(tidx, true, 9 * 81, 17 * 81,  1) == ESP_OK)) {
+//http://elektrolab.wz.cz/katalog/samsung_protocol.pdf
+//12.5ns * 81(= 1.0125us) * 26 = 26.325us(37986.7Hz)  T = 556 (~562.5us/1.0125)
+	uint16_t T = 556;                 //~562.5us/1.0125
+	uint8_t tnum = 16;
+	uint8_t out;
+	rmt_item32_t tx_items[36] = {0};
+
+	tx_items[0].level0 = 1;           //sb
+	tx_items[0].duration0 = 8 * T;
+	tx_items[0].level1 = 0;
+	tx_items[0].duration1 = 8 * T;
+	out = taddr & 0xff;
+	for (int i = 1; i < 9; i++) {     //a0-a7 1
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) {
+	tx_items[i].duration1 = 3 * T;
+	tnum += 2;
+	} else tx_items[i].duration1 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	out = taddr & 0xff;
+	for (int i = 9; i < 17; i++) {    //a0-a7 2
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) {
+	tx_items[i].duration1 = 3 * T;
+	tnum += 2;
+	} else tx_items[i].duration1 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	out = txcmd & 0xff;
+	for (int i = 17; i < 25; i++) {   //d0-d7 1
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) {
+	tx_items[i].duration1 = 3 * T;
+	tnum += 2;
+	} else tx_items[i].duration1 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	out = ~txcmd & 0xff;
+	for (int i = 25; i < 33; i++) {   //~d0-d7 2
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) {
+	tx_items[i].duration1 = 3 * T;
+	tnum += 2;
+	} else tx_items[i].duration1 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	tx_items[33].level0 = 1;          //end bit
+	tx_items[33].duration0 = T;
+	tx_items[33].level1 = 0;
+	tx_items[33].duration1 = T;
+	tnum += 2;
+	T = 53333 - ((tnum >> 1) * T);    //s2s 108ms, 108000/1.0125/2=53333
+ 	tx_items[34].level0 = 0;
+	tx_items[34].duration0 = T;
+	tx_items[34].level1 = 0;
+	tx_items[34].duration1 = T;
+	tx_items[35].level0 = 0;          //end
+	tx_items[35].duration0 = 0;
+	tx_items[35].level1 = 0;
+	tx_items[35].duration1 = 0;
+	out = 0;
+	while (out < 3) {
+	if (rmt_write_items(tidx, tx_items, 36, true) != ESP_OK) out = 255;
+	out++;
+	}
+	if (fdebug) {
+	if (out != 255) ESP_LOGI(AP_TAG, "IR SAMSUNG Tx addr: 0x%X, cmd: 0x%X", (taddr & 0xff), (txcmd & 0xff));
+	else  ESP_LOGI(AP_TAG, "IR SAMSUNG Tx error");
+	}
+	if (out != 255) result = 1;
+	}
+	break;
+	case 0x06:                        //sony sirc 12 bit
+	if ((rmt_set_clk_div(tidx, 80) == ESP_OK) && 
+	(rmt_set_tx_carrier(tidx, true, 8 * 80, 17 * 80,  1) == ESP_OK)) {
+//12.5ns * 80(= 1us) * 25 = 25us(40000Hz)  T = 600 (600us)
+	uint16_t T = 600;                 //600us
+	uint8_t tnum = 5;
+	uint16_t out;
+	rmt_item32_t tx_items[14] = {0};
+	tx_items[0].level0 = 1;           //sb
+	tx_items[0].duration0 = 4 * T;
+	tx_items[0].level1 = 0;
+	tx_items[0].duration1 = T;
+	out = txcmd & 0xff;
+	for (int i = 1; i < 8; i++) {     //d0-d6
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration1 = T;
+	if (out & 0x01) {
+	tx_items[i].duration0 = 2 * T;
+	tnum++;
+	} else tx_items[i].duration0 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	out = taddr & 0xff;
+	for (int i = 8; i < 13; i++) {    //a0-a4
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration1 = T;
+	if (out & 0x01) {
+	tx_items[i].duration0 = 2 * T;
+	tnum++;
+	} else tx_items[i].duration0 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	T = 45000 - (T * tnum);
+ 	tx_items[13].level0 = 0;          //start to start 45ms
+	tx_items[13].duration0 = T;
+	tx_items[13].level1 = 0;          //end
+	tx_items[13].duration1 = 0;
+	out = 0;
+	while (out < 3) {
+	if (rmt_write_items(tidx, tx_items, 14, true) != ESP_OK) out = 255;
+	out++;
+	}
+	if (fdebug) {
+	if (out != 255) ESP_LOGI(AP_TAG, "IR SIRCx12 Tx addr: 0x%X, cmd: 0x%X", (taddr & 0x1f), (txcmd & 0x7f));
+	else  ESP_LOGI(AP_TAG, "IR SIRCx12 Tx error");
+	}
+	if (out != 255) result = 1;
+	}
+	break;
+	case 0x07:                        //sony sirc 15 bit
+	if ((rmt_set_clk_div(tidx, 80) == ESP_OK) && 
+	(rmt_set_tx_carrier(tidx, true, 8 * 80, 17 * 80,  1) == ESP_OK)) {
+//12.5ns * 80(= 1us) * 25 = 25us(40000Hz)  T = 600 (600us)
+	uint16_t T = 600;                 //600us
+	uint8_t tnum = 5;
+	uint16_t out;
+	rmt_item32_t tx_items[17] = {0};
+	tx_items[0].level0 = 1;           //sb
+	tx_items[0].duration0 = 4 * T;
+	tx_items[0].level1 = 0;
+	tx_items[0].duration1 = T;
+	out = txcmd & 0xff;
+	for (int i = 1; i < 8; i++) {     //d0-d6
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration1 = T;
+	if (out & 0x01) {
+	tx_items[i].duration0 = 2 * T;
+	tnum++;
+	} else tx_items[i].duration0 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	out = taddr & 0xff;
+	for (int i = 8; i < 16; i++) {    //a0-a7
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration1 = T;
+	if (out & 0x01) {
+	tx_items[i].duration0 = 2 * T;
+	tnum++;
+	} else tx_items[i].duration0 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	T = 45000 - (T * tnum);
+ 	tx_items[16].level0 = 0;          //start to start 45ms
+	tx_items[16].duration0 = T;
+	tx_items[16].level1 = 0;          //end
+	tx_items[16].duration1 = 0;
+	out = 0;
+	while (out < 3) {
+	if (rmt_write_items(tidx, tx_items, 17, true) != ESP_OK) out = 255;
+	out++;
+	}
+	if (fdebug) {
+	if (out != 255) ESP_LOGI(AP_TAG, "IR SIRCx15 Tx addr: 0x%X, cmd: 0x%X", (taddr & 0xff), (txcmd & 0x7f));
+	else  ESP_LOGI(AP_TAG, "IR SIRCx15 Tx error");
+	}
+	if (out != 255) result = 1;
+	}
+	break;
+	case 0x08:                        //sony sirc 20 bit
+	if ((rmt_set_clk_div(tidx, 80) == ESP_OK) && 
+	(rmt_set_tx_carrier(tidx, true, 8 * 80, 17 * 80,  1) == ESP_OK)) {
+//12.5ns * 80(= 1us) * 25 = 25us(40000Hz)  T = 600 (600us)
+	uint16_t T = 600;                 //600us
+	uint8_t tnum = 5;
+	uint16_t out;
+	rmt_item32_t tx_items[22] = {0};
+	tx_items[0].level0 = 1;           //sb
+	tx_items[0].duration0 = 4 * T;
+	tx_items[0].level1 = 0;
+	tx_items[0].duration1 = T;
+	out = txcmd & 0xff;
+	for (int i = 1; i < 8; i++) {     //d0-d6
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration1 = T;
+	if (out & 0x01) {
+	tx_items[i].duration0 = 2 * T;
+	tnum++;
+	} else tx_items[i].duration0 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	out = taddr;
+	for (int i = 8; i < 21; i++) {    //a0-a12
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration1 = T;
+	if (out & 0x01) {
+	tx_items[i].duration0 = 2 * T;
+	tnum++;
+	} else tx_items[i].duration0 = T;
+	tnum += 2;
+	out >>= 1;
+	}
+	T = 45000 - (T * tnum);
+ 	tx_items[21].level0 = 0;          //start to start 45ms
+	tx_items[21].duration0 = T;
+	tx_items[21].level1 = 0;          //end
+	tx_items[21].duration1 = 0;
+	out = 0;
+	while (out < 3) {
+	if (rmt_write_items(tidx, tx_items, 22, true) != ESP_OK) out = 255;
+	out++;
+	}
+	if (fdebug) {
+	if (out != 255) ESP_LOGI(AP_TAG, "IR SIRCx20 Tx addr: 0x%X, cmd: 0x%X", (taddr & 0x1fff), (txcmd & 0x7f));
+	else  ESP_LOGI(AP_TAG, "IR SIRCx20 Tx error");
+	}
+	if (out != 255) result = 1;
+	}
+	break;
+	case 0x09:                        //panasonic
+	if ((rmt_set_clk_div(tidx, 94) == ESP_OK) && 
+	(rmt_set_tx_carrier(tidx, true, 7 * 94, 16 * 94,  1) == ESP_OK)) {
+//12.5ns * 94(= 1.175us) * 23 = 27.025(37002.7Hz)  T = 368 (23*16)
+	uint16_t T = 368;                 //432.4us
+	uint16_t out;
+	uint8_t  xor;
+	rmt_item32_t tx_items[51] = {0};
+	tx_items[0].level0 = 1;           //lsb
+	tx_items[0].duration0 = 8 * T;
+	tx_items[0].level1 = 0;
+	tx_items[0].duration1 = 4 * T;
+	out = 0x2002;                     //vendor
+	for (int i = 1; i < 17; i++) {    //v0-v15
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) tx_items[i].duration1 = 3 * T;
+	else tx_items[i].duration1 = T;
+	out >>= 1;
+	}
+	xor = (out & 0xff) ^ ((out >> 8) & 0xff);
+	out = xor ^ (xor >> 4);
+	for (int i = 17; i < 21; i++) {   //4 xor bits
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) tx_items[i].duration1 = 3 * T;
+	else tx_items[i].duration1 = T;
+	out >>= 1;
+	}
+	out = taddr >> 8;
+	xor = (xor & 0x0f) ^ ((taddr >> 4) & 0xf0);
+	for (int i = 21; i < 25; i++) {   //4 bit system code high addr
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) tx_items[i].duration1 = 3 * T;
+	else tx_items[i].duration1 = T;
+	out >>= 1;
+	}
+	out = taddr;
+	for (int i = 25; i < 33; i++) {   //a0-a7
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) tx_items[i].duration1 = 3 * T;
+	else tx_items[i].duration1 = T;
+	out >>= 1;
+	}
+	out = txcmd;
+	xor = xor ^ (taddr & 0xff) ^ (txcmd & 0xff);
+	for (int i = 33; i < 41; i++) {   //d0-d7
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) tx_items[i].duration1 = 3 * T;
+	else tx_items[i].duration1 = T;
+	out >>= 1;
+	}
+	out = xor;
+	for (int i = 41; i < 49; i++) {   //c0-c7
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	tx_items[i].duration0 = T;
+	if (out & 0x01) tx_items[i].duration1 = 3 * T;
+	else tx_items[i].duration1 = T;
+	out >>= 1;
+	}
+	tx_items[49].level0 = 1;          //end bit
+	tx_items[49].duration0 = T;
+	tx_items[49].level1 = 0;
+	tx_items[49].duration1 = 30000;   //sp 42.2ms
+ 	tx_items[50].level0 = 0;          //42200/1.175=35915
+	tx_items[50].duration0 = 5915;
+	tx_items[50].level1 = 0;          //end
+	tx_items[50].duration1 = 0;
+	out = 0;
+	while (out < 3) {
+	if (rmt_write_items(tidx, tx_items, 51, true) != ESP_OK) out = 255;
+	out++;
+	}
+	if (fdebug) {
+	if (out != 255) ESP_LOGI(AP_TAG, "IR PANASONIC Tx addr: 0x%X, cmd: 0x%X", (taddr & 0xfff), (txcmd & 0xff));
+	else  ESP_LOGI(AP_TAG, "IR PANASONIC Tx error");
+	}
+	if (out != 255) result = 1;
+	}
+	break;
+	}
+	txcmd &= 0xff;
+	*ptxcmd = txcmd;
+	*pprtxcmd = (prtxcmd & 0xff) | 0xff00;
+	return result;
+}
+#endif
+
+//***************** 1w 18b20 ******************
+//https://github.com/DavidAntliff/esp32-owb
+bool rmt1w_init (uint8_t idx, uint8_t  gpio_num, RingbufHandle_t RmtRgHd)
+{
+	bool result = 0;
+	uint8_t tidx, ridx;
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (idx > 1) return result;
+	tidx = idx;
+	ridx = idx + 2;	
+#else
+	if (idx > 2) return result;
+	tidx = idx << 1;
+	ridx = (idx << 1) + 1;	
+#endif
+//rmt tx init
+	rmt_config_t rmt_tx = {0};
+	rmt_tx.channel = tidx;
 	rmt_tx.gpio_num = gpio_num;
 	rmt_tx.mem_block_num = 1;
 	rmt_tx.clk_div = 80;
@@ -629,7 +1430,7 @@ bool rmt_init (uint8_t idx, uint8_t  gpio_num, RingbufHandle_t RmtRgHd)
 			| ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_SHARED) == ESP_OK) {  //2
 //rmt rx init
 	rmt_config_t rmt_rx = {0};
-	rmt_rx.channel = (idx << 1) + 1;
+	rmt_rx.channel = ridx;
 	rmt_rx.gpio_num = gpio_num;
 	rmt_rx.clk_div = 80;
 	rmt_rx.mem_block_num = 1;
@@ -643,8 +1444,12 @@ bool rmt_init (uint8_t idx, uint8_t  gpio_num, RingbufHandle_t RmtRgHd)
 			| ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_SHARED) == ESP_OK)	{  //4
 	rmt_get_ringbuf_handle(rmt_rx.channel, RmtRgHd);
 //pin
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	GPIO.enable_w1ts.val = (0x1 << gpio_num);
+#else
 	if (gpio_num < 32) GPIO.enable_w1ts = (0x1 << gpio_num);
 	else GPIO.enable1_w1ts.data = (0x1 << (gpio_num - 32));
+#endif
 //set pin for rx first since gpio_output_disable() will remove rmt output signal in matrix!
 	rmt_set_gpio(rmt_rx.channel, RMT_MODE_RX, gpio_num,0);
 	rmt_set_gpio(rmt_tx.channel, RMT_MODE_TX, gpio_num,0);
@@ -660,26 +1465,36 @@ bool rmt_init (uint8_t idx, uint8_t  gpio_num, RingbufHandle_t RmtRgHd)
 	}  //1
 	return result;
 }
-void rmt_flush__rxbuf (uint8_t idx, RingbufHandle_t RmtRgHd)
+void rmt_flush__rxbuf (RingbufHandle_t RmtRgHd)
 {
 	void * ptr = NULL;
 	size_t sz = 0;
 	while ((ptr = xRingbufferReceive(RmtRgHd, &sz, 0))) vRingbufferReturnItem(RmtRgHd, ptr);
 }
-bool    rmt_dsres(uint8_t idx, RingbufHandle_t RmtRgHd)
+bool    rmt1w_dsres(uint8_t idx, RingbufHandle_t RmtRgHd)
 {
 	bool result = 0;
+	uint8_t tidx, ridx;
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (idx > 1) return result;
+	tidx = idx;
+	ridx = idx + 2;	
+#else
+	if (idx > 2) return result;
+	tidx = idx << 1;
+	ridx = (idx << 1) + 1;	
+#endif
 	rmt_item32_t tx_items[1] = {0};
 	uint16_t old_rx_thresh = 0;
 	tx_items[0].duration0 = 500; // 500us
 	tx_items[0].level0 = 0;
 	tx_items[0].duration1 = 0;   //end
 	tx_items[0].level1 = 1;
-	rmt_get_rx_idle_thresh((idx << 1) + 1, &old_rx_thresh);
-	rmt_set_rx_idle_thresh((idx << 1) + 1, 500 + 60);
-	rmt_flush__rxbuf (idx, RmtRgHd);
-	rmt_rx_start((idx << 1) + 1, true);
-	if (rmt_write_items(idx << 1, tx_items, 1, true) == ESP_OK) {  //1
+	rmt_get_rx_idle_thresh(ridx, &old_rx_thresh);
+	rmt_set_rx_idle_thresh(ridx, 500 + 60);
+	rmt_flush__rxbuf (RmtRgHd);
+	rmt_rx_start(ridx, true);
+	if (rmt_write_items(tidx, tx_items, 1, true) == ESP_OK) {  //1
 	size_t rx_size = 0;
 	rmt_item32_t * rx_items = (rmt_item32_t *)xRingbufferReceive(RmtRgHd, &rx_size, 100 / portTICK_PERIOD_MS);
 	if (rx_items) { //2
@@ -694,14 +1509,22 @@ bool    rmt_dsres(uint8_t idx, RingbufHandle_t RmtRgHd)
 	vRingbufferReturnItem(RmtRgHd, (void *)rx_items);
 	} //2
 	} //1
-	rmt_rx_stop((idx << 1) + 1);
-	rmt_set_rx_idle_thresh((idx << 1) + 1, old_rx_thresh);
+	rmt_rx_stop(ridx);
+	rmt_set_rx_idle_thresh(ridx, old_rx_thresh);
 // end
 	return result;
 }
-bool    rmt_dscomm(uint8_t idx, uint8_t comm)
+bool    rmt1w_dscomm(uint8_t idx, uint8_t comm)
 {
 	bool result = 0;
+	uint8_t tidx;
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (idx > 1) return result;
+	tidx = idx;
+#else
+	if (idx > 2) return result;
+	tidx = idx << 1;
+#endif
 	uint8_t out = comm;
 	rmt_item32_t tx_items[9] = {0};   //8bits + end marker
 	rmt_item32_t item = {0};
@@ -718,18 +1541,28 @@ bool    rmt_dscomm(uint8_t idx, uint8_t comm)
         item.duration1 = 10;              //0_HIGH;
 	}
         tx_items[i] = item;
-        out >>= 1;
+	out >>= 1;
 	}
 // end marker
 	tx_items[8].level0 = 1;
 	tx_items[8].duration0 = 0;
-	if (rmt_write_items(idx << 1, tx_items, 9, true) == ESP_OK) result = 1;
+	if (rmt_write_items(tidx, tx_items, 9, true) == ESP_OK) result = 1;
 	return result;
 }
-bool    rmt_dsread(uint8_t idx, uint8_t* data, RingbufHandle_t RmtRgHd)
+bool    rmt1w_dsread(uint8_t idx, uint8_t* data, RingbufHandle_t RmtRgHd)
 {
 	bool result = 0;
 	uint8_t in = 0;
+	uint8_t tidx, ridx;
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (idx > 1) return result;
+	tidx = idx;
+	ridx = idx + 2;	
+#else
+	if (idx > 2) return result;
+	tidx = idx << 1;
+	ridx = (idx << 1) + 1;	
+#endif
 	rmt_item32_t tx_items[9] = {0};   //8bits + end marker
 	rmt_item32_t item = {0};
 	item.level0 = 0;
@@ -740,9 +1573,9 @@ bool    rmt_dsread(uint8_t idx, uint8_t* data, RingbufHandle_t RmtRgHd)
 // end marker
 	tx_items[8].level0 = 1;
 	tx_items[8].duration0 = 0;
-	rmt_flush__rxbuf (idx, RmtRgHd);
-	rmt_rx_start((idx << 1) + 1, true);
-	if (rmt_write_items(idx << 1, tx_items, 9, true) == ESP_OK) { //1
+	rmt_flush__rxbuf (RmtRgHd);
+	rmt_rx_start(ridx, true);
+	if (rmt_write_items(tidx, tx_items, 9, true) == ESP_OK) { //1
 	size_t rx_size = 0;
 	rmt_item32_t *rx_items = (rmt_item32_t *)xRingbufferReceive(RmtRgHd, &rx_size, 100 / portTICK_PERIOD_MS);
 	if (rx_items) { //2
@@ -762,22 +1595,26 @@ bool    rmt_dsread(uint8_t idx, uint8_t* data, RingbufHandle_t RmtRgHd)
 	vRingbufferReturnItem(RmtRgHd, (void *)rx_items);
 	} //2
 	} //1
-	rmt_rx_stop((idx << 1) + 1);
+	rmt_rx_stop(ridx);
 	*data = in;
 	return result;
 }
-void rmt_readds (uint8_t idx, uint8_t* f_rmds, uint16_t* temp, RingbufHandle_t RmtRgHd)
+void rmt1w_readds (uint8_t idx, uint8_t* f_rmds, uint16_t* temp, RingbufHandle_t RmtRgHd)
 {
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (idx > 1) return;
+#else
 	if (idx > 2) return;
+#endif
 	uint8_t rmbits = *f_rmds;
 	uint8_t ld = 0xff;
 	uint8_t hd = 0xff;
 	if (rmbits & (0x10 << idx)) {  //1 if convert t command sended before
-	if (rmt_dsres(idx, RmtRgHd)) { //2 if reset w1 bus ok
-	if (rmt_dscomm(idx, 0xcc)) { //3 skip rom command
-	if (rmt_dscomm(idx, 0xbe)) { //4 read command
-	if (rmt_dsread(idx, &ld, RmtRgHd)) { //5
-	if (!rmt_dsread(idx, &hd, RmtRgHd)) { //6
+	if (rmt1w_dsres(idx, RmtRgHd)) { //2 if reset w1 bus ok
+	if (rmt1w_dscomm(idx, 0xcc)) { //3 skip rom command
+	if (rmt1w_dscomm(idx, 0xbe)) { //4 read command
+	if (rmt1w_dsread(idx, &ld, RmtRgHd)) { //5
+	if (!rmt1w_dsread(idx, &hd, RmtRgHd)) { //6
 	ld = 0xff;
 	hd = 0xff;
 	} //6
@@ -790,9 +1627,9 @@ void rmt_readds (uint8_t idx, uint8_t* f_rmds, uint16_t* temp, RingbufHandle_t R
 	ld = ~ld;
 	rmbits = rmbits & ld;
 	} //1
-	if (rmt_dsres(idx, RmtRgHd)) { //1
-	if (rmt_dscomm(idx, 0xcc)) { //2 skip rom command
-	if (rmt_dscomm(idx, 0x44)) { //3 convert t command
+	if (rmt1w_dsres(idx, RmtRgHd)) { //1
+	if (rmt1w_dscomm(idx, 0xcc)) { //2 skip rom command
+	if (rmt1w_dscomm(idx, 0x44)) { //3 convert t command
 	rmbits = rmbits | (0x10 << idx);
 	} else *temp = 0xffff;  //3
 	} else *temp = 0xffff;  //2
@@ -801,20 +1638,30 @@ void rmt_readds (uint8_t idx, uint8_t* f_rmds, uint16_t* temp, RingbufHandle_t R
 }
 
 
-void rmt_readdht (uint8_t idx, uint8_t* f_rmds, uint16_t* temp, uint16_t* humid, RingbufHandle_t RmtRgHd)
+void rmt1w_readdht (uint8_t idx, uint8_t* f_rmds, uint16_t* temp, uint16_t* humid, RingbufHandle_t RmtRgHd)
 {
 	rmt_item32_t tx_items[1] = {0};
+	uint8_t tidx, ridx;
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (idx > 1) return;
+	tidx = idx;
+	ridx = idx + 2;	
+#else
+	if (idx > 2) return;
+	tidx = idx << 1;
+	ridx = (idx << 1) + 1;	
+#endif
 	uint32_t in = 0;
 	tx_items[0].duration0 = 5000; // 5ms
 	uint16_t old_rx_thresh = 0;
 	tx_items[0].level0 = 0;
 	tx_items[0].duration1 = 0;   //end
 	tx_items[0].level1 = 1;
-	rmt_get_rx_idle_thresh((idx << 1) + 1, &old_rx_thresh);
-	rmt_set_rx_idle_thresh((idx << 1) + 1, 5000 + 100);
-	rmt_flush__rxbuf (idx, RmtRgHd);
-	rmt_rx_start((idx << 1) + 1, true);
-	if (rmt_write_items(idx << 1, tx_items, 1, true) == ESP_OK) {  //1
+	rmt_get_rx_idle_thresh(ridx, &old_rx_thresh);
+	rmt_set_rx_idle_thresh(ridx, 5000 + 100);
+	rmt_flush__rxbuf (RmtRgHd);
+	rmt_rx_start(ridx, true);
+	if (rmt_write_items(tidx, tx_items, 1, true) == ESP_OK) {  //1
 	size_t rx_size = 0;
 	rmt_item32_t *rx_items = (rmt_item32_t *)xRingbufferReceive(RmtRgHd, &rx_size, 100 / portTICK_PERIOD_MS);
 	if (rx_items) { //2
@@ -830,8 +1677,8 @@ void rmt_readdht (uint8_t idx, uint8_t* f_rmds, uint16_t* temp, uint16_t* humid,
 	vRingbufferReturnItem(RmtRgHd, (void *)rx_items);
 	} else in = 0xffff; //2
 	} else in = 0xffff; //1
-	rmt_rx_stop((idx << 1) + 1);
-	rmt_set_rx_idle_thresh((idx << 1) + 1, old_rx_thresh);
+	rmt_rx_stop(ridx);
+	rmt_set_rx_idle_thresh(ridx, old_rx_thresh);
 	*temp = in & 0xffff;
 	*humid = in >> 16;
 // end
@@ -839,156 +1686,255 @@ void rmt_readdht (uint8_t idx, uint8_t* f_rmds, uint16_t* temp, uint16_t* humid,
 
 
 //****************** i2c **********************
-bool i2c_init_bus () 
+esp_err_t i2c_init_bus () 
 {
 /*
-timeout:  2.5us(1bit @400kbit) * 10 bit(~byte+start/stop/ack) * 256 bytes(max) = 6.4ms
-assume 20ms for read, 10ms for write/check(2/1 bytes)
+timeout:  10us(1bit @100kbit) * 10 bit(~byte+start/stop/ack) * 256 bytes(max) = 25.6ms
+assume 80ms for read, 40ms for write/check(2/1 bytes)
 */
-	bool result = 0;
-	if ((bgpio9 < 192) | (bgpio10 < 192) | (bgpio9 > 225) | (bgpio10 > 225)) return result;
+	esp_err_t err = -1;
+	if ((bgpio9 < 192) | (bgpio10 < 192) | (bgpio9 > 225) | (bgpio10 > 225)) return err;
 	i2c_config_t i2c_config = {
 		.mode = I2C_MODE_MASTER,
 		.sda_io_num = (bgpio10 & 0x3f),
 		.scl_io_num = (bgpio9 & 0x3f),
 		.sda_pullup_en = GPIO_PULLUP_ENABLE,
 		.scl_pullup_en = GPIO_PULLUP_ENABLE,
-		.master.clk_speed = 400000
+		.master.clk_speed = 100000
 	};
 	i2c_param_config(I2C_NUM_0, &i2c_config);
-	if (i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM) == ESP_OK) result = 1;
-	return result;
+	err = i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM);
+	return err;
 }
-bool i2c_check(uint8_t addr)
+esp_err_t i2c_check(uint8_t addr)
 {
 //no count errors
-	bool result = 1;
+	esp_err_t err = -1;
 	i2c_cmd_handle_t CmdHd;
 	CmdHd = i2c_cmd_link_create();
 	i2c_master_start(CmdHd);
 	i2c_master_write_byte(CmdHd, addr << 1, 1);
 	i2c_master_stop(CmdHd);
-	if ((i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 10)) != ESP_OK) result = 0;
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 40);
 	i2c_cmd_link_delete(CmdHd);
-	return result;
+	if (err == ESP_ERR_TIMEOUT) { // if i2c bus busy errcnt++
+	i2c_errcnt++;
+	if (!i2c_errcnt) i2c_errcnt--;
+	}
+	return err;
 }
-
-bool i2c_devnum(uint32_t* f_i2cdev, uint32_t* s_i2cdev, uint8_t* i2cdevnum)
+esp_err_t i2c_devnum(uint32_t* f_i2cdev, uint32_t* s_i2cdev, uint8_t* i2cdevnum)
 {
-	bool result = 0;
+	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
 	uint32_t i2csbits = 0;
-	if (!(i2cbits & 0x80000000)) return result;
+	uint8_t i,j;
+	if (!(i2cbits & 0x80000000)) return err;
 	uint8_t devnum = 0;
-	for (int i = 0; i < 128; i++) {
-	if (i2c_check(i)) {
-//ESP_LOGI(AP_TAG, "Found i2c addr: 0x%X", i);
-	switch (i) {
-	case 0x75:
-        i2csbits = i2csbits | 0x40000000;
-	break;
-	case 0x76:
-        i2csbits = i2csbits | 0x01;
-	break;
-	case 0x77:
-        i2csbits = i2csbits | 0x02;
-	break;
-	default:
-	break;
+	for (i = 1; i < 128; i++) {
+	err = i2c_check(i);
+	if (!err) {
+	if (fdebug) ESP_LOGI(AP_TAG, "Found i2c addr: 0x%X", i);
+	for (j = 0; j < 31; j++) {
+	if (i == i2c_addr[j]) i2csbits = i2csbits | 0x01 << j;
 	}
 	devnum++;
+	} else if (err == ESP_ERR_TIMEOUT) {
+	*i2cdevnum = 0;                 // if i2c bus busy stop scanning
+	*s_i2cdev = 0;
+	return err;
 	}
 	}
 	*i2cdevnum = devnum;
 	*s_i2cdev = i2csbits;
-	result = 1;
-	return result;
+//	if (fdebug) ESP_LOGI(AP_TAG, "Found i2c bits: 0x%X", i2csbits);
+	err = 0;
+	return err;
 }
-bool i2c_read_data(uint8_t addr, uint8_t reg, uint8_t* data, uint16_t len)
+esp_err_t i2c_read0_data(uint8_t addr, uint8_t* data, uint16_t len)
 {
-	bool result = 1;
+	esp_err_t err = -1;
+	i2c_cmd_handle_t CmdHd;
+	if (len) {
+	CmdHd = i2c_cmd_link_create();
+	i2c_master_start(CmdHd);
+	i2c_master_write_byte(CmdHd, (addr << 1) + 1, I2C_MASTER_ACK);
+	if (len > 1) i2c_master_read(CmdHd, data, len, I2C_MASTER_ACK);
+	i2c_master_read_byte(CmdHd, data+len-1, I2C_MASTER_NACK);
+	i2c_master_stop(CmdHd);
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 80);
+	i2c_cmd_link_delete(CmdHd);
+	}
+	if (err) {
+	i2c_errcnt++;
+	if (!i2c_errcnt) i2c_errcnt--;
+	}
+	return err;
+}
+esp_err_t i2c_read_data(uint8_t addr, uint8_t reg, uint8_t* data, uint16_t len)
+{
+	esp_err_t err = -1;
 	i2c_cmd_handle_t CmdHd;
 	CmdHd = i2c_cmd_link_create();
 	i2c_master_start(CmdHd);
-	i2c_master_write_byte(CmdHd, addr << 1, 1);
-	i2c_master_write_byte(CmdHd, reg, 1);
+	i2c_master_write_byte(CmdHd, addr << 1, I2C_MASTER_ACK);
+	i2c_master_write_byte(CmdHd, reg, I2C_MASTER_ACK);
 	if (len) {
 	i2c_master_start(CmdHd);
-	i2c_master_write_byte(CmdHd, (addr << 1) + 1, 1);
+	i2c_master_write_byte(CmdHd, (addr << 1) + 1, I2C_MASTER_ACK);
 	if (len > 1) i2c_master_read(CmdHd, data, len, I2C_MASTER_ACK);
 	i2c_master_read_byte(CmdHd, data+len-1, I2C_MASTER_NACK);
 	}
 	i2c_master_stop(CmdHd);
-	if ((i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 20)) != ESP_OK) result = 0;
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 80);
 	i2c_cmd_link_delete(CmdHd);
-	if (!result) {
+	if (err) {
 	i2c_errcnt++;
 	if (!i2c_errcnt) i2c_errcnt--;
 	}
-	return result;
+	return err;
 }
-bool i2c_write_data(uint8_t addr, uint8_t reg, uint8_t value)
+esp_err_t i2c_read2_data(uint8_t addr, uint8_t reg, uint8_t cmd, uint8_t* data, uint16_t len)
 {
-	bool result = 1;
+	esp_err_t err = -1;
 	i2c_cmd_handle_t CmdHd;
 	CmdHd = i2c_cmd_link_create();
 	i2c_master_start(CmdHd);
-	i2c_master_write_byte(CmdHd, addr << 1, 1);
-	i2c_master_write_byte(CmdHd, reg, 1);
-	i2c_master_write_byte(CmdHd, value, 1);
+	i2c_master_write_byte(CmdHd, addr << 1, I2C_MASTER_ACK);
+	i2c_master_write_byte(CmdHd, reg, I2C_MASTER_ACK);
+	i2c_master_write_byte(CmdHd, cmd, I2C_MASTER_ACK);
+	if (len) {
+	i2c_master_start(CmdHd);
+	i2c_master_write_byte(CmdHd, (addr << 1) + 1, I2C_MASTER_ACK);
+	if (len > 1) i2c_master_read(CmdHd, data, len, I2C_MASTER_ACK);
+	i2c_master_read_byte(CmdHd, data+len-1, I2C_MASTER_NACK);
+	}
 	i2c_master_stop(CmdHd);
-	if ((i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 10)) != ESP_OK) result = 0;
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 80);
 	i2c_cmd_link_delete(CmdHd);
-	if (!result) {
+	if (err) {
 	i2c_errcnt++;
 	if (!i2c_errcnt) i2c_errcnt--;
 	}
-	return result;
+	return err;
+}
+esp_err_t i2c_read3_data(uint8_t addr, uint8_t reg, uint8_t cmd, uint8_t par, uint8_t* data, uint16_t len)
+{
+	esp_err_t err = -1;
+	i2c_cmd_handle_t CmdHd;
+	CmdHd = i2c_cmd_link_create();
+	i2c_master_start(CmdHd);
+	i2c_master_write_byte(CmdHd, addr << 1, I2C_MASTER_ACK);
+	i2c_master_write_byte(CmdHd, reg, I2C_MASTER_ACK);
+	i2c_master_write_byte(CmdHd, cmd, I2C_MASTER_ACK);
+	i2c_master_write_byte(CmdHd, par, I2C_MASTER_ACK);
+	if (len) {
+	i2c_master_start(CmdHd);
+	i2c_master_write_byte(CmdHd, (addr << 1) + 1, I2C_MASTER_ACK);
+	if (len > 1) i2c_master_read(CmdHd, data, len, I2C_MASTER_ACK);
+	i2c_master_read_byte(CmdHd, data+len-1, I2C_MASTER_NACK);
+	}
+	i2c_master_stop(CmdHd);
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 80);
+	i2c_cmd_link_delete(CmdHd);
+	if (err) {
+	i2c_errcnt++;
+	if (!i2c_errcnt) i2c_errcnt--;
+	}
+	return err;
+}
+esp_err_t i2c_write_byte(uint8_t addr, uint8_t reg, uint8_t value)
+{
+	esp_err_t err = -1;
+	i2c_cmd_handle_t CmdHd;
+	CmdHd = i2c_cmd_link_create();
+	i2c_master_start(CmdHd);
+	i2c_master_write_byte(CmdHd, addr << 1, I2C_MASTER_ACK);
+	i2c_master_write_byte(CmdHd, reg, I2C_MASTER_ACK);
+	i2c_master_write_byte(CmdHd, value, I2C_MASTER_ACK);
+	i2c_master_stop(CmdHd);
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 40);
+	i2c_cmd_link_delete(CmdHd);
+	if (err) {
+	i2c_errcnt++;
+	if (!i2c_errcnt) i2c_errcnt--;
+	}
+	return err;
+}
+esp_err_t i2c_write_data(uint8_t addr, uint8_t reg, uint8_t* data, uint16_t len)
+{
+	esp_err_t err = -1;
+	i2c_cmd_handle_t CmdHd;
+	CmdHd = i2c_cmd_link_create();
+	i2c_master_start(CmdHd);
+	i2c_master_write_byte(CmdHd, addr << 1, I2C_MASTER_ACK);
+	i2c_master_write_byte(CmdHd, reg, I2C_MASTER_ACK);
+	if (len) i2c_master_write(CmdHd, data, len, I2C_MASTER_ACK);
+	i2c_master_stop(CmdHd);
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 40);
+	i2c_cmd_link_delete(CmdHd);
+	if (err) {
+	i2c_errcnt++;
+	if (!i2c_errcnt) i2c_errcnt--;
+	}
+	return err;
 }
 //***************** ip5306 ********************
 //https://sharvielectronics.com/wp-content/uploads/2021/07/IP5306-I2C-registers.pdf
 //https://mobile.twitter.com/lovyan03/status/1104548868199337984
 //https://docs.nanoframework.net/devicesdetails/Ip5306/README.html
-bool i2c_init_ip5306 (uint32_t* f_i2cdev) 
+esp_err_t i2c_init_ip5306 (uint32_t* f_i2cdev) 
 {
-	bool result = 0;
+	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
-	if (!(i2cbits & 0x80000000)) return result;
-	if (!i2c_check(0x75)) return result;
+	if (!(i2cbits & 0x80000000)) return err;
+	err = i2c_check(0x75);
+	if (err) return err;
 	uint8_t var = 0;   
 //ip5306 setting for m5stack or ttgo-t4
 	const uint8_t ip5306_addr[8] = {0x00, 0x01, 0x02, 0x20, 0x21, 0x22, 0x23, 0x24};
 	const uint8_t ip5306_data[8] = {0x35, 0x1d, 0x64, 0x01, 0x89, 0x02, 0xbf, 0xd6};
 //detect ip5306 by register 0x77
-	if (!i2c_read_data(0x75, 0x77, &var, 1) || ((var & 0xf8) != 0x80)) return result;
-	if (!i2c_write_data(0x75, 0x77, 0x87)) return result;
-	if (!i2c_read_data(0x75, 0x77, &var, 1) || (var ^ 0x80)) return result;
+	err = i2c_read_data(0x75, 0x77, &var, 1);
+	if (err || ((var & 0xf8) != 0x80)) return err;
+	err =i2c_write_byte(0x75, 0x77, 0x87);
+	if (err) return err;
+	err = i2c_read_data(0x75, 0x77, &var, 1);
+	if (err || (var ^ 0x80)) return err;
 //verify all settings for m5stack or ttgo-t4
 	for (int i = 0; i < 8; i++) {
-	if (!i2c_read_data(0x75, ip5306_addr[i], &var, 1)) return result;
+	err = i2c_read_data(0x75, ip5306_addr[i], &var, 1);
+	if (err) return err;
 	if (var != ip5306_data[i]) {
-	if (!i2c_write_data(0x75, ip5306_addr[i], ip5306_data[i])) return result;
-	if (!i2c_read_data(0x75, ip5306_addr[i], &var, 1) || (var != ip5306_data[i])) return result;
+	err = i2c_write_byte(0x75, ip5306_addr[i], ip5306_data[i]);
+	if (err) return err;
+	err = i2c_read_data(0x75, ip5306_addr[i], &var, 1);
+	if (err || (var != ip5306_data[i])) return err;
 	}
 	}
-	result = 1;
+	err = 0;
 	i2cbits = i2cbits | 0x40000000;
 	*f_i2cdev = i2cbits;
-	return result;
+	return err;
 }
-bool i2c_read_ip5306 (uint32_t* f_i2cdev, uint8_t* ip5306_batmode, uint8_t* ip5306_batlev) 
+esp_err_t i2c_read_ip5306 (uint32_t* f_i2cdev, uint8_t* ip5306_batmode, uint8_t* ip5306_batlev) 
 {
-	bool result = 0;
+	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
 	uint8_t ip5306batmode = 0;
 	uint8_t ip5306batlev = 0;
-	if (!(i2cbits & 0x80000000)) return result;
+	if (!(i2cbits & 0x80000000)) return err;
 	uint8_t data[8] = {0};   
-	if (i2c_read_data(0x75, 0x70, data, 1)) {
-	if (i2c_read_data(0x75, 0x71, &data[1], 1)) {
-	if (i2c_read_data(0x75, 0x72, &data[2], 1)) {
-	if (i2c_read_data(0x75, 0x77, &data[3], 1)) {
-	if (i2c_read_data(0x75, 0x78, &data[4], 1)) {
+	err = i2c_read_data(0x75, 0x70, data, 1);
+	if (!err) {  //70
+	err = i2c_read_data(0x75, 0x71, &data[1], 1);
+	if (!err) {  //71
+	err = i2c_read_data(0x75, 0x72, &data[2], 1);
+	if (!err) {  //72
+	err = i2c_read_data(0x75, 0x77, &data[3], 1);
+	if (!err) {  //77
+	err = i2c_read_data(0x75, 0x78, &data[4], 1);
+	if (!err) {  //78
 	switch (data[4] & 0xf0) {
 	case 0xe0:
         ip5306batlev = 25;
@@ -1008,7 +1954,7 @@ bool i2c_read_ip5306 (uint32_t* f_i2cdev, uint8_t* ip5306_batmode, uint8_t* ip53
 	}
 	if (data[0] & 0x08) ip5306batmode = ip5306batmode | 0x02;
 	if (data[1] & 0x08) ip5306batmode = ip5306batmode | 0x01;
-	result = 1;
+	err = 0;
 	*ip5306_batmode = ip5306batmode;
 	*ip5306_batlev = ip5306batlev;
 	} //78
@@ -1016,81 +1962,130 @@ bool i2c_read_ip5306 (uint32_t* f_i2cdev, uint8_t* ip5306_batmode, uint8_t* ip53
 	} //72
 	} //71
 	} //70
-	if (!result) {
-	*ip5306_batlev = 0;
-	}
-	return result;
+	if (err) *ip5306_batlev = 0;
+	return err;
 }
 //***************** bme280 ********************
 //https://github.com/BoschSensortec/BME280_driver
 //https://cdn.sparkfun.com/assets/e/7/3/b/1/BME280_Datasheet.pdf
-bool i2c_init_bme280(uint8_t idx,uint32_t* f_i2cdev)
+//https://github.com/BoschSensortec/BME68x-Sensor-API
+//https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf
+esp_err_t i2c_init_bme280(uint8_t idx,uint32_t* f_i2cdev)
 {
-	bool result = 0;
+	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
-	if (!(i2cbits & 0x80000000)) return result;
+	if (!(i2cbits & 0x80000000) || (idx > 1)) return err;
 	uint8_t id = 0;
+	uint8_t idv = 0;
 	uint8_t buf = 0;
 	uint8_t addr;
-	if (!idx) addr = 0x76;
-	else addr = 0x77;
-	if (!i2c_check(addr)) return result;
-	if (!i2c_read_data(addr, 0xd0, &id, 1)) return result;
+	addr = i2c_addr[idx];
+	err = i2c_check(addr);
+	if (err) return err;
+	err = i2c_read_data(addr, 0xd0, &id, 1);
+	if (err) return err;
 	if ((id == 0x60) || (id == 0x58)) { //[d0]=60/bme280, [d0]=58/bmp280 
-	if (!i2c_write_data(addr, 0xe0, 0xb6)) return result; //write reset command
+// init 280
+	err = i2c_write_byte(addr, 0xe0, 0xb6);  //write reset command
+	if (err) return err; 
 	vTaskDelay(10 / portTICK_PERIOD_MS);      //2ms bme280 ready time after reset
-	if ((!i2c_read_data(addr, 0xf3, &buf, 1)) || (buf & 0x01)) return result;
-	if ((id == 0x60) && !i2c_write_data(addr, 0xf2, 0x05)) return result; //h*16
-	if (!i2c_write_data(addr, 0xf5, 0xa8)) return result; //config: 101 0.10 00 inactivity 1sec, IIR 4(a0-off)
-	if (!i2c_write_data(addr, 0xf4, 0xb7)) return result;  //ctrl_meas: 101 1.01 11 t*16 p*16 normal mode
-	result = 1;
+	err = i2c_read_data(addr, 0xf3, &buf, 1);
+	if (err || (buf & 0x01)) return err;
+	if (id == 0x60) err = i2c_write_byte(addr, 0xf2, 0x05); //h*16
+	if (err) return err; 
+	err = i2c_write_byte(addr, 0xf5, 0xa8); //config: 101 0.10 00 inactivity 1sec, IIR 4(a0-off)
+	if (err) return err; 
+	err = i2c_write_byte(addr, 0xf4, 0xb5);  //ctrl_meas: 101 1.01 11 t*16 p*16 forced mode
+	if (err) return err; 
 	i2cbits = i2cbits | (0x0001 << idx);
 	*f_i2cdev = i2cbits;
-////???
-/*
 	} else if (id == 0x61) {  //[d0]=61/bme680
+	err = i2c_read_data(addr, 0xf0, &idv, 1);
+	if (err) return err; 
+// init data 68x
+	uint16_t amb_temp = 25;
+	uint16_t temp = 320;
+	uint16_t dur = 100;
+// init 68x
 	int32_t var1;
 	int32_t var2;
 	int32_t var3;
 	int32_t var4;
 	int32_t var5;
-// BME68X_REG_COEFF1 8a/23 BME68X_REG_COEFF2 e1/14  BME68X_REG_COEFF3 00/5 42 all
-	int32_t heatr_res_x100;
-	uint8_t heatr_res;
-
-//
-	if (!i2c_write_data(addr, 0xe0, 0xb6)) return result; //write reset command
-	vTaskDelay(10 / portTICK_PERIOD_MS);      //2ms bme280 ready time after reset
-	if ((!i2c_read_data(addr, 0x1d, &buf, 1)) || (buf & 0xe0)) return result; //eas_status_0: no meas
-	if (!i2c_write_data(addr, 0x72, 0x05)) return result; //h*16
-	if (!i2c_write_data(addr, 0x75, 0x08)) return result; //config: 000 0.10 00 IIR 4(0-off)
-	if (!i2c_write_data(addr, 0x74, 0xb4)) return result; //ctrl_meas: 101 1.01 00 t*16 p*16 sleep mode
-//
-	if (!i2c_write_data(addr, 0x71, 0x00)) return result; //10 Ctrl_gas_1: run_gas
-	if (!i2c_write_data(addr, 0x70, 0x08)) return result; //00 Ctrl_gas_0: heat_off
-//
-	if (!i2c_write_data(addr, 0x74, 0xb5)) return result; //ctrl_meas: 101 1.01 01 t*16 p*16 force mode
-	result = 1;
+	int16_t gh2;
+	int8_t  gh1, gh3, htval;
+	uint8_t htrng, htres;
+	uint8_t clb[8] = {0};   
+	err = i2c_write_byte(addr, 0xe0, 0xb6); //write reset command
+	if (err) return err; 
+	vTaskDelay(10 / portTICK_PERIOD_MS);      //2ms bme68x ready time after reset
+	err = i2c_read_data(addr, 0x1d, &buf, 1);
+	if (err || (buf & 0xe0)) return err; //eas_status_0: no meas
+	err = i2c_write_byte(addr, 0x72, 0x05); //h*16
+	if (err) return err; 
+	err = i2c_write_byte(addr, 0x75, 0x08); //config: 000 0.10 00 IIR 4(0-off)
+	if (err) return err; 
+	err = i2c_write_byte(addr, 0x74, 0xb4); //ctrl_meas: 101 1.01 00 t*16 p*16 sleep mode
+	if (err) return err; 
+// BME68X_REG_COEFF2 e1/14  BME68X_REG_COEFF3 00/5 19 all
+	err = i2c_read_data(addr, 0xeb, clb, 4);     //calibration 2
+	if (err) return err; 
+	err = i2c_read_data(addr, 0x00, &clb[4], 3); //calibration 3
+	if (err) return err; 
+	gh1 = clb[2];
+	gh2 = (clb[1] << 8) + clb[0];
+	gh3 = clb[3];
+	htrng = (clb[6] & 0x30) >> 4;
+	htval = clb[4];
+// calculate the heater resistance value
+	var1 = (((int32_t)amb_temp * gh3) / 1000) * 256;
+	var2 = (gh1 + 784) * (((((gh2 + 154009) * temp * 5) / 100) + 3276800) / 10);
+	var3 = var1 + (var2 / 2);
+	var4 = (var3 / (htrng + 4));
+	var5 = (131 * htval) + 65536;
+	htres = (uint8_t)((((var4 / var5) - 250) * 34) / 100);
+	err = i2c_write_byte(addr, 0x5a, htres);
+	if (err) return err; 
+// calculate the gas wait
+	uint8_t factor = 0;
+	if (dur >= 0xfc0) htres = 0xff; // Max duration
+	else {
+	while (dur > 0x3F) {
+	dur = dur / 4;
+	factor += 1;
+	}
+	htres = (uint8_t)(dur + (factor * 64));
+	}
+	err = i2c_write_byte(addr, 0x64, htres);
+	if (err) return err; 
+	if (!idv) buf = 0x10;
+	else buf = 0x20;
+	err = i2c_write_byte(addr, 0x71, buf); //10 Ctrl_gas_1: run_gas
+	if (err) return err; 
+	err = i2c_write_byte(addr, 0x70, 0x00); //00 Ctrl_gas_0: heat_off
+	if (err) return err; 
+	err = i2c_write_byte(addr, 0x74, 0xb5); //ctrl_meas: 101 1.01 01 t*16 p*16 forced mode
+	if (err) return err; 
 	i2cbits = i2cbits | (0x0001 << idx);
 	*f_i2cdev = i2cbits;
-////???
-*/
 	} //id
-	return result;
+	return err;
 }
-bool i2c_read_bme280 (uint8_t idx, uint32_t* f_i2cdev, uint16_t* temp, uint16_t* humid, uint16_t* press, uint32_t* res)
+esp_err_t i2c_read_bme280 (uint8_t idx, uint32_t* f_i2cdev, uint16_t* temp, uint16_t* humid, uint16_t* press, uint32_t* res)
 {
-	bool result = 0;
+	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
-	if (!(i2cbits & 0x80000000)) return result;
+	if (!(i2cbits & 0x80000000) || (idx > 1)) return err;
 	uint8_t id = 0;
 	uint8_t idv = 0;
 	uint8_t clb[42] = {0};   
 	uint8_t data[24] = {0};   
 	uint8_t addr;            
-	if (!idx) addr = 0x76;
-	else addr = 0x77;
-	if (i2c_check(addr) && i2c_read_data(addr, 0xd0, &id, 1) && ((id == 0x60) || (id == 0x58))) { //[d0]=60/bme280, =58/bmp280 
+	addr = i2c_addr[idx];
+	err = i2c_check(addr);
+	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
+	if (!err) err = i2c_read_data(addr, 0xd0, &id, 1);
+	if (!err && ((id == 0x60) || (id == 0x58))) { //[d0]=60/bme280, =58/bmp280 
 //bme280
 	int32_t adc_t, var1, var2, fine,  var3, var4, var5;
 	uint32_t p;
@@ -1099,22 +2094,24 @@ bool i2c_read_bme280 (uint8_t idx, uint32_t* f_i2cdev, uint16_t* temp, uint16_t*
 	int8_t h6;
 	uint8_t h1, h3;
 //read data
-	if (i2c_read_data(addr, 0xf3, &data[8], 3) && (data[9] == 0xb7)) {   //f3 & verify ctrl_meas(f4)
-	if (i2c_read_data(addr, 0x88, clb, 0x19)) {       //calibration 1
+	err = i2c_read_data(addr, 0xf3, &data[8], 3);
+	if (!err && ((data[9] & 0xfc) == 0xb4)) {   //f3 & verify ctrl_meas(f4)
+	err = i2c_read_data(addr, 0x88, clb, 0x19);
+	if (!err) {       //calibration 1
 	if (id == 0x60) {                                 //bme
-	if (i2c_read_data(addr, 0xe1, &clb[0x1a], 7)) {   //calibration 2
-	if (i2c_read_data(addr, 0xf7, data, 8)) result = 1;
-	else result = 0;//f7
-	} else result = 0;//e1
-	} else {                                          //bmp
-	if (i2c_read_data(addr, 0xf7, data, 6)) result = 1;
-	else result = 0;//f7
+	err = i2c_read_data(addr, 0xe1, &clb[0x1a], 7);  //humid calibration 
+	if (!err) {   //calibration 2
+	err = i2c_read_data(addr, 0xf7, data, 8);        //read data bme
 	}
-	} else result = 0;//88
-	} else result = 0;//f3
+	} else {                                          //bmp
+	err = i2c_read_data(addr, 0xf7, data, 6);        //read data bmp
+	}
+	if (!err) err = i2c_write_byte(addr, 0xf4, 0xb5); //start next measurement
+	} //88
+	} else if (!err) err = -1; //f3
 //esp_log_buffer_hex(AP_TAG, clb, 40);
 //esp_log_buffer_hex(AP_TAG, data, 16);
-	if (result) {
+	if (!err) {
 //temperature  res -> 0.1degC
 	t1 = (clb[1] << 8) + clb[0];
 	t2 = (clb[3] << 8) + clb[2];
@@ -1203,29 +2200,36 @@ bool i2c_read_bme280 (uint8_t idx, uint32_t* f_i2cdev, uint16_t* temp, uint16_t*
 	*press = 0;
 	*res = 0xffffffff;
 	}
-	} else if ((id == 0x61) && i2c_read_data(addr, 0xf0, &idv, 1)) {
+	} else if (id == 0x61) {
 //bme68x
 // BME68X_REG_COEFF1 8a/23 BME68X_REG_COEFF2 e1/14  BME68X_REG_COEFF3 00/5 42 all
 	int32_t adc_t, var1, var2, fine,  var3, var4, var5, finesc;
 	uint32_t p, grs;
-	int16_t t2, p2, p4, p5, p8, p9, gh2;
+	int16_t t2, p2, p4, p5, p8, p9;
 	uint16_t t1, h1, h2, p1;
-	int8_t t3, p3, p6, p7, h3, h4, h5, h7, gh1, gh3, htv, swer;
-	uint8_t p10, h6, htr, grng;
+	int8_t t3, p3, p6, p7, h3, h4, h5, h7, swer;
+	uint8_t p10, h6, grng;
 //read data
-	if (i2c_read_data(addr, 0x74, &data[0], 1) && ((data[0] & 0xfc) == 0xb4)) {   //74 & verify ctrl_meas(f4)
-	if (i2c_read_data(addr, 0x8a, clb, 23)) {       //calibration 1
-	if (i2c_read_data(addr, 0xe1, &clb[23], 14)) {  //calibration 2
-	if (i2c_read_data(addr, 0x00, &clb[37], 5)) {   //calibration 3
-	if ((i2c_read_data(addr, 0x1d, data, 17)) && i2c_write_data(addr, 0x74, 0xb5)) result = 1; //read data & start next
-	else result = 0;//1f
-	} else result = 0;//00
-	} else result = 0;//e1
-	} else result = 0;//8a
-	} else result = 0;//74
-esp_log_buffer_hex(AP_TAG, clb, 42);
-esp_log_buffer_hex(AP_TAG, data, 16);
-	if (result) {
+	err = i2c_read_data(addr, 0xf0, &idv, 1);
+	if (!err) { //f0
+	err  = i2c_read_data(addr, 0x74, &data[0], 1);
+	if (!err && ((data[0] & 0xfc) == 0xb4)) {   //74 & verify ctrl_meas(f4)
+	err = i2c_read_data(addr, 0x8a, clb, 23);
+	if (!err) {       //calibration 1
+	err = i2c_read_data(addr, 0xe1, &clb[23], 14);
+	if (!err) {  //calibration 2
+	err = i2c_read_data(addr, 0x00, &clb[37], 5);
+	if (!err) {   //calibration 3
+	err = i2c_read_data(addr, 0x1d, data, 17);       //read data
+	if (!err) err = i2c_write_byte(addr, 0x74, 0xb5); //start next measurement
+	} //00
+	} //e1
+	} //8a
+	} else if (!err) err = -1;//74
+	} //f0
+//esp_log_buffer_hex(AP_TAG, clb, 42);
+//esp_log_buffer_hex(AP_TAG, data, 16);
+	if (!err) {
 // 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d
 //  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16
 //        p        t        h             gl    gh
@@ -1250,7 +2254,7 @@ esp_log_buffer_hex(AP_TAG, data, 16);
 	h6 = clb[29];
 	h7 = clb[30];
 	adc_t = (data[8] << 8) + data[9];
-	if ((id == 0x60) && (adc_t != 0x8000)) {
+	if ((id == 0x61) && (adc_t != 0x8000)) {
 	finesc = (((int32_t)fine * 5) + 128) >> 8;
 	var1 = (int32_t)(adc_t - ((int32_t)((int32_t)h1 * 16))) - (((finesc * (int32_t)h3) / ((int32_t)100)) >> 1);
 	var2 = ((int32_t)h2 * (((finesc * (int32_t)h4) / ((int32_t)100)) +
@@ -1305,11 +2309,6 @@ esp_log_buffer_hex(AP_TAG, data, 16);
 	*press = 0;
 	}
 //gas resistance
-	gh1 = clb[35];
-	gh2 = (clb[34] << 8) + clb[33];
-	gh3 = clb[36];
-	htr = (clb[39] & 0x30) >> 4;
-	htv = clb[37];
 	swer = (clb[41] & 0xf0) >> 4;
 	if (!idv) {
 //bme680
@@ -1366,7 +2365,300 @@ esp_log_buffer_hex(AP_TAG, data, 16);
 	*press = 0;
 	*res = 0xffffffff;
 	} //d0
-	return result;
+	return err;
+}
+
+//***************** sht3x *********************
+esp_err_t i2c_init_sht3x(uint8_t idx,uint32_t* f_i2cdev)
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	if (!(i2cbits & 0x80000000) || (idx > 1)) return err;
+	uint8_t buf[4] = {0};
+	uint8_t addr;
+	addr = i2c_addr[idx + 2];
+	err = i2c_check(addr);
+	if (err) return err;
+	err = i2c_write_byte(addr, 0x30, 0xa2);  //write reset command
+	if (err) return err; 
+	vTaskDelay(10 / portTICK_PERIOD_MS);      //1ms sht3x ready time after reset
+	err = i2c_read2_data(addr, 0xf3, 0x2d, buf, 3); //read status
+	if (err) return err;
+	err = -1;
+	if (buf[0] & 0x20) return err;           //check heater off after reset
+	err = i2c_write_byte(addr, 0x30, 0x41);  //write clear status
+	if (err) return err;
+	vTaskDelay(10 / portTICK_PERIOD_MS);      //1ms sht3x ready time
+	err = i2c_read2_data(addr, 0xf3, 0x2d, buf, 3); //read status
+	if (err) return err;
+	if ((buf[0] & 0x20) || (buf[1] & 0x10)) return -1;
+	i2cbits = i2cbits | (0x0004 << idx);
+	*f_i2cdev = i2cbits;
+	return err;
+}
+esp_err_t i2c_read_sht3x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_t* humid)
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	uint32_t tmp, hum;
+	if (!(i2cbits & 0x80000000) || (idx > 1)) return err;
+	uint8_t buf[8] = {0};
+	uint8_t addr;
+	addr = i2c_addr[idx + 2];
+	err = i2c_check(addr);
+	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
+	if (!err) {
+	err = i2c_write_byte(addr, 0x24, 0x00);  //Start Measurement Command for Single Shot Mode
+	vTaskDelay(30 / portTICK_PERIOD_MS);      //15ms sht3x ready in Single Shot Mode
+	if (!err) {
+	err = i2c_read0_data(addr, buf, 6); //read data
+	if (!err) {
+	tmp = ((((buf[0] << 8) + buf[1]) * 1750 ) >> 12) - 7200; 
+	*temp = tmp;
+	hum = (((buf[3] << 8) + buf[4]) * 1000) >> 16;
+	*humid = hum;
+	}
+	}
+	}
+	if (err) {
+	*temp = 0xffff;
+	*humid = 0;
+	}
+	return err;
+}
+//***************** aht2x *********************
+esp_err_t i2c_init_aht2x(uint8_t idx,uint32_t* f_i2cdev)
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	if (!(i2cbits & 0x80000000) || idx) return err;
+	uint8_t buf[4] = {0};
+	uint8_t addr;
+	addr = i2c_addr[idx + 4];
+	err = i2c_check(addr);
+	if (err) return err;
+	err = i2c_write_data(addr, 0xba, buf, 0);  //write reset command
+	if (err) return err; 
+	vTaskDelay(25 / portTICK_PERIOD_MS);      //20ms sht2x ready time after reset
+	err = i2c_read_data(addr, 0x71, buf, 1); //read status
+	if (err) return err;
+	buf[0] = 0x08;
+	buf[1] = 0;
+	if ((buf[0] & 0x18) != 0x18) err = i2c_write_data(addr, 0xbe, buf, 2);  //calibration command
+	vTaskDelay(25 / portTICK_PERIOD_MS);      //10ms sht2x ready time after reset
+	err = i2c_read_data(addr, 0x71, buf, 1); //read status
+	if (err) return err;
+	if ((buf[0] & 0x18) != 0x18) return -1;  //if not calibrated - error;
+	i2cbits = i2cbits | (0x0010 << idx);
+	*f_i2cdev = i2cbits;
+	return err;
+}
+esp_err_t i2c_read_aht2x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_t* humid)
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	uint32_t tmp, hum;
+	if (!(i2cbits & 0x80000000) || idx) return err;
+	uint8_t buf[8] = {0};
+	uint8_t addr;
+	addr = i2c_addr[idx + 4];
+	err = i2c_check(addr);
+	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
+	if (!err) {
+	buf[0] = 0x33;
+	buf[1] = 0;
+	err = i2c_write_data(addr, 0xac, buf, 2);  //Start Measurement Command
+	vTaskDelay(100 / portTICK_PERIOD_MS);      //80ms aht2x ready
+	if (!err) {
+	err = i2c_read0_data(addr, buf, 7); //read data
+	if (!err) {
+	if (!(buf[0] & 0x80)) {
+	tmp = (((((buf[3] & 0x0f) << 16) | (buf[4] << 8) | buf[5]) * 1000) >> 15) - 8000; 
+	*temp = tmp;
+	hum = (((buf[1] << 12) | (buf[2] << 4) | (buf[3] >> 4)) * 1000) >> 20;
+	*humid = hum;
+	} else err = -1;
+	}
+	}
+	}
+	if (err) {
+	*temp = 0xffff;
+	*humid = 0;
+	}
+	return err;
+}
+//***************** htu21 *********************
+esp_err_t i2c_init_htu21(uint8_t idx,uint32_t* f_i2cdev)
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	if (!(i2cbits & 0x80000000) || idx) return err;
+	uint8_t buf = 0xff;
+	uint8_t addr;
+	addr = i2c_addr[idx + 6];
+	err = i2c_check(addr);
+	if (err) return err;
+	err = i2c_write_data(addr, 0xfe, &buf, 0);  //write reset command
+	if (err) return err; 
+	vTaskDelay(30 / portTICK_PERIOD_MS);      //15ms htu21 ready time after reset
+	err = i2c_read_data(addr, 0xe7, &buf, 1); //read status
+	if (err) return err;
+ESP_LOGI(AP_TAG, "htu user: 0x%X", buf);
+	if (buf & 0x38) return -1;
+	if (buf & 0x04) {
+	buf &= 0xfb;
+	err = i2c_write_byte(addr, 0xe6, buf);  //disable heater
+	if (err) return err;
+	err = i2c_read_data(addr, 0xe7, &buf, 1); //read status
+	if (err) return err;
+	if (buf & 0x3c) return -1;
+	}
+	i2cbits = i2cbits | (0x0040 << idx);
+	*f_i2cdev = i2cbits;
+	return err;
+}
+esp_err_t i2c_read_htu21(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_t* humid)
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	uint32_t tmp, hum;
+	if (!(i2cbits & 0x80000000) || idx) return err;
+	uint8_t buf[4] = {0};
+	uint8_t addr;
+	addr = i2c_addr[idx + 6];
+	err = i2c_check(addr);
+	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
+	if (!err) {  //1
+	err = i2c_write_data(addr, 0xf3, buf, 0);  //Start Measurement Command for temperature
+	if (!err) {  //2
+	vTaskDelay(100 / portTICK_PERIOD_MS);      //50ms ready temperature
+	err = i2c_read0_data(addr, buf, 3); //read data
+esp_log_buffer_hex(AP_TAG, buf, 4);
+	if (!err) { //3
+	tmp = ((((buf[0] << 8) + buf[1]) * 1757 ) >> 12) - 7488; 
+	*temp = tmp;
+	err = i2c_write_data(addr, 0xf5, buf, 0);  //Start Measurement Command for humidity
+	if (!err) { //4
+	vTaskDelay(50 / portTICK_PERIOD_MS);      //16ms ready humidity
+	err = i2c_read0_data(addr, buf, 3); //read data
+esp_log_buffer_hex(AP_TAG, buf, 4);
+	if (!err) { //5
+	hum = ((((buf[0] << 8) + buf[1]) * 1250 ) >> 16) - 60; 
+	*humid = hum;
+	} //5
+	} //4
+	} //3
+	} //2
+	} //1
+
+	if (err) {
+	*temp = 0xffff;
+	*humid = 0;
+	}
+	return err;
+}
+
+
+
+
+//***************** ds3231 ********************
+esp_err_t i2c_init_ds3231(uint8_t idx,uint32_t* f_i2cdev)
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	if (!(i2cbits & 0x80000000) || idx) return err;
+	uint8_t data[32];
+	uint8_t addr;
+	addr = i2c_addr[idx + 5];
+	err = i2c_check(addr);
+	if (err) return err;
+	memset(data, 0xff, sizeof(data));
+	err = i2c_read_data(addr, 0x00, data, 20);
+	if (err) return err;
+	if ((data[0x00] & 0x80) || (data[0x01] & 0x80) || (data[0x02] & 0x80) || (data[0x03] & 0xf8)
+	 || (data[0x04] & 0xc0) || (data[0x05] & 0x60) || (data[0x0f] & 0x70) || (data[0x12] & 0x3f)) return -1;
+	if (!(data[0x0e] & 0x20) && !(data[0x0f] & 0x04)) err = i2c_write_byte(addr, 0x0e, 0x3c);
+	else err = i2c_write_byte(addr, 0x0e, 0x1c);
+	if (!err) {
+	i2cbits = i2cbits | (0x0020 << idx);
+	*f_i2cdev = i2cbits;
+	}
+	return err;
+}
+uint8_t b2bcd(uint8_t x)
+{
+	uint8_t y;
+	y = ((x / 10) << 4) | (x % 10);
+	return y;
+}
+uint8_t bcd2b(uint8_t x)
+{
+	uint8_t y;
+	y = (x & 0x0f) + ((x & 0xf0) >> 1) + ((x & 0xf0) >> 3);
+	return y;
+}
+esp_err_t i2c_read_ds3231(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp)
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	if (!(i2cbits & 0x80000000) || idx) return err;
+	struct tm timeinfo;
+	time_t now;
+	int16_t itmp;
+	uint8_t data[32];
+	uint8_t addr;
+	addr = i2c_addr[idx + 5];
+	memset(data, 0xff, sizeof(data));
+	err = i2c_check(addr);
+	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
+	if (!err) {  //1
+	err = i2c_read_data(addr, 0x00, data, 20);
+	itmp =  (data[0x11]<< 8) | data[0x12];
+	itmp = (itmp >> 1) + (itmp >> 3) + 8;
+	if (!err) {  //2
+	time(&now);
+	localtime_r(&now, &timeinfo);
+	if (timeinfo.tm_year > 100) {  //3
+	data[20] = b2bcd(timeinfo.tm_sec);
+	data[21] = b2bcd(timeinfo.tm_min);
+	data[22] = b2bcd(timeinfo.tm_hour);
+	data[23] = timeinfo.tm_wday + 1;
+	data[24] = b2bcd(timeinfo.tm_mday);
+	data[25] = b2bcd(timeinfo.tm_mon);
+	data[26] = b2bcd(timeinfo.tm_year % 100);
+        if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED) {
+	if ((data[0x0f] & 0x80) || ((data[0] ^ data[20]) & 0xf0) || memcmp(&data[21], &data[1], 6)) {
+	err = i2c_write_data(addr, 0x00, &data[20], 7);  //write data
+	if (!err) err = i2c_write_byte(addr, 0x0f, (data[0x0f] & 0x7f)); //clear OSF
+	if (!err && fdebug) ESP_LOGI(AP_TAG, "Write to RTC Ok");
+	}
+	}
+	} else if (!(data[0x0f] & 0x80)) {
+	timeinfo.tm_sec = bcd2b(data[0]);
+	timeinfo.tm_min = bcd2b(data[1]);
+	timeinfo.tm_hour = bcd2b(data[2]);
+	timeinfo.tm_mday = bcd2b(data[4]);
+	timeinfo.tm_mon = bcd2b(data[5] & 0x1f);
+	timeinfo.tm_year = bcd2b(data[6]) + 100;
+	now = mktime(&timeinfo);
+	struct timeval stnow = { .tv_sec = now};
+	settimeofday(&stnow, NULL);
+	if (fdebug) ESP_LOGI(AP_TAG, "Read from RTC Ok");
+	} else {
+	if (fdebug) ESP_LOGI(AP_TAG, "RTC Oscillator Stop detected");
+	} //3
+	} //2
+	} //1
+	if (!err && !(data[0x0e] & 0x20) && !(data[0x0f] & 0x04))  {
+	data[0x0e] |= 0x20;
+	err = i2c_write_byte(addr, 0x0e, data[0x0e]);
+	}
+	if (err) {
+	*temp = 0xffff;
+	} else {
+	*temp = itmp;
+	}
+	return err;
 }
 
 //*********************************************
@@ -1377,6 +2669,7 @@ static struct BleDevSt BleDevStB;
 static struct BleDevSt BleDevStC;
 static struct BleDevSt BleDevStD;
 static struct BleDevSt BleDevStE;
+static int wf_retry_cnt;
 
 static struct BleMonRec BleMR[BleMonNum];
 static struct BleMonExt BleMX[BleMonNum];
@@ -2954,6 +4247,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	if (!fcommtp) strcat(buft,"/cmd");
 	strcat(buft,"/prog");
 	esp_mqtt_client_subscribe(mqttclient, buft, 0);
+	if (ptr->DEV_TYP != 48) {
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
 	strcat(buft,ptr->tBLEAddr);
@@ -2966,6 +4260,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	if (!fcommtp) strcat(buft,"/cmd");
 	strcat(buft,"/temp");
 	esp_mqtt_client_subscribe(mqttclient, buft, 0);
+	}
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
 	strcat(buft,ptr->tBLEAddr);
@@ -3006,7 +4301,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	itoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Cooker.switch\",\"icon\":\"mdi:chef-hat\",\"uniq_id\":\"switch_");
+	strcat(bufd,".Cooker.switch\",\"icon\":\"mdi:clock-start\",\"uniq_id\":\"switch_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Cooker_");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3108,7 +4403,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	itoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Cooker.auto.warming\",\"icon\":\"mdi:pot-steam\",\"uniq_id\":\"autowarming_");
+	strcat(bufd,".Cooker.auto.warming\",\"icon\":\"mdi:pot-steam-outline\",\"uniq_id\":\"autowarming_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Cooker_");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3138,6 +4433,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,"[\"OFF\",\"ON\"]}");
 	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
 //
+	if (ptr->DEV_TYP != 48) {
 	strcpy(buft,"homeassistant/number/");
 	strcat(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/1x");
@@ -3169,12 +4465,13 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
 	if (!fcommtp) strcat(bufd,"/rsp");
-	strcat(bufd,"/temp\",\"min\":\"0\",\"max\":\"230\",\"unit_of_meas\":\"\xc2\xb0\x43\",\"availability_topic\":\"");
+	strcat(bufd,"/temp\",\"mode\":\"box\",\"min\":\"0\",\"max\":\"230\",\"unit_of_meas\":\"\xc2\xb0\x43\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+	}
 //
 	strcpy(buft,"homeassistant/number/");
 	strcat(buft,MQTT_BASE_TOPIC);
@@ -3185,7 +4482,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	itoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Cooker.s.hour\",\"icon\":\"mdi:timer\",\"uniq_id\":\"shour_");
+	strcat(bufd,".Cooker.s.hour\",\"icon\":\"mdi:clock-outline\",\"uniq_id\":\"shour_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Cooker_");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3207,7 +4504,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
 	if (!fcommtp) strcat(bufd,"/rsp");
-	strcat(bufd,"/set_hour\",\"min\":\"0\",\"max\":\"23\",\"availability_topic\":\"");
+	strcat(bufd,"/set_hour\",\"mode\":\"box\",\"min\":\"0\",\"max\":\"23\",\"unit_of_meas\":\"h\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3223,7 +4520,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	itoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Cooker.s.min\",\"icon\":\"mdi:timer\",\"uniq_id\":\"smin_");
+	strcat(bufd,".Cooker.s.min\",\"icon\":\"mdi:clock-outline\",\"uniq_id\":\"smin_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Cooker_");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3245,7 +4542,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
 	if (!fcommtp) strcat(bufd,"/rsp");
-	strcat(bufd,"/set_min\",\"min\":\"0\",\"max\":\"59\",\"availability_topic\":\"");
+	strcat(bufd,"/set_min\",\"mode\":\"box\",\"min\":\"0\",\"max\":\"59\",\"unit_of_meas\":\"m\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3261,7 +4558,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	itoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Cooker.d.hour\",\"icon\":\"mdi:timer\",\"uniq_id\":\"dhour_");
+	strcat(bufd,".Cooker.d.hour\",\"icon\":\"mdi:clock-plus-outline\",\"uniq_id\":\"dhour_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Cooker_");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3283,7 +4580,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
 	if (!fcommtp) strcat(bufd,"/rsp");
-	strcat(bufd,"/delay_hour\",\"min\":\"0\",\"max\":\"23\",\"availability_topic\":\"");
+	strcat(bufd,"/delay_hour\",\"mode\":\"box\",\"min\":\"0\",\"max\":\"23\",\"unit_of_meas\":\"h\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3299,7 +4596,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	itoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Cooker.d.min\",\"icon\":\"mdi:timer\",\"uniq_id\":\"dmin_");
+	strcat(bufd,".Cooker.d.min\",\"icon\":\"mdi:clock-plus-outline\",\"uniq_id\":\"dmin_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Cooker_");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3321,7 +4618,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
 	if (!fcommtp) strcat(bufd,"/rsp");
-	strcat(bufd,"/delay_min\",\"min\":\"0\",\"max\":\"59\",\"availability_topic\":\"");
+	strcat(bufd,"/delay_min\",\"mode\":\"box\",\"min\":\"0\",\"max\":\"59\",\"unit_of_meas\":\"m\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3337,7 +4634,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	itoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Cooker.state\",\"icon\":\"mdi:pot-steam\",\"uniq_id\":\"stat_");
+	strcat(bufd,".Cooker.state\",\"icon\":\"mdi:pot-steam-outline\",\"uniq_id\":\"stat_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Cooker_");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3370,7 +4667,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	itoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Cooker.hour\",\"icon\":\"mdi:timer\",\"uniq_id\":\"hour_");
+	strcat(bufd,".Cooker.hour\",\"icon\":\"mdi:clock-outline\",\"uniq_id\":\"hour_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Cooker_");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3387,7 +4684,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
 	if (!fcommtp) strcat(bufd,"/rsp");
-	strcat(bufd,"/hour\",\"availability_topic\":\"");
+	strcat(bufd,"/hour\",\"unit_of_meas\":\"h\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3403,7 +4700,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	itoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Cooker.min\",\"icon\":\"mdi:timer\",\"uniq_id\":\"min_");
+	strcat(bufd,".Cooker.min\",\"icon\":\"mdi:clock-outline\",\"uniq_id\":\"min_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Cooker_");
 	strcat(bufd,ptr->tBLEAddr);
@@ -3420,7 +4717,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
 	if (!fcommtp) strcat(bufd,"/rsp");
-	strcat(bufd,"/min\",\"availability_topic\":\"");
+	strcat(bufd,"/min\",\"unit_of_meas\":\"m\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -4318,6 +5615,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
 	strcat(buft,ptr->tBLEAddr);
+	if (!fcommtp) strcat(buft,"/cmd");
 	strcat(buft,"/set");
 	esp_mqtt_client_subscribe(mqttclient, buft, 0);
 	if (FDHass) {
@@ -4346,14 +5644,17 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
 	strcat(bufd,"/set\",\"set_position_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
 	strcat(bufd,"/set\",\"position_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
 	strcat(bufd,"/position\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
@@ -4386,6 +5687,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
 	strcat(bufd,"/position\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
@@ -4418,6 +5720,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
 	strcat(bufd,"/illuminance\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
@@ -4482,6 +5785,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
 	strcat(bufd,"/battery\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
@@ -7703,8 +9007,8 @@ bool rm800sPall(uint8_t blenum, uint8_t prog, uint8_t mod, uint8_t temp, uint8_t
 	if (( ptr->DEV_TYP == 18 ) && (prog > 10)) return false;
 	if (( ptr->DEV_TYP == 19 ) && (prog > 9)) return false;
 	if (( ptr->DEV_TYP == 20 ) && (prog > 17)) return false;
-	uint8_t data[] = { prog, 0, 0, 0, 0, dhour, dmin, warm};
 	if ( ptr->DEV_TYP < 24 ) {
+	uint8_t data[] = { prog, 0, 0, 0, 0, dhour, dmin, warm};
 	if ( ptr->DEV_TYP == 16 ) {
 // for RMC-800s
 	switch (prog) {
@@ -8216,7 +9520,8 @@ bool rm800sPall(uint8_t blenum, uint8_t prog, uint8_t mod, uint8_t temp, uint8_t
 	ptr->bDHour = dhour;
 	ptr->bDMin = dmin;
 	return true;
-	} else {
+	} else if ( ptr->DEV_TYP == 24 ) {
+	uint8_t data[] = { prog , 0};
 	if (r4sCommand(blenum, 0x09, data, 1) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
 	data[0] = mod;
@@ -8235,8 +9540,17 @@ bool rm800sPall(uint8_t blenum, uint8_t prog, uint8_t mod, uint8_t temp, uint8_t
 	data[1] = ((ttemp)>>8 & 0xff) | 0xf0;
 	if (r4sCommand(blenum, 0x0b, data, 2) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
+	data[0] = warm;
+	if (r4sCommand(blenum, 0x16, data, 1) != 5) return false;
+	if (ptr->notifyData[3] != 1) return false;
 	return true;
-}
+	} else if ( ptr->DEV_TYP == 48 ) {
+	uint8_t data[] = { prog, phour, pmin, 0,  dhour, dmin, 0, warm,  0, 0, 0, 0,  0, 0, 0, 0};
+	if (r4sCommand(blenum, 0x05, data, sizeof(data)) != 5) return false;
+	if (ptr->notifyData[3] != 1) return false;
+	return true;
+	return true;
+	} else return false;
 }
 
 bool rm800sProg(uint8_t blenum, uint8_t prog) {
@@ -8264,8 +9578,8 @@ bool rm800sProg(uint8_t blenum, uint8_t prog) {
 	if (( ptr->DEV_TYP == 18 ) && (prog > 10)) return false;
 	if (( ptr->DEV_TYP == 19 ) && (prog > 9)) return false;
 	if (( ptr->DEV_TYP == 20 ) && (prog > 17)) return false;
-	uint8_t data[] = { prog, 0, 0, 0, 0, ptr->bDHour, ptr->bDMin, ptr->bAwarm};
 	if ( ptr->DEV_TYP < 24 ) {
+	uint8_t data[] = { prog, 0, 0, 0, 0, ptr->bDHour, ptr->bDMin, ptr->bAwarm};
 	if ( ptr->DEV_TYP == 16 ) {
 // for RMC-800s
 	switch (prog) {
@@ -8768,11 +10082,12 @@ bool rm800sProg(uint8_t blenum, uint8_t prog) {
 	if (r4sCommand(blenum, 0x05, data, sizeof(data)) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
 	return true;
-	} else {
+	} else if (( ptr->DEV_TYP == 24 ) || ( ptr->DEV_TYP == 48 )) {
+	uint8_t data[] = { prog };
 	if (r4sCommand(blenum, 0x09, data, 1) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
 	return true;
-}
+	} else return false;
 }
 
 bool rm800sMod(uint8_t blenum, uint8_t mod) {
@@ -8852,12 +10167,13 @@ bool rm800sMod(uint8_t blenum, uint8_t mod) {
 	if (r4sCommand(blenum, 0x05, data, sizeof(data)) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
 	return true;
-	} else {
+	} else if ( ptr->DEV_TYP == 24 ) {
 	data[0] = mod;
 	if (r4sCommand(blenum, 0x0a, data, 1) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
 	return true;
-}
+	} else if ( ptr->DEV_TYP == 48 ) return true;
+	else return false;
 }
 
 bool rm800sTemp(uint8_t blenum, uint8_t temp) {
@@ -8885,14 +10201,15 @@ bool rm800sTemp(uint8_t blenum, uint8_t temp) {
 	if (r4sCommand(blenum, 0x0b, data, 1) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
 	return true;
-	} else {
+	} else if ( ptr->DEV_TYP == 24 ) {
 	uint16_t ttemp = temp * 10;
 	data[0] = ttemp & 0xff;
 	data[1] = ((ttemp)>>8 & 0xff) | 0xf0;
 	if (r4sCommand(blenum, 0x0b, data, 2) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
 	return true;
-	}
+	} else if ( ptr->DEV_TYP == 48 ) return true;
+	else return false;
 }
 
 bool rm800sPhour(uint8_t blenum, uint8_t hour) {
@@ -8915,12 +10232,17 @@ bool rm800sPhour(uint8_t blenum, uint8_t hour) {
 	ptr = &BleDevStA;
 	break;
 	}
+	if ( ptr->DEV_TYP < 48 ) {
 	uint8_t data[] = { hour, ptr->bPMin};
-	if (r4sCommand(blenum, 0x0c, data, sizeof(data)) != 5)
-	return false;
-	if (ptr->notifyData[3] != 1)
-	return false;
+	if (r4sCommand(blenum, 0x0c, data, sizeof(data)) != 5) return false;
+	if (ptr->notifyData[3] != 1) return false;
 	return true;
+	} else if ( ptr->DEV_TYP == 48 ) {
+	uint8_t data[] = { hour, ptr->bPMin, 0 };
+	if (r4sCommand(blenum, 0x0c, data, sizeof(data)) != 5) return false;
+	if (ptr->notifyData[3] != 1) return false;
+	return true;
+	} else return false;
 }
 
 bool rm800sPmin(uint8_t blenum, uint8_t min) {
@@ -8943,12 +10265,17 @@ bool rm800sPmin(uint8_t blenum, uint8_t min) {
 	ptr = &BleDevStA;
 	break;
 	}
+	if ( ptr->DEV_TYP < 48 ) {
 	uint8_t data[] = { ptr->bPHour, min};
-	if (r4sCommand(blenum, 0x0c, data, sizeof(data)) != 5)
-	return false;
-	if (ptr->notifyData[3] != 1)
-	return false;
+	if (r4sCommand(blenum, 0x0c, data, sizeof(data)) != 5) return false;
+	if (ptr->notifyData[3] != 1) return false;
 	return true;
+	} else if ( ptr->DEV_TYP == 48 ) {
+	uint8_t data[] = { ptr->bPHour, min, 0};
+	if (r4sCommand(blenum, 0x0c, data, sizeof(data)) != 5) return false;
+	if (ptr->notifyData[3] != 1) return false;
+	return true;
+	} else return false;
 }
 
 bool rm800sDhour(uint8_t blenum, uint8_t hour) {
@@ -8972,10 +10299,8 @@ bool rm800sDhour(uint8_t blenum, uint8_t hour) {
 	break;
 	}
 	uint8_t data[] = { hour, ptr->bDMin};
-	if (r4sCommand(blenum, 0x14, data, sizeof(data)) != 5)
-	return false;
-	if (ptr->notifyData[3] != 1)
-	return false;
+	if (r4sCommand(blenum, 0x14, data, sizeof(data)) != 5) return false;
+	if (ptr->notifyData[3] != 1) return false;
 	return true;
 }
 
@@ -9000,10 +10325,8 @@ bool rm800sDmin(uint8_t blenum, uint8_t min) {
 	break;
 	}
 	uint8_t data[] = { ptr->bDHour, min};
-	if (r4sCommand(blenum, 0x14, data, sizeof(data)) != 5)
-	return false;
-	if (ptr->notifyData[3] != 1)
-	return false;
+	if (r4sCommand(blenum, 0x14, data, sizeof(data)) != 5) return false;
+	if (ptr->notifyData[3] != 1) return false;
 	return true;
 }
 
@@ -9027,12 +10350,19 @@ bool rm800sAwarm(uint8_t blenum, uint8_t warm) {
 	ptr = &BleDevStA;
 	break;
 	}
+	if ( ptr->DEV_TYP < 24 ) {
 	uint8_t data[] = { ptr->bProg, ptr->bModProg, ptr->bHtemp, ptr->bPHour, ptr->bPMin, ptr->bDHour, ptr->bDMin, warm};
 	if (r4sCommand(blenum, 0x05, data, sizeof(data)) != 5)
 	return false;
 	if (ptr->notifyData[3] != 1)
 	return false;
 	return true;
+	} else if (( ptr->DEV_TYP == 24 ) || ( ptr->DEV_TYP == 48 )) {
+	uint8_t data[] = { warm };
+	if (r4sCommand(blenum, 0x16, data, 1) != 5) return false;
+	if (ptr->notifyData[3] != 1) return false;
+	return true;
+	} else return false;
 }
 
 bool m51sCalibrate(uint8_t blenum) {
@@ -9359,6 +10689,8 @@ void msStatus(uint8_t blenum) {
 	ptr->bStNl = 0;
 	ptr->bStBl = 0;
 	ptr->bStBp = 0;
+	if ((ptr->bState) && (ptr->bProg != 2)) ptr->bHtemp = 100;
+	else {
 	ptr->bHtemp = 0;
 	switch (ptr->notifyData[4]) {
 	case 1:
@@ -9377,6 +10709,7 @@ void msStatus(uint8_t blenum) {
         ptr->bHtemp = 95;
 	break;
 	}
+	}
 	strcpy(ptr->cStatus,"{\"temp\":");
 	itoa(ptr->notifyData[5],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
@@ -9391,10 +10724,11 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,"]}");    
 	} else if ((ptr->notifyData[2] == 6) && (ptr->DEV_TYP > 1) && ( ptr->DEV_TYP < 10 ) && (retc == 20)) {
-	ptr->bHtemp = ptr->notifyData[5];
 	ptr->bState = ptr->notifyData[11];
 	ptr->bProg = ptr->notifyData[3];
 	if ((ptr->bState == 4) || (ptr->bProg && (ptr->bProg != 2))) ptr->bState = 0;
+	if ((ptr->bState)  && (ptr->bProg != 2)) ptr->bHtemp = 100;
+	else ptr->bHtemp = ptr->notifyData[5];
 	if (ptr->DEV_TYP > 3) {
 	ptr->bCtemp = ptr->notifyData[8];
 	ptr->bHeat = ptr->notifyData[11];
@@ -9422,7 +10756,7 @@ void msStatus(uint8_t blenum) {
 	(ptr->DEV_TYP > 3)? itoa(ptr->notifyData[8],tmpvar,10) : itoa(ptr->notifyData[13],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"target\":");
-	itoa(ptr->notifyData[5],tmpvar,10);
+	itoa(ptr->bHtemp,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"state\":");
 	itoa(ptr->notifyData[11],tmpvar,10);
@@ -9439,7 +10773,8 @@ void msStatus(uint8_t blenum) {
 	itoa(ptr->bStBp,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"error\":");
-	itoa(ptr->notifyData[12],tmpvar,10);
+	if (ptr->DEV_TYP > 3) itoa(ptr->notifyData[18],tmpvar,10);
+	else itoa(ptr->notifyData[12],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	if (ptr->DEV_TYP > 3) {
 	strcat(ptr->cStatus,",\"boil\":");
@@ -9556,7 +10891,7 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,tmpvar);
 	}
 	strcat(ptr->cStatus,",\"error\":");
-	itoa(ptr->notifyData[12],tmpvar,10);
+	itoa(ptr->notifyData[18],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,"}");    
 	} else if ((ptr->notifyData[2] == 6) && ( ptr->DEV_TYP > 11 ) && ( ptr->DEV_TYP < 16 ) && (retc == 20)) {
@@ -9596,7 +10931,7 @@ void msStatus(uint8_t blenum) {
 	itoa(ptr->notifyData[3],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"error\":");
-	itoa(ptr->notifyData[12],tmpvar,10);
+	itoa(ptr->notifyData[18],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,"}");    
 	} else if ((ptr->notifyData[2] == 6) && ( ptr->DEV_TYP == 16 ) && (retc == 13)) {
@@ -9734,6 +11069,61 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,",\"lock\":");
 	itoa(ptr->bLock,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,"}");    
+	} else if ((ptr->notifyData[2] == 6) && ( ptr->DEV_TYP == 48 ) && (retc == 20)) {
+	ptr->bProg = ptr->notifyData[3];
+	ptr->bModProg = 0;
+	ptr->bPHour = ptr->notifyData[4];
+	ptr->bPMin = ptr->notifyData[5];
+//sec 6
+	ptr->bHtemp = ptr->notifyData[6];
+	ptr->bDHour = 0;
+	ptr->bDMin = 0;
+	ptr->bCHour = ptr->notifyData[7];
+	ptr->bCMin = ptr->notifyData[8];
+//sec 9
+	ptr->bCtemp = ptr->notifyData[9];
+	ptr->bHeat = ptr->notifyData[10];
+	ptr->bState = ptr->notifyData[11];
+	ptr->bAwarm = ptr->notifyData[12];
+//	ptr->bLock = ptr->notifyData[16];                   //lock
+        retc = r4sCommand(blenum, 0x15, 0, 0);	
+	if (retc == 6) {
+	ptr->bDHour = ptr->notifyData[3];
+	ptr->bDMin = ptr->notifyData[4];
+	}
+	strcpy(ptr->cStatus,"{\"prog\":");
+	itoa(ptr->bProg,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"sethours\":");
+	itoa(ptr->bPHour,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"setmins\":");
+	itoa(ptr->bPMin,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"setsecs\":");
+	itoa(ptr->bModProg,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"state\":");
+	itoa(ptr->bState,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"hours\":");
+	itoa(ptr->bCHour,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"mins\":");
+	itoa(ptr->bCMin,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"secs\":");
+	itoa(ptr->bHtemp,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"warm\":");
+	itoa(ptr->bAwarm,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+/*
+	strcat(ptr->cStatus,",\"lock\":");
+	itoa(ptr->bLock,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+*/
 	strcat(ptr->cStatus,"}");    
 	} else if ((ptr->notifyData[2] == 6) && ( ptr->DEV_TYP == 61 ) && (retc == 20)) {
 	ptr->bState = ptr->notifyData[11];
@@ -10535,11 +11925,59 @@ void MqSState() {
 	s18b20_strcat (bStatG6, tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	} else if (bgpio6 < 226) {
+#ifdef USE_IRTX
+	r4sppcoms = 30;
+	if ((bStatG6 ^ bprevStatG6) & 0xff00) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/ir6tx");
+	tmpvar[0] = 0;
+	switch ((bStatG6 >> 8) & 0xff) {
+	case 0x01:
+	strcpy(tmpvar,"NEC");
+	break;
+	case 0x02:
+	strcpy(tmpvar,"NECx16");
+	break;
+	case 0x03:
+	strcpy(tmpvar,"RC5");
+	break;
+	case 0x04:
+	strcpy(tmpvar,"RC6");
+	break;
+	case 0x05:
+	strcpy(tmpvar,"SAMSUNG");
+	break;
+	case 0x06:
+	strcpy(tmpvar,"SIRCx12");
+	break;
+	case 0x07:
+	strcpy(tmpvar,"SIRCx15");
+	break;
+	case 0x08:
+	strcpy(tmpvar,"SIRCx20");
+	break;
+	case 0x09:
+	strcpy(tmpvar,"PANASONIC");
+	break;
+	default:
+        strcpy(tmpvar,"OFF");
+	break;
+	}
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	}
+	if ((bStatG6 ^ bprevStatG6) & 0xff) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/ir6cmd");
+	itoa((bStatG6 & 0xff),tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	}
+#else
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/dht6t");
 	tmpvar[0] = 0;
 	sdht22strcat(bStatG6, tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+#endif
 	}
 	bprevStatG6 = bStatG6;
 	}
@@ -10588,9 +12026,16 @@ void MqSState() {
 	bprevStatG8 = bStatG8;
 	}
 	if  ((mqttConnected) && (bStatG6h != bprevStatG6h) && (bgpio6 > 191) && (bgpio6 < 226)) {
+#ifdef USE_IRTX
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/ir6addr");
+	itoa(bStatG6h,tmpvar,10);
+	r4sppcoms = 30;
+#else
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/dht6h");
 	u32_strcpy_p1 (bStatG6h,tmpvar);
+#endif
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	bprevStatG6h = bStatG6h;
 	}
@@ -10777,7 +12222,7 @@ void MqState(uint8_t blenum) {
 	itoa(ptr->bHtemp,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	ptr->r4sppcom = 30;
-	if (ptr->bHtemp > 29) ptr->bLtemp = ptr->bHtemp;
+	if ((ptr->bHtemp > 34) && (ptr->bHtemp < 100)) ptr->bLtemp = ptr->bHtemp;
 	ptr->bprevHtemp = ptr->bHtemp;
 	}
 	if  (ptr->bprevState != ptr->bState) {
@@ -11152,24 +12597,37 @@ void MqState(uint8_t blenum) {
 	strcat(ldata,ptr->tBLEAddr);
 	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/state");
-	if (ptr->DEV_TYP == 20) {
-	if (!ptr->bState) esp_mqtt_client_publish(mqttclient, ldata, strOFF, 0, 1, 1);
-	else if (ptr->bState == 254) esp_mqtt_client_publish(mqttclient, ldata, "offline", 0, 1, 1);
-	else if (ptr->bState == 1) esp_mqtt_client_publish(mqttclient, ldata, "SETTING", 0, 1, 1);
-	else if (ptr->bState == 2) esp_mqtt_client_publish(mqttclient, ldata, "DELAYEDSTART", 0, 1, 1);
-	else if (ptr->bState == 3) esp_mqtt_client_publish(mqttclient, ldata, "BOIL4PASTA", 0, 1, 1);
-	else if (ptr->bState == 4) esp_mqtt_client_publish(mqttclient, ldata, "WAITPASTA", 0, 1, 1);
-	else if (ptr->bState == 5) esp_mqtt_client_publish(mqttclient, ldata, strON, 0, 1, 1);
-	else if (ptr->bState == 6) esp_mqtt_client_publish(mqttclient, ldata, "WARMING", 0, 1, 1);
-	} else {
+	if (ptr->DEV_TYP == 16) {
 	if (!ptr->bState) esp_mqtt_client_publish(mqttclient, ldata, strOFF, 0, 1, 1);
 	else if (ptr->bState == 254) esp_mqtt_client_publish(mqttclient, ldata, "offline", 0, 1, 1);
 	else if (ptr->bState == 1) esp_mqtt_client_publish(mqttclient, ldata, "SETTING", 0, 1, 1);
 	else if (ptr->bState == 2) esp_mqtt_client_publish(mqttclient, ldata, strON, 0, 1, 1);
-	else if (ptr->bState == 3) esp_mqtt_client_publish(mqttclient, ldata, "WAITPASTA", 0, 1, 1);
+	else if (ptr->bState == 3) esp_mqtt_client_publish(mqttclient, ldata, "WAIT_PRODUCT", 0, 1, 1);
 	else if (ptr->bState == 4) esp_mqtt_client_publish(mqttclient, ldata, "WARMING", 0, 1, 1);
-	else if (ptr->bState == 5) esp_mqtt_client_publish(mqttclient, ldata, "DELAYEDSTART", 0, 1, 1);
-	else if (ptr->bState == 6) esp_mqtt_client_publish(mqttclient, ldata, "BOIL4PASTA", 0, 1, 1);
+	else if (ptr->bState == 5) esp_mqtt_client_publish(mqttclient, ldata, "DELAYED_START", 0, 1, 1);
+	else if (ptr->bState == 6) esp_mqtt_client_publish(mqttclient, ldata, "PREHEATING", 0, 1, 1);
+	} else if (ptr->DEV_TYP == 48) {
+	if (!ptr->bState) esp_mqtt_client_publish(mqttclient, ldata, strOFF, 0, 1, 1);
+	else if (ptr->bState == 254) esp_mqtt_client_publish(mqttclient, ldata, "offline", 0, 1, 1);
+	else if (ptr->bState == 1) esp_mqtt_client_publish(mqttclient, ldata, "UPDATE", 0, 1, 1);
+	else if (ptr->bState == 2) esp_mqtt_client_publish(mqttclient, ldata, "DELAYED_START", 0, 1, 1);
+	else if (ptr->bState == 3) esp_mqtt_client_publish(mqttclient, ldata, "PREHEATING", 0, 1, 1);
+	else if (ptr->bState == 4) esp_mqtt_client_publish(mqttclient, ldata, "WAIT_PRODUCT", 0, 1, 1);
+	else if (ptr->bState == 5) esp_mqtt_client_publish(mqttclient, ldata, strON, 0, 1, 1);
+	else if (ptr->bState == 6) esp_mqtt_client_publish(mqttclient, ldata, "WARMING", 0, 1, 1);
+	else if (ptr->bState == 255) esp_mqtt_client_publish(mqttclient, ldata, "ERROR", 0, 1, 1);
+	} else {
+	if (!ptr->bState) esp_mqtt_client_publish(mqttclient, ldata, strOFF, 0, 1, 1);
+	else if (ptr->bState == 254) esp_mqtt_client_publish(mqttclient, ldata, "offline", 0, 1, 1);
+	else if (ptr->bState == 1) esp_mqtt_client_publish(mqttclient, ldata, "SETTING", 0, 1, 1);
+	else if (ptr->bState == 2) esp_mqtt_client_publish(mqttclient, ldata, "DELAYED_START", 0, 1, 1);
+	else if (ptr->bState == 3) esp_mqtt_client_publish(mqttclient, ldata, "PREHEATING", 0, 1, 1);
+	else if (ptr->bState == 4) esp_mqtt_client_publish(mqttclient, ldata, "WAIT_PRODUCT", 0, 1, 1);
+	else if (ptr->bState == 5) esp_mqtt_client_publish(mqttclient, ldata, strON, 0, 1, 1);
+	else if (ptr->bState == 6) esp_mqtt_client_publish(mqttclient, ldata, "WARMING", 0, 1, 1);
+	else if (ptr->bState == 7) esp_mqtt_client_publish(mqttclient, ldata, "ERROR", 0, 1, 1);
+	else if (ptr->bState == 8) esp_mqtt_client_publish(mqttclient, ldata, "WAIT_CONFIRM", 0, 1, 1);
+	else if (ptr->bState == 9) esp_mqtt_client_publish(mqttclient, ldata, "STOP_POWER_LOSS", 0, 1, 1);
 	}
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
@@ -11509,6 +12967,22 @@ void MqState(uint8_t blenum) {
 	esp_mqtt_client_publish(mqttclient, ldata, "Warming", 0, 1, 1);
 	break;
 	}
+	} else if ( ptr->DEV_TYP == 48 ) {
+// for RMB-658
+	switch (ptr->bProg) {
+	case 255:
+	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
+	break;
+	case 0:
+	esp_mqtt_client_publish(mqttclient, ldata, "Manual", 0, 1, 1);
+	break;
+	case 1:
+	esp_mqtt_client_publish(mqttclient, ldata, "Fry", 0, 1, 1);
+	break;
+	case 2:
+	esp_mqtt_client_publish(mqttclient, ldata, "Heating", 0, 1, 1);
+	break;
+	}
 	}
 	ptr->r4sppcom = 30;
 //	ptr->bprevProg = ptr->bProg;
@@ -11525,6 +12999,7 @@ void MqState(uint8_t blenum) {
 	ptr->r4sppcom = 30;
 	ptr->bprevProg = ptr->bProg;
 	}
+	if (ptr->DEV_TYP != 48) {
 	if  (ptr->bprevModProg != ptr->bModProg) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
@@ -11546,6 +13021,7 @@ void MqState(uint8_t blenum) {
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	ptr->r4sppcom = 30;
 	ptr->bprevHtemp = ptr->bHtemp;
+	}
 	}
 	if  (ptr->bprevPHour != ptr->bPHour) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
@@ -11887,6 +13363,7 @@ void MqState(uint8_t blenum) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
 	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/position");
 	itoa(ptr->bProg,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
@@ -11896,6 +13373,7 @@ void MqState(uint8_t blenum) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
 	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/illuminance");
 	itoa(ptr->bSEnergy,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
@@ -11905,6 +13383,7 @@ void MqState(uint8_t blenum) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
 	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/battery");
 	itoa(ptr->bCtemp,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
@@ -11942,7 +13421,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	if (ptr->DEV_TYP < 10) {	
 	//kettle
 	if (!memcmp(topic+topoff, "boil", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -11985,7 +13464,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 		} 
 
 	} else if (!memcmp(topic+topoff, "heat", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bHeat) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -12040,13 +13519,30 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 		} 
 
 	} else if (!memcmp(topic+topoff, "heat_temp", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
 	uint8_t temp = atoi(tbuff);
+	if (temp && (temp < 40) && (ptr->DEV_TYP == 2)) temp = 0;
 	if (temp && (temp < 35)) temp = 0;
 	if  ((!fcommtp) || (!ptr->r4sppcom) || ((temp != ptr->bHtemp) && temp && ptr->bHtemp)) {
+	if (!ptr->bState && (temp == 100)) {
+	if (ptr->bHtemp && (ptr->bHtemp < 100)) {
+	if (ptr->DEV_TYP == 1) {	
+	if (ptr->bHtemp < 35) ptr->r4slppar1 = 0;
+	else if (ptr->bHtemp < 41) ptr->r4slppar1 = 1;
+	else if (ptr->bHtemp < 56) ptr->r4slppar1 = 2;
+	else if (ptr->bHtemp < 71) ptr->r4slppar1 = 3;
+	else if (ptr->bHtemp < 86) ptr->r4slppar1 = 4;
+	else ptr->r4slppar1 = 5;
+	} else ptr->r4slppar1 = ptr->bHtemp;
+	ptr->r4slpcom = 4;
+	} else {
+	ptr->r4slppar1 = 0;
+	ptr->r4slpcom = 2;
+	}
+	} else {
 	if (ptr->DEV_TYP == 1) {	
 	if (temp < 35) ptr->r4slppar1 = 0;
 	else if (temp < 41) ptr->r4slppar1 = 1;
@@ -12057,12 +13553,13 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else ptr->r4slppar1 = temp;
 	ptr->r4slppar2 = 1;
 	ptr->r4slpcom = 3;
+	}
 	} else if ((!fcommtp) || (!ptr->r4sppcom) || (temp != ptr->bHtemp)) ptr->bprevHtemp = 255;
 
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_HEAT_TEMP");
 
 	} else if (!memcmp(topic+topoff, "backlight", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bStBl) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -12080,7 +13577,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 
 	} else if (!memcmp(topic+topoff, "beep", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bStBp) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -12098,7 +13595,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 
 	} else if (!memcmp(topic+topoff, "nightlight", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bStNl) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -12116,7 +13613,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 
 	} else if (!memcmp(topic+topoff, "nightlight_rgb", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12153,7 +13650,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 
 	} else if (!memcmp(topic+topoff, "nightlight_red", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12168,7 +13665,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	ptr->t_rspcnt = 1;
 	}
 	} else if (!memcmp(topic+topoff, "nightlight_green", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12183,7 +13680,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	ptr->t_rspcnt = 1;
 	}
 	} else if (!memcmp(topic+topoff, "nightlight_blue", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12198,7 +13695,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	ptr->t_rspcnt = 1;
 	}
 	} else if (!memcmp(topic+topoff, "boil_time", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12217,7 +13714,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if ( ptr->DEV_TYP < 12) {
 	//power
 	if (!memcmp(topic+topoff, "state", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -12242,7 +13739,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 
 	} else if (!memcmp(topic+topoff, "power", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12260,7 +13757,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_POWER");
 
 	} else 	if (!memcmp(topic+topoff, "lock", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bLock) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {	
@@ -12277,7 +13774,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_lock_OFF");
 	}
 	} else 	if (!memcmp(topic+topoff, "keep", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bModProg) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {	
@@ -12297,7 +13794,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if ( ptr->DEV_TYP < 16) {
 	//coffee
 	if (!memcmp(topic+topoff, "state", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -12314,7 +13811,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CMD_OFF");
 	}
 	} else if (!memcmp(topic+topoff, "delay", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bStNl) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {	
@@ -12335,7 +13832,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_delay_OFF");
 	}
 	} else if (!memcmp(topic+topoff, "delay_hour", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12346,7 +13843,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	ptr->t_rspcnt = 1;
 	}
 	} else if (!memcmp(topic+topoff, "delay_min", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12357,7 +13854,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	ptr->t_rspcnt = 1;
 	}
 	} else 	if (!memcmp(topic+topoff, "lock", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bLock) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {	
@@ -12374,7 +13871,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_lock_OFF");
 	}
 	} else 	if (!memcmp(topic+topoff, "strength", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bProg) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {	
@@ -12395,7 +13892,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if (ptr->DEV_TYP < 61) {
 	//cooker
 	if (!memcmp(topic+topoff, "state", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((ptr->bState < 2) || (!ptr->r4sppcom) || (!fcommtp)) {
@@ -12412,7 +13909,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CMD_OFF");
 	}
 	} else if (!memcmp(topic+topoff, "prname", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	ptr->r4slppar1 = 0;
 	ptr->r4slppar2 = 0;
 	ptr->r4slppar3 = 0;
@@ -12539,7 +14036,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 	if ((!fcommtp) || (!ptr->r4sppcom) || (ptr->r4slppar1 != ptr->bProg) || (ptr->r4slppar2 != ptr->bModProg)) ptr->r4slpcom = 17;
 	} else if (!memcmp(topic+topoff, "prog", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12550,7 +14047,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 11;
 	}
 	} else if (!memcmp(topic+topoff, "mode", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12560,7 +14057,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 12;
 	}
 	} else if (!memcmp(topic+topoff, "temp", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12570,7 +14067,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 13;
 	}
 	} else if (!memcmp(topic+topoff, "set_hour", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12581,7 +14078,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 14;
 	}
 	} else if (!memcmp(topic+topoff, "set_min", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12591,7 +14088,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 15;
 	}
 	} else if (!memcmp(topic+topoff, "delay_hour", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12606,7 +14103,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 19;
 	}
 	} else if (!memcmp(topic+topoff, "delay_min", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12620,7 +14117,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 20;
 	}
 	} else if (!memcmp(topic+topoff, "warm", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bAwarm) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {	
@@ -12638,7 +14135,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if (ptr->DEV_TYP == 61) {
 	//iron
 	if (!memcmp(topic+topoff, "state", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -12655,7 +14152,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CMD_OFF");
 	}
 	} else if (!memcmp(topic+topoff, "lock", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -12675,7 +14172,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if (ptr->DEV_TYP == 62) {
 	//weather station
 	if (!memcmp(topic+topoff, "clear", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -12702,7 +14199,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if (ptr->DEV_TYP == 63) {
 	//weather station
 	if (!memcmp(topic+topoff, "calibration", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -12729,7 +14226,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73)) {
 	//mikettle
 	if (!memcmp(topic+topoff, "boil", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -12746,7 +14243,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_BOIL_OFF");
 	}
 	} else if (!memcmp(topic+topoff, "heat", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bHeat) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -12775,7 +14272,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_AUTO_ON");
 	}
 	} else if (!memcmp(topic+topoff, "heat_temp", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12795,7 +14292,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if (ptr->DEV_TYP == 73) {
 	//galcon
 	if (!memcmp(topic+topoff, "state", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -12812,7 +14309,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_SWITCH_OFF");
 	}
 	} else if (!memcmp(topic+topoff, "set_hour", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12823,7 +14320,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	ptr->t_rspcnt = 1;
 	}
 	} else if (!memcmp(topic+topoff, "set_min", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -12836,7 +14333,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 	} else if (ptr->DEV_TYP == 74) {
 	if (!memcmp(topic+topoff, "set", topic_len-topoff)) {
-	esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 0);
+	esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
 	if (!incascmp("open",data,data_len)) {
 	ptr->r4slppar1 = 100;
 	ptr->r4slpcom = 26;
@@ -13288,7 +14785,7 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,"/");
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
-	strcat(llwtd,"/impedance\",\"unit_of_meas\":\"Ohm\",\"availability_topic\":\"");
+	strcat(llwtd,"/impedance\",\"unit_of_meas\":\"\xce\xa9\",\"availability_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
@@ -13727,10 +15224,10 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	strcat(llwtd,".Gate.i2c");
 	bin2hex(&i2c_addr[i],tbuff,1,0);
 	strcat(llwtd,tbuff);
-	strcat(llwtd,".gas.resist\",\"icon\":\"mdi:resistor\",\"uniq_id\":\"i2c");
+	strcat(llwtd,".gas.resistance\",\"icon\":\"mdi:resistor\",\"uniq_id\":\"i2c");
 	bin2hex(&i2c_addr[i],tbuff,1,0);
 	strcat(llwtd,tbuff);
-	strcat(llwtd,"_gas_resist_");
+	strcat(llwtd,"_gas_resistance_");
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
 	strcat(llwtd,tESP32Addr);
@@ -13753,7 +15250,7 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	strcat(llwtd,"/i2c");
 	bin2hex(&i2c_addr[i],tbuff,1,0);
 	strcat(llwtd,tbuff);
-	strcat(llwtd,"gsresist\",\"unit_of_meas\":\"Ohm\",\"availability_topic\":\"");
+	strcat(llwtd,"gsresist\",\"unit_of_meas\":\"\xce\xa9\",\"availability_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
@@ -13858,13 +15355,13 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	BleDevStD.t_ppcon = 40;
 	BleDevStE.t_ppcon = 40;
 	t_ppcons = 30;
+	iprevRssiESP = 0;
+
 	BleDevStA.iprevRssi = 0;
 	BleDevStB.iprevRssi = 0;
 	BleDevStC.iprevRssi = 0;
 	BleDevStD.iprevRssi = 0;
 	BleDevStE.iprevRssi = 0;
-	iprevRssiESP = 0;
-
 	BleDevStA.cprevStatus[0] = 0;
 	BleDevStB.cprevStatus[0] = 0;
 	BleDevStC.cprevStatus[0] = 0;
@@ -14039,10 +15536,12 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	SnPi2c[i].ppar2 = ~SnPi2c[i].par2;
 	SnPi2c[i].ppar3 = ~SnPi2c[i].par3;
 	SnPi2c[i].ppar4 = ~SnPi2c[i].par4;
+/*
 	SnPi2c[i].ppar5 = ~SnPi2c[i].par5;
 	SnPi2c[i].ppar6 = ~SnPi2c[i].par6;
 	SnPi2c[i].ppar7 = ~SnPi2c[i].par7;
 	SnPi2c[i].ppar8 = ~SnPi2c[i].par8;
+*/
 	}
 
 	char llwtt[128];
@@ -14113,8 +15612,8 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
-
 #ifdef USE_TFT
+	if (tft_conn) {
 	strcpy(llwtt,"homeassistant/number/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/2x");
@@ -14150,8 +15649,8 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	}
 #endif
-
 	strcpy(llwtt,"homeassistant/button/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/1x");
@@ -14422,6 +15921,163 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+#ifdef USE_IRTX
+	} else if ((i == 6) && (tbgpio > 191) &&  (tbgpio < 226)) {
+	strcpy(llwtt,"homeassistant/select/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/");
+	itoa(i + 2,tbuff,10);
+	strcat(llwtt,tbuff);
+	strcat(llwtt,"itx");
+	strcat(llwtt,tESP32Addr);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate.ir");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"tx\",\"icon\":\"mdi:remote\",\"uniq_id\":\"ir");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"tx_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"],\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate\",\"model\":\"ESP32\",\"sw_version\":\"");
+	strcat(llwtd,AP_VER);
+	if (wbuff[0]) {
+	strcat(llwtd,"\",\"configuration_url\":\"http://");
+	strcat(llwtd,wbuff);
+	}
+	strcat(llwtd,"\",\"connections\":[[\"mac\",\"");
+	strcat(llwtd,tESP32Addr1);
+//	if (wbuff[0]) {
+//	strcat(llwtd,"\"],[\"ip\",\"");
+//	strcat(llwtd,wbuff);
+//	}
+	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"command_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/ir");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"tx\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/ir");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"tx\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\",\"options\":");
+	strcat(llwtd,"[\"OFF\",\"NEC\",\"NECx16\",\"RC5\",\"RC6\",\"SAMSUNG\",\"SIRCx12\",\"SIRCx15\",\"SIRCx20\",\"PANASONIC\"]}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/number/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/");
+	itoa(i + 2,tbuff,10);
+	strcat(llwtt,tbuff);
+	strcat(llwtt,"iax");
+	strcat(llwtt,tESP32Addr);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate.ir");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"addr\",\"icon\":\"mdi:directions-fork\",\"uniq_id\":\"ir");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"addr_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"],\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate\",\"model\":\"ESP32\",\"sw_version\":\"");
+	strcat(llwtd,AP_VER);
+	if (wbuff[0]) {
+	strcat(llwtd,"\",\"configuration_url\":\"http://");
+	strcat(llwtd,wbuff);
+	}
+	strcat(llwtd,"\",\"connections\":[[\"mac\",\"");
+	strcat(llwtd,tESP32Addr1);
+//	if (wbuff[0]) {
+//	strcat(llwtd,"\"],[\"ip\",\"");
+//	strcat(llwtd,wbuff);
+//	}
+	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"command_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/ir");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"addr\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/ir");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"addr\",\"mode\":\"box\",\"min\":\"0\",\"max\":\"65535\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/number/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/");
+	itoa(i + 2,tbuff,10);
+	strcat(llwtt,tbuff);
+	strcat(llwtt,"icx");
+	strcat(llwtt,tESP32Addr);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate.ir");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"cmd\",\"icon\":\"mdi:keyboard\",\"uniq_id\":\"ir");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"cmd_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"],\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate\",\"model\":\"ESP32\",\"sw_version\":\"");
+	strcat(llwtd,AP_VER);
+	if (wbuff[0]) {
+	strcat(llwtd,"\",\"configuration_url\":\"http://");
+	strcat(llwtd,wbuff);
+	}
+	strcat(llwtd,"\",\"connections\":[[\"mac\",\"");
+	strcat(llwtd,tESP32Addr1);
+//	if (wbuff[0]) {
+//	strcat(llwtd,"\"],[\"ip\",\"");
+//	strcat(llwtd,wbuff);
+//	}
+	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"command_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/ir");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"cmd\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/ir");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"cmd\",\"mode\":\"box\",\"min\":\"0\",\"max\":\"255\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+#endif
 	} else if ((tbgpio > 191) &&  (tbgpio < 226)) {
 	strcpy(llwtt,"homeassistant/sensor/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
@@ -14551,6 +16207,21 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/gpio6");
 	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
+#ifdef USE_IRTX
+	} else if ((bgpio6 > 191) && (bgpio6 < 226)) {
+	strcpy(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/ir6tx");
+	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
+	strcpy(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/ir6addr");
+	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
+	strcpy(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/ir6cmd");
+	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
+	strcpy(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/ir6code");
+	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
+#endif
 	}
 	if ((bgpio7 > 63) && (bgpio7 < 98)) {
 	strcpy(llwtt,MQTT_BASE_TOPIC);
@@ -14728,6 +16399,9 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	int topoffd = 0;
 	int topoffe = 0;
 	int topoffs = 0;
+#ifdef USE_IRTX
+	int topoffi = 0;
+#endif
 #ifdef USE_TFT
 	int topoffj = 0;
 #endif
@@ -14779,6 +16453,11 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcpy(tbuff,MQTT_BASE_TOPIC);
 	strcat(tbuff,"/gpio");
 	topoffs = parsoff(event->topic,tbuff, event->topic_len);
+#ifdef USE_IRTX
+	strcpy(tbuff,MQTT_BASE_TOPIC);
+	strcat(tbuff,"/ir6");
+	topoffi = parsoff(event->topic,tbuff, event->topic_len);
+#endif
 #ifdef USE_TFT
 	strcpy(tbuff,MQTT_BASE_TOPIC);
 	strcat(tbuff,"/jpg_");
@@ -14801,8 +16480,8 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	if (tft_conn) {
         bStateS = duty;
 	if ((f_i2cdev & 0x40000000) && !(ip5306_batmode & 0x02)) duty >>= 5;
-	ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty);
-	ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0);
+	ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
+	ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 	} else {
 	if (!bStateS) bStateS = duty;
         bprevStateS = ~bStateS;
@@ -14931,8 +16610,8 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	duty = atoi(tbuff);
 	if (duty > 255) duty = 255;
 	if ((duty != bStatG6) || (!r4sppcoms)) { 
-	ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_1, duty);
-	ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_1);
+	ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, duty);
+	ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
         bStatG6 = duty;
 	}
 	}
@@ -14946,8 +16625,8 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	duty = atoi(tbuff);
 	if (duty > 255) duty = 255;
 	if ((duty != bStatG7) || (!r4sppcoms)) { 
-	ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_2, duty);
-	ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_2);
+	ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_2, duty);
+	ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_2);
         bStatG7 = duty;
 	}
 	}
@@ -14961,8 +16640,8 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	duty = atoi(tbuff);
 	if (duty > 255) duty = 255;
 	if ((duty != bStatG8) || (!r4sppcoms)) { 
-	ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_3, duty);
-	ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_3);
+	ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_3, duty);
+	ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_3);
         bStatG8 = duty;
 	}
 	}
@@ -15017,6 +16696,77 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	int tempsz = event->data_len;
 	if  (tempsz > 15) tempsz = 15;
 	mystrcpy(MQTT_VALP7, event->data, tempsz);
+#ifdef USE_IRTX
+	} else if (topoffi) {
+	if (!memcmp(event->topic+topoffi, "tx", event->topic_len-topoffi)) {
+	uint16_t tmp = 0;
+	if (!incascmp("off", event->data, event->data_len)) tmp = 0; 
+	else if (!incascmp("nec", event->data, event->data_len)) tmp = 1;
+	else if (!incascmp("necx16", event->data, event->data_len)) tmp = 2;
+	else if (!incascmp("rc5", event->data, event->data_len)) tmp = 3;
+	else if (!incascmp("rc6", event->data, event->data_len)) tmp = 4;
+	else if (!incascmp("samsung", event->data, event->data_len)) tmp = 5;
+	else if (!incascmp("sircx12", event->data, event->data_len)) tmp = 6;
+	else if (!incascmp("sircx15", event->data, event->data_len)) tmp = 7;
+	else if (!incascmp("sircx20", event->data, event->data_len)) tmp = 8;
+	else if (!incascmp("panasonic", event->data, event->data_len)) tmp = 9;
+	if (tmp && !(bStatG6 & 0xff00)) {
+	bStatG6 = (bStatG6 & 0xff) | ((tmp << 8) & 0xff00);
+	bprevStatG6 = bprevStatG6 | 0xff00;
+	t_lasts = 0;
+	} else if (!r4sppcoms) {
+	bprevStatG6 = bprevStatG6 | 0xff00;
+	t_lasts = 0;
+	}
+	} else if (!memcmp(event->topic+topoffi, "addr", event->topic_len-topoffi)) {
+	if (event->data_len && (event->data_len < 6) && (event->data[0] > 0x2f) && (event->data[0] < 0x3a)) {
+	uint32_t tmp = 0;
+	mystrcpy(tbuff, event->data, event->data_len);
+	tmp = atoi(tbuff);
+	if (tmp < 65536) {
+	if ((tmp ^ bStatG6h) || (!r4sppcoms)) {
+	bStatG6h = tmp;
+	t_lasts = 0;
+	}
+	} else {
+	bprevStatG6h = ~bStatG6h;
+	t_lasts = 0;
+	}
+	} else {
+	bprevStatG6h = ~bStatG6h;
+	t_lasts = 0;
+	}
+	} else if (!memcmp(event->topic+topoffi, "cmd", event->topic_len-topoffi)) {
+	if (event->data_len && (event->data_len < 4) && (event->data[0] > 0x2f) && (event->data[0] < 0x3a)) {
+	uint16_t tmp = 0;
+	mystrcpy(tbuff, event->data, event->data_len);
+	tmp = atoi(tbuff);
+	if (tmp < 256) {
+	if ((tmp ^ (bStatG6 & 0xff)) || (!r4sppcoms)) {
+	bStatG6 = (bStatG6 & 0xff00) | tmp;
+	t_lasts = 0;
+	}
+	} else {
+	bprevStatG6 = bStatG6 ^ 0x00ff;
+	t_lasts = 0;
+	}
+	} else {
+	bprevStatG6 = bStatG6 ^ 0x00ff;
+	t_lasts = 0;
+	}
+	} else if (!memcmp(event->topic+topoffi, "code", event->topic_len-topoffi)) {
+	esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (event->data_len && (event->data_len == 8)) {
+	uint8_t buf[4];
+	mystrcpy(tbuff, event->data, event->data_len);
+	if (hex2bin(tbuff, buf, 4) && buf[0] && (buf[0] < 16) && !(bStatG6 & 0xff00)) {
+	bStatG6 = (buf[0] << 8) + buf[3];	
+	bStatG6h = (buf[1] << 8) + buf[2];	
+	t_lasts = 0;
+	} //h2b
+	} //<9
+	} //code
+#endif
 	} else if (topoffj) {
 	if (!memcmp(event->topic+topoffj, "url", event->topic_len-topoffj)) {
 	if (event->data_len > 0) {
@@ -15113,10 +16863,6 @@ static void mqtt_app_start(void)
 	} else {
 	(fmssl)? strcpy(luri,"mqtts://") : strcpy(luri,"mqtt://");
 	}
-	strcat(luri,MQTT_USER);
-	strcat(luri,":");
-	strcat(luri,MQTT_PASSWORD);
-	strcat(luri,"@");
 	strcat(luri,MQTT_SERVER);
 	if (mqtt_port) {
 	strcat(luri,":");
@@ -15128,13 +16874,15 @@ static void mqtt_app_start(void)
 //
 	esp_mqtt_client_config_t mqtt_cfg = {
 	.uri = luri,
+	.username = MQTT_USER,
+	.password = MQTT_PASSWORD,
 	.lwt_topic = llwtt,
 	.lwt_msg = "offline",
 	.keepalive = 60,
 	.client_id = MQTT_BASE_TOPIC,
 	.buffer_size = 2048,
 	};
-	if (fdebug) ESP_LOGI(AP_TAG,"Mqtt url: %s", luri);
+	if (fdebug) ESP_LOGI(AP_TAG,"Mqtt url: %s, login: %s, password: %s", luri, MQTT_USER, MQTT_PASSWORD);
 	if (fmssl && (bufcert[0] || fmsslbundle)) {
 	if (!fmsslhost) mqtt_cfg.skip_cert_common_name_check = 1;
 	if (fmsslbundle) {
@@ -15159,7 +16907,6 @@ static EventGroupHandle_t s_wifi_event_group;
  * - we failed to connect after the maximum amount of retries */
 
 
-static int s_retry_num = 0;
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
@@ -15168,10 +16915,10 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 	esp_wifi_connect();
 	} else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
 	if (fdebug) ESP_LOGI(AP_TAG,"AP disconnected");
-	if (s_retry_num < WIFI_MAXIMUM_RETRY) {
+	if ((!floop && (wf_retry_cnt < WIFI_MAXIMUM_RETRY)) || (floop && (wf_retry_cnt < (WIFI_MAXIMUM_RETRY << 4)))) {
 		esp_wifi_connect();
-		s_retry_num++;
-	if (fdebug) ESP_LOGI(AP_TAG, "Retry %d to connect to the AP",s_retry_num);
+	if (fdebug) ESP_LOGI(AP_TAG, "Retry %d to connect to the AP",wf_retry_cnt);
+		wf_retry_cnt++;
 	} else {
 	xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
 	if (fdebug) ESP_LOGI(AP_TAG,"Connect to the AP fail");
@@ -15179,7 +16926,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 	} else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
 	ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
 	if (fdebug) ESP_LOGI(AP_TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-	s_retry_num = 0;
+	wf_retry_cnt = 0;
 	xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
 	if (floop && MQTT_SERVER[0]) esp_mqtt_client_reconnect(mqttclient);
 	NumWfConn++;
@@ -15197,6 +16944,7 @@ void wifi_init_sta(void)
 	ESP_ERROR_CHECK(esp_event_loop_create_default());
 	esp_netif_create_default_wifi_sta();
 
+	wf_retry_cnt = 1;
 	strcpy(buff,MQTT_BASE_TOPIC);
 	strcat(buff,"Gate");
 	esp_netif_t *esp_netif = NULL;
@@ -15242,7 +16990,9 @@ void wifi_init_sta(void)
 	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
 	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
 	ESP_ERROR_CHECK(esp_wifi_start() );
-
+#ifdef USE_TFT
+	if (tft_conn) tfststr("Connecting to AP ",WIFI_SSID," ..."); 
+#endif
 	if (fdebug) {
 	ESP_LOGI(AP_TAG,"Wifi_init_sta finished.");
 	ESP_LOGI(AP_TAG,"Connecting to Wifi: '%s' with password '%s'", WIFI_SSID, WIFI_PASSWORD);
@@ -15268,8 +17018,9 @@ void wifi_init_sta(void)
 	ESP_ERROR_CHECK(esp_wifi_stop() );
 	char DEFWFSSID[33];
 	char DEFWFPSW[65];
-	strcpy(DEFWFSSID,"r4s");
-	strcpy(DEFWFPSW,"12345678");
+	wf_retry_cnt = 1;
+	strcpy(DEFWFSSID, INIT_WIFI_SSID);
+	strcpy(DEFWFPSW, INIT_WIFI_PASSWORD);
 	memcpy(wifi_config.sta.ssid, DEFWFSSID, sizeof(wifi_config.sta.ssid));
 	memcpy(wifi_config.sta.password, DEFWFPSW, sizeof(wifi_config.sta.password));
 	bits = xEventGroupClearBits(s_wifi_event_group,
@@ -15277,7 +17028,10 @@ void wifi_init_sta(void)
 
 	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
 	ESP_ERROR_CHECK(esp_wifi_start() );
-	if (fdebug) ESP_LOGI(AP_TAG,"Connecting to ap SSID:'r4s' password:'12345678'");
+#ifdef USE_TFT
+	if (tft_conn) tfststr("Connecting to AP ",DEFWFSSID," ..."); 
+#endif
+	if (fdebug) ESP_LOGI(AP_TAG,"Connecting to ap SSID:'%s' password:'%s'", DEFWFSSID, DEFWFPSW);
 
 	/* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
 	* number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
@@ -15290,18 +17044,25 @@ void wifi_init_sta(void)
 	/* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
 	* happened. */
 	if (bits & WIFI_CONNECTED_BIT) {
-	if (fdebug) ESP_LOGI(AP_TAG,"Connected to ap SSID:'r4s' password:'12345678'");
+	if (fdebug) ESP_LOGI(AP_TAG,"Connected to ap SSID:'%s' password:'%s'", DEFWFSSID, DEFWFPSW);
 	} else if (bits & WIFI_FAIL_BIT) {
+#ifdef USE_TFT
+	if (tft_conn) tfststr("Connection to AP ",DEFWFSSID," failed. Restarting ..."); 
+#endif
 	if (fdebug) {
-	ESP_LOGI(AP_TAG,"Failed to connect to SSID:'r4s', password:'12345678'");
+	ESP_LOGI(AP_TAG,"Failed to connect to SSID:'%s', password:'%s'", DEFWFSSID, DEFWFPSW);
 	ESP_LOGI(AP_TAG,"Restarting now...");
 	}
+	vTaskDelay(2000 / portTICK_PERIOD_MS);
 	fflush(stdout);
 	esp_restart();
 	}
 	} else {
 	if (fdebug) ESP_LOGE(AP_TAG, "UNEXPECTED EVENT");
 	}
+#ifdef USE_TFT
+	if (tft_conn) pushImage(0, 52, 320, 240, wallpaper);
+#endif
 }
 // **************** NVS ********************
 uint8_t ReadNVS(){
@@ -15388,6 +17149,9 @@ uint8_t ReadNVS(){
 	bgpio6 = (nvtemp >> 40) & 0xff;	
 	bgpio7 = (nvtemp >> 48) & 0xff;	
 	bgpio8 = (nvtemp >> 56) & 0xff;	
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (bgpio8 > 127) bgpio8 = 0;
+#endif
 	nvtemp = 0;
 	nvs_get_u64(my_handle, "bgpi1", &nvtemp);
 	bgpio9 = nvtemp & 0xff;	
@@ -15785,7 +17549,8 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	else if (ptr->DEV_TYP < 12) strcat(bsend,"Heater, ");
 	else if (ptr->DEV_TYP < 16) strcat(bsend,"Coffee, ");
 	else if (ptr->DEV_TYP < 24) strcat(bsend,"Cooker, ");
-	else if (ptr->DEV_TYP < 32) strcat(bsend,"Oven, ");
+	else if (ptr->DEV_TYP < 48) strcat(bsend,"Oven, ");
+	else if (ptr->DEV_TYP < 61) strcat(bsend,"Baker, ");
 	else if (ptr->DEV_TYP == 61) strcat(bsend,"Iron, ");
 	else if (ptr->DEV_TYP == 62) strcat(bsend,"Smoke, ");
 	else if (ptr->DEV_TYP == 63) strcat(bsend,"Weather, ");
@@ -15810,7 +17575,7 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	strcat(bsend,", Temp: ");
 	itoa(ptr->bCtemp,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"&deg;C, Heat: ");
+	strcat(bsend,"&deg;C, Target: ");
 	itoa(ptr->bHtemp,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"&deg;C, ");
@@ -15865,35 +17630,51 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	strcat(bsend,", ");
 	} else if (ptr->DEV_TYP < 61) {
 	strcat(bsend,", State: ");
-	if (ptr->DEV_TYP == 20) {	
-	if (!ptr->bState) strcat(bsend,"Off");
-	else if (ptr->bState == 1) strcat(bsend,"Setting");
-	else if (ptr->bState == 2) strcat(bsend,"DelayedStart");
-	else if (ptr->bState == 3) strcat(bsend,"Boil4Pasta");
-	else if (ptr->bState == 4) strcat(bsend,"WaitPasta");
-	else if (ptr->bState == 5) strcat(bsend,"On");
-	else if (ptr->bState == 6) strcat(bsend,"Warming");
- 	else if (ptr->bState == 254) strcat(bsend,"Offline");
- 	} else {
+	if (ptr->DEV_TYP == 16) {	
 	if (!ptr->bState) strcat(bsend,"Off");
 	else if (ptr->bState == 1) strcat(bsend,"Setting");
 	else if (ptr->bState == 2) strcat(bsend,"On");
-	else if (ptr->bState == 3) strcat(bsend,"WaitPasta");
+	else if (ptr->bState == 3) strcat(bsend,"Wait Product");
 	else if (ptr->bState == 4) strcat(bsend,"Warming");
-	else if (ptr->bState == 5) strcat(bsend,"DelayedStart");
-	else if (ptr->bState == 6) strcat(bsend,"Boil4Pasta");
+	else if (ptr->bState == 5) strcat(bsend,"Delayed Start");
+	else if (ptr->bState == 6) strcat(bsend,"PreHeating");
+ 	else if (ptr->bState == 254) strcat(bsend,"Offline");
+	} else if (ptr->DEV_TYP == 48) {
+	if (!ptr->bState) strcat(bsend,"Off");
+	else if (ptr->bState == 1) strcat(bsend,"Update");
+	else if (ptr->bState == 2) strcat(bsend,"Delayed Start");
+	else if (ptr->bState == 3) strcat(bsend,"PreHeating");
+	else if (ptr->bState == 4) strcat(bsend,"Wait Product");
+	else if (ptr->bState == 5) strcat(bsend,"On");
+	else if (ptr->bState == 6) strcat(bsend,"Warming");
+ 	else if (ptr->bState == 254) strcat(bsend,"Offline");
+ 	else if (ptr->bState == 255) strcat(bsend,"Error");
+ 	} else {
+	if (!ptr->bState) strcat(bsend,"Off");
+	else if (ptr->bState == 1) strcat(bsend,"Setting");
+	else if (ptr->bState == 2) strcat(bsend,"Delayed Start");
+	else if (ptr->bState == 3) strcat(bsend,"PreHeating");
+	else if (ptr->bState == 4) strcat(bsend,"Wait Product");
+	else if (ptr->bState == 5) strcat(bsend,"On");
+	else if (ptr->bState == 6) strcat(bsend,"Warming");
+	else if (ptr->bState == 7) strcat(bsend,"Error");
+	else if (ptr->bState == 8) strcat(bsend,"Wait Confirm");
+	else if (ptr->bState == 9) strcat(bsend,"Stop Power Loss");
  	else if (ptr->bState == 254) strcat(bsend,"Offline");
 	}
 	strcat(bsend,", Prog: ");
 	itoa(ptr->bProg,buff,10);
 	strcat(bsend,buff);
+	if (ptr->DEV_TYP != 48) {	
 	strcat(bsend,", Mode: ");
 	itoa(ptr->bModProg,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,", Temp: ");
 	itoa(ptr->bHtemp,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"&deg;C, SetTime: ");
+	strcat(bsend,"&deg;C");
+	}
+	strcat(bsend,", SetTime: ");
 	if (ptr->bPHour < 10) strcat(bsend,"0");
 	itoa(ptr->bPHour,buff,10);
 	strcat(bsend,buff);
@@ -16090,7 +17871,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	struct tm timeinfo;
 	time(&now);
 	localtime_r(&now, &timeinfo);
-	strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
+	strftime(strftime_buf, sizeof(strftime_buf), "%a %Y %b %d / %X", &timeinfo);
 	int buf_len;
 	buf_len = httpd_req_get_hdr_value_len(req, "Host") + 1;
 	if (buf_len > 1) {
@@ -16131,7 +17912,11 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	MnHtpBleSt(2, bsend);
 	MnHtpBleSt(3, bsend);
 	MnHtpBleSt(4, bsend);
-	if ((bgpio1 & 0xc0) || (bgpio2 & 0xc0) || (bgpio3 & 0xc0) || (bgpio4 & 0xc0) || (bgpio5 & 0xc0) || (bgpio6 & 0xc0) || (bgpio7 & 0xc0) || (bgpio8 & 0xc0)) {
+#ifdef USE_IRTX
+	if ((bgpio9 & 0xc0) || (bgpio10 & 0xc0) || (bgpio1 & 0xc0) || (bgpio2 & 0xc0) || (bgpio3 & 0xc0) || (bgpio4 & 0xc0) || (bgpio5 & 0xc0) || ((bgpio6  > 63) && (bgpio6  < 192)) || (bgpio7 & 0xc0) || (bgpio8 & 0xc0)) {
+#else
+	if ((bgpio9 & 0xc0) || (bgpio10 & 0xc0) || (bgpio1 & 0xc0) || (bgpio2 & 0xc0) || (bgpio3 & 0xc0) || (bgpio4 & 0xc0) || (bgpio5 & 0xc0) || (bgpio6 & 0xc0) || (bgpio7 & 0xc0) || (bgpio8 & 0xc0)) {
+#endif
 	strcat(bsend,"<h3>Ports & Sensors:</h3><h2>");
 	if (bgpio1 & 0xc0) {
 	strcat(bsend,"&emsp;Port1: ");
@@ -16162,13 +17947,17 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,"&emsp;1w6: ");
 	s18b20_strcat (bStatG6, bsend);
 	strcat(bsend,"&deg;C");
+#ifdef USE_IRTX
+	}
+#else
 	} else if ((bgpio6 > 191) && (bgpio6 < 226)) {
 	strcat(bsend,"&emsp;dht6: ");
 	sdht22strcat (bStatG6, bsend);
-	strcat(bsend,"&deg;C / ");
+	strcat(bsend,"&deg;C, ");
 	u32_strcat_p1 (bStatG6h, bsend);
 	strcat(bsend,"%");
 	}
+#endif
 	}
 	if (bgpio7 & 0xc0) {
 	if (bgpio7 < 98) {
@@ -16182,7 +17971,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	} else if ((bgpio7 > 191) && (bgpio7 < 226)) {
 	strcat(bsend,"&emsp;dht7: ");
 	sdht22strcat (bStatG7, bsend);
-	strcat(bsend,"&deg;C / ");
+	strcat(bsend,"&deg;C, ");
 	u32_strcat_p1 (bStatG7h, bsend);
 	strcat(bsend,"%");
 	}
@@ -16199,26 +17988,26 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	} else if ((bgpio8 > 191) && (bgpio8 < 226)) {
 	strcat(bsend,"&emsp;dht8: ");
 	sdht22strcat (bStatG8, bsend);
-	strcat(bsend,"&deg;C / ");
+	strcat(bsend,"&deg;C, ");
 	u32_strcat_p1 (bStatG8h, bsend);
 	strcat(bsend,"%");
 	}
 	}
 	if (f_i2cdev & 0x80000000) {
-	strcat(bsend,"&emsp;I2C-> Dev: ");
+	strcat(bsend,"&emsp;I2C> Dev: ");
 	itoa(i2cdevnum,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend," / Err: ");
+	strcat(bsend,", Err: ");
 	itoa(i2c_errcnt,buff,10);
 	strcat(bsend,buff);
 	if (f_i2cdev & 0x40000000) {
-	strcat(bsend,"&emsp;I2C.75-> Bat: ");
+	strcat(bsend,"&emsp;I2C.75> Bat: ");
 	itoa(ip5306_batlev,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"%");
-	if(!(ip5306_batmode & 0x02)) strcat(bsend," / Discharging");
-	else if (!(ip5306_batmode & 0x01)) strcat(bsend," / Charging");
-	else strcat(bsend," / Charged");
+	if(!(ip5306_batmode & 0x02)) strcat(bsend,", Discharging");
+	else if (!(ip5306_batmode & 0x01)) strcat(bsend,", Charging");
+	else strcat(bsend,", Charged");
 	}
 	for (int i = 0; i < 30; i++) {
 	if (f_i2cdev & (1 << i)) {
@@ -16226,22 +18015,22 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,"&emsp;I2C.");
 	bin2hex(&i2c_addr[i],buff,1,0);
 	strcat(bsend,buff);
-	strcat(bsend,"-> ");
+	strcat(bsend,"> ");
 	}
 	if (i2c_bits[i] & 0x01) {
 	sbme280_strcat (SnPi2c[i].par1, bsend);
 	strcat(bsend,"&deg;C");
-	if (i2c_bits[i] & 0x0e) strcat(bsend," / ");
+	if (i2c_bits[i] & 0x0e) strcat(bsend,", ");
 	}
 	if (i2c_bits[i] & 0x02) {
 	u32_strcat_p1 (SnPi2c[i].par2, bsend);
 	strcat(bsend,"%");
-	if (i2c_bits[i] & 0x0c) strcat(bsend," / ");
+	if (i2c_bits[i] & 0x0c) strcat(bsend,", ");
 	}
 	if (i2c_bits[i] & 0x04) {
 	u32_strcat_p1 (SnPi2c[i].par3, bsend);
 	strcat(bsend,"hPa");
-	if (i2c_bits[i] & 0x08) strcat(bsend," / ");
+	if (i2c_bits[i] & 0x08) strcat(bsend,", ");
 	}
 	if (i2c_bits[i] & 0x08) {
 	if (SnPi2c[i].par4 == 0xffffffff) strcat(bsend,"-0");
@@ -16249,8 +18038,8 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	itoa(SnPi2c[i].par4,buff,10);
 	strcat(bsend,buff);
 	}
-	strcat(bsend,"Ohm");
-	if (i2c_bits[i] & 0x10) strcat(bsend," / ");
+	strcat(bsend,"&#x3A9;");
+	if (i2c_bits[i] & 0x10) strcat(bsend,", ");
 	}
 
 	} //bits
@@ -16269,7 +18058,11 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend," / ");
 	strcat(bsend,IDF_VER);
 	strcat(bsend," / ");
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	itoa(CONFIG_ESP32C3_DEFAULT_CPU_FREQ_MHZ,buff,10);
+#else
 	itoa(CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ,buff,10);
+#endif
 	strcat(bsend,buff);
 #ifdef CONFIG_IDF_TARGET_ESP32
 	if (REG_GET_BIT(EFUSE_BLK0_RDATA3_REG, EFUSE_RD_CHIP_CPU_FREQ_RATED)) {
@@ -16278,7 +18071,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	}
 #endif
 	uptime_string_exp(buff);
-	strcat(bsend,"MHz</td></tr><tr><td>Local time and date</td><td>");
+	strcat(bsend,"MHz</td></tr><tr><td>Local date / time</td><td>");
 	strcat(bsend,strftime_buf);
 	strcat(bsend,"</td></tr><tr><td>Uptime</td><td>");
 	strcat(bsend,buff);
@@ -16520,7 +18313,8 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	if ((ptr->DEV_TYP > 10) && (ptr->DEV_TYP < 12)) strcat(bsend,"Heater");
 	if ((ptr->DEV_TYP > 11) && (ptr->DEV_TYP < 16)) strcat(bsend,"Coffee");
 	if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 24)) strcat(bsend,"Cooker");
-	if ((ptr->DEV_TYP > 23) && (ptr->DEV_TYP < 61)) strcat(bsend,"Oven");
+	if ((ptr->DEV_TYP > 23) && (ptr->DEV_TYP < 48)) strcat(bsend,"Oven");
+	if ((ptr->DEV_TYP > 47) && (ptr->DEV_TYP < 61)) strcat(bsend,"Baker");
 	if (ptr->DEV_TYP == 61) strcat(bsend,"Iron");
 	if (ptr->DEV_TYP == 62) strcat(bsend,"Smoke");
 	if (ptr->DEV_TYP == 63) strcat(bsend,"Weather");
@@ -16535,7 +18329,8 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	if ((ptr->DEV_TYP > 10) && (ptr->DEV_TYP < 12)) strcat(bsend,"Heater");
 	if ((ptr->DEV_TYP > 11) && (ptr->DEV_TYP < 16)) strcat(bsend,"Coffee");
 	if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 24)) strcat(bsend,"Cooker");
-	if ((ptr->DEV_TYP > 23) && (ptr->DEV_TYP < 61)) strcat(bsend,"Oven");
+	if ((ptr->DEV_TYP > 23) && (ptr->DEV_TYP < 48)) strcat(bsend,"Oven");
+	if ((ptr->DEV_TYP > 47) && (ptr->DEV_TYP < 61)) strcat(bsend,"Baker");
 	if (ptr->DEV_TYP == 61) strcat(bsend,"Iron");
 	if (ptr->DEV_TYP == 62) strcat(bsend,"Smoke");
 	if (ptr->DEV_TYP == 63) strcat(bsend,"Weather");
@@ -16704,7 +18499,7 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	itoa(ptr->bPMin,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"59\" size=\"2\">Set Min</br>");
-	} else if ( ptr->DEV_TYP < 62) {
+	} else if ( ptr->DEV_TYP < 61) {
 	if (ptr->bProg < 24) {
 	if ((ptr->bDHour != ptr->bCHour) || (ptr->bDMin != ptr->bCMin)) {
 	ptr->bDHour = 0;
@@ -16944,11 +18739,20 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	strcat(bsend,"value=\"1\">Bottom heater<option ");
 	if (ptr->bModProg == 2) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"2\">Top and bottom heaters</option></select>Select heating mode</br>");
+	} else if ( ptr->DEV_TYP == 48 ) {
+	if (ptr->bProg == 0) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"0\">Manual</option><option ");
+	if (ptr->bProg == 1) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"1\">Fry</option><option ");
+	if (ptr->bProg == 2) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"2\">Heating</option></select>Select program</br>");
 	}
+	if ( ptr->DEV_TYP != 48 ) {
 	strcat(bsend,"<input name=\"stemp\" type=\"number\" value=\"");
 	itoa(ptr->bHtemp,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"230\" size=\"3\">Set Temp 0-230&deg;C</br>");
+	}
 	strcat(bsend,"<input name=\"sphour\" type=\"number\" value=\"");
 	itoa(ptr->bPHour,buff,10);
 	strcat(bsend,buff);
@@ -18001,10 +19805,14 @@ static const httpd_uri_t pblemonok = {
 
 bool pinvalid(uint8_t pin) {
 	bool retc = true;
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (pin > 21) retc = false;
+#else
 	if (pin > 39) retc = false;
 	if ((pin > 5) && (pin < 11)) retc = false;
 	if ((pin > 27) && (pin < 32)) retc = false;
 	if ((pin == 20) ||(pin == 24)) retc = false;
+#endif
 	return retc;
 }
 
@@ -18081,6 +19889,8 @@ void HtpDeVSett(uint8_t blenum, char* bsend) {
 	strcat(bsend,"value=\"20\">RMC-M92S</option><option ");
 	if (ptr->DEV_TYP == 24) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"24\">RO-5707S</option><option ");
+	if (ptr->DEV_TYP == 48) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"48\">RMB-M658S</option><option ");
 	if (ptr->DEV_TYP == 61) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"61\">RI-C273S</option><option ");
 	if (ptr->DEV_TYP == 62) strcat(bsend,"selected ");
@@ -18093,8 +19903,10 @@ void HtpDeVSett(uint8_t blenum, char* bsend) {
 	strcat(bsend,"value=\"65\">YM-K1501(HK)</option><option ");
 	if (ptr->DEV_TYP == 66) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"66\">V-SK152(Int)</option><option ");
+	if (fdebug) {
 	if (ptr->DEV_TYP == 72) strcat(bsend,"selected ");
-	strcat(bsend,"value=\"72\">Mi-Unknown</option><option ");
+	strcat(bsend,"value=\"72\">MiKettle ID</option><option ");
+	}
 	if (ptr->DEV_TYP == 73) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"73\">GL9001A</option><option ");
 	if (ptr->DEV_TYP == 74) strcat(bsend,"selected ");
@@ -18143,7 +19955,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	}
 	ble_mon_refr = ble_mon_refr & 0xfd;
 	char *bsend = NULL;
-	bsend = malloc(21600);
+	bsend = malloc(21800);
 	if (bsend == NULL) {
 	if (fdebug) ESP_LOGE(AP_TAG, "Http setting: No memory");
 	MemErr++;
@@ -18394,7 +20206,11 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if ((bgpio6 & 0xc0) == 0x80) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"128\">DS 1Wire</option><option ");
 	if ((bgpio6 & 0xc0) == 0xc0) strcat(bsend,"selected ");
+#ifdef USE_IRTX
+	strcat(bsend,"value=\"192\">IR Tx</option></select>&emsp;<input name=\"ppin7\" type=\"number\" value=\"");
+#else
 	strcat(bsend,"value=\"192\">DHT22</option></select>&emsp;<input name=\"ppin7\" type=\"number\" value=\"");
+#endif
 	itoa((bgpio7 & 0x3f),buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"39\" size=\"2\">Port7<select name=\"popt7\"><option ");
@@ -18412,11 +20228,15 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (!(bgpio8 & 0xc0)) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"0\">Off</option><option ");
 	if ((bgpio8 & 0xc0) == 0x40) strcat(bsend,"selected ");
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	strcat(bsend,"value=\"64\">Pwm</option></select>&emsp;<input name=\"ppin9\" type=\"number\" value=\"");
+#else
 	strcat(bsend,"value=\"64\">Pwm</option><option ");
 	if ((bgpio8 & 0xc0) == 0x80) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"128\">DS 1Wire</option><option ");
 	if ((bgpio8 & 0xc0) == 0xc0) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"192\">DHT22</option></select>&emsp;<input name=\"ppin9\" type=\"number\" value=\"");
+#endif
 	itoa((bgpio9 & 0x3f),buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"39\" size=\"2\">Port9<select name=\"popt9\"><option ");
@@ -19645,9 +21465,10 @@ void lpcomstat(uint8_t blenum) {
 	if (ptr->r4slppar1 == 1) m103sToff(blenum);
 	else if (ptr->r4slppar1 == 2) m103sTon(blenum);
 	ptr->bprevProg = 254;
-	} else if (ptr->DEV_TYP == 11) m103sPon(blenum, ptr->r4slppar2);
-	else m103sOn(blenum);
+	} 
 	ptr->bprevState = 255;
+	if (ptr->DEV_TYP == 11) m103sPon(blenum, ptr->r4slppar2);
+	else m103sOn(blenum);
 	ptr->r4slpcom = 0;
 	ptr->t_rspdel = 0;
 //	ptr->t_rspcnt = 1;
@@ -19775,8 +21596,7 @@ void lpcomstat(uint8_t blenum) {
 	ptr->bDHour = 0;
 	ptr->bDMin = 0;
 	}
-	}
-	else rm800sPall(blenum, ptr->r4slppar1, ptr->r4slppar2, ptr->r4slppar3, ptr->r4slppar4, ptr->r4slppar5, ptr->r4slppar7, ptr->r4slppar8, ptr->r4slppar6);
+	} else rm800sPall(blenum, ptr->r4slppar1, ptr->r4slppar2, ptr->r4slppar3, ptr->r4slppar4, ptr->r4slppar5, ptr->r4slppar7, ptr->r4slppar8, ptr->r4slppar6);
 	ptr->r4slpcom = 0;
 	ptr->t_rspdel = 0;
 //	ptr->t_rspcnt = 1;
@@ -20032,7 +21852,6 @@ void app_main(void)
 	}
 	ESP_ERROR_CHECK(ret);
 // empty string 
-	s_retry_num = 0;
 	f_update = false;
 	mqtdel  = 0;
 	macauth  = 0;
@@ -20164,6 +21983,11 @@ void app_main(void)
 	strcpy(BleDevStC.RQC_NAME, BleDevStC.REQ_NAME);
 	strcpy(BleDevStD.RQC_NAME, BleDevStD.REQ_NAME);
 	strcpy(BleDevStE.RQC_NAME, BleDevStE.REQ_NAME);
+	if ((BleDevStA.DEV_TYP > 15) && (BleDevStA.DEV_TYP < 61)) BleDevStA.bProg = 255;
+	if ((BleDevStB.DEV_TYP > 15) && (BleDevStB.DEV_TYP < 61)) BleDevStB.bProg = 255;
+	if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 61)) BleDevStC.bProg = 255;
+	if ((BleDevStD.DEV_TYP > 15) && (BleDevStD.DEV_TYP < 61)) BleDevStD.bProg = 255;
+	if ((BleDevStE.DEV_TYP > 15) && (BleDevStE.DEV_TYP < 61)) BleDevStE.bProg = 255;
 #ifdef USE_TFT
 	if ((PIN_NUM_MISO > 33) || (PIN_NUM_MISO > 33) || (PIN_NUM_MOSI > 33) || (PIN_NUM_CLK > 33) || 
 	(PIN_NUM_CS > 33) || (PIN_NUM_DC > 33) || (PIN_NUM_RST > 33) || (PIN_NUM_BCKL > 33) || (PIN_TOUCH_CS > 33)) {
@@ -20179,8 +22003,8 @@ void app_main(void)
 #endif
 
 	if (!WIFI_SSID[0]) {
-	strcpy(WIFI_SSID, "r4s");
-	strcpy(WIFI_PASSWORD, "12345678");
+	strcpy(WIFI_SSID, INIT_WIFI_SSID);
+	strcpy(WIFI_PASSWORD, INIT_WIFI_PASSWORD);
 	}
 // fill basic parameters
 	R4SNUMO = R4SNUM;
@@ -20263,7 +22087,7 @@ void app_main(void)
     ledc_timer_config_t ledc_timer = {
         .duty_resolution = LEDC_TIMER_8_BIT, // resolution of PWM duty
         .freq_hz = 3136,                      // frequency of PWM signal may be used for beep
-        .speed_mode = LEDC_HIGH_SPEED_MODE,   // timer mode
+        .speed_mode = LEDC_LOW_SPEED_MODE,   // timer mode
         .timer_num = LEDC_TIMER_1,            // timer index
         .clk_cfg = LEDC_AUTO_CLK,             // Auto select the source clock
     };
@@ -20276,7 +22100,7 @@ void app_main(void)
             .channel    = LEDC_CHANNEL_1,
             .duty       = 0,
             .gpio_num   = (bgpio6 & 0x3f),
-            .speed_mode = LEDC_HIGH_SPEED_MODE,
+            .speed_mode = LEDC_LOW_SPEED_MODE,
             .hpoint     = 0,
             .timer_sel  = LEDC_TIMER_1
     };
@@ -20285,18 +22109,22 @@ void app_main(void)
 	} else if ((bgpio6 > 127) && (bgpio6 < 192)) {
 	bStatG6 = 0xffff; //-0 if error
 	if (bgpio6 < 162) {
-	if (rmt_init (0, (bgpio6 & 0x3f), &RmtRgHd0)) {
+	if (rmt1w_init (0, (bgpio6 & 0x3f), &RmtRgHd0)) {
 	f_rmds = (f_rmds & 0xef) | 0x01;
-	rmt_readds(0, &f_rmds, &bStatG6, RmtRgHd0);    //44 start conversion
+	rmt1w_readds(0, &f_rmds, &bStatG6, RmtRgHd0);    //44 start conversion
 	}
 	}
 	} else if (bgpio6 > 191) {
         bStatG6 = 0xffff; //-0
         bStatG6h = 0;
 	if (bgpio6 < 226) {
-	if (rmt_init (0, (bgpio6 & 0x3f), &RmtRgHd0)) {
-	rmt_readdht(0, &f_rmds, &bStatG6, &bStatG6h, RmtRgHd0);
-	}
+#ifdef USE_IRTX
+        bStatG6 = 0;
+        bStatG6h = 0;
+        if (!rmtir_init (0, (bgpio6 & 0x3f))) bgpio6 = bgpio6 & 0x3f;
+#else
+	if (rmt1w_init (0, (bgpio6 & 0x3f), &RmtRgHd0)) rmt1w_readdht(0, &f_rmds, &bStatG6, &bStatG6h, RmtRgHd0);
+#endif
 	}
 	}
 
@@ -20307,7 +22135,7 @@ void app_main(void)
             .channel    = LEDC_CHANNEL_2,
             .duty       = 0,
             .gpio_num   = (bgpio7 & 0x3f),
-            .speed_mode = LEDC_HIGH_SPEED_MODE,
+            .speed_mode = LEDC_LOW_SPEED_MODE,
             .hpoint     = 0,
             .timer_sel  = LEDC_TIMER_1
     };
@@ -20316,18 +22144,16 @@ void app_main(void)
 	} else if ((bgpio7 > 127) && (bgpio7 < 192)) {
 	bStatG7 = 0xffff; //-0 if error
 	if (bgpio7 < 162) {
-	if (rmt_init (1, (bgpio7 & 0x3f), &RmtRgHd1)) {
+	if (rmt1w_init (1, (bgpio7 & 0x3f), &RmtRgHd1)) {
 	f_rmds = (f_rmds & 0xdf) | 0x02;
-	rmt_readds(1, &f_rmds, &bStatG7, RmtRgHd1);    //44 start conversion
+	rmt1w_readds(1, &f_rmds, &bStatG7, RmtRgHd1);    //44 start conversion
 	}
 	}
 	} else if (bgpio7 > 191) {
         bStatG7 = 0xffff; //-0
         bStatG7h = 0;
 	if (bgpio7 < 226) {
-	if (rmt_init (1, (bgpio7 & 0x3f), &RmtRgHd1)) {
-	rmt_readdht(1, &f_rmds, &bStatG7, &bStatG7h, RmtRgHd1);
-	}
+	if (rmt1w_init (1, (bgpio7 & 0x3f), &RmtRgHd1)) rmt1w_readdht(1, &f_rmds, &bStatG7, &bStatG7h, RmtRgHd1);
 	}
 	}
 
@@ -20338,37 +22164,43 @@ void app_main(void)
             .channel    = LEDC_CHANNEL_3,
             .duty       = 0,
             .gpio_num   = (bgpio8 & 0x3f),
-            .speed_mode = LEDC_HIGH_SPEED_MODE,
+            .speed_mode = LEDC_LOW_SPEED_MODE,
             .hpoint     = 0,
             .timer_sel  = LEDC_TIMER_1
     };
         ledc_channel_config(&ledc_channel);
 	}
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	} else bgpio8 = 0;
+#else
 	} else if ((bgpio8 > 127) && (bgpio8 < 192)) {
 	bStatG8 = 0xffff; //-0 if error
 	if (bgpio8 < 162) {
-	if (rmt_init (2, (bgpio8 & 0x3f), &RmtRgHd2)) {
+	if (rmt1w_init (2, (bgpio8 & 0x3f), &RmtRgHd2)) {
 	f_rmds = (f_rmds & 0xbf) | 0x04;
-	rmt_readds(2, &f_rmds, &bStatG8, RmtRgHd2);    //44 start conversion
+	rmt1w_readds(2, &f_rmds, &bStatG8, RmtRgHd2);    //44 start conversion
 	}
 	}
 	} else if (bgpio8 > 191) {
         bStatG8 = 0xffff; //-0
         bStatG8h = 0;
 	if (bgpio8 < 226) {
-	if (rmt_init (2, (bgpio8 & 0x3f), &RmtRgHd2)) {
-	rmt_readdht(2, &f_rmds, &bStatG8, &bStatG8h, RmtRgHd2);
+	if (rmt1w_init (2, (bgpio8 & 0x3f), &RmtRgHd2)) rmt1w_readdht(2, &f_rmds, &bStatG8, &bStatG8h, RmtRgHd2);
 	}
 	}
-	}
-
+#endif
 	if ((bgpio9 > 191) && (bgpio10 > 191) && (bgpio9 < 226) && (bgpio10 < 226)) { // if i2c
-	if (i2c_init_bus ()) {                            //if i2c init
+	if (!i2c_init_bus ()) {                            //if i2c init
         f_i2cdev = f_i2cdev | 0x80000000;
 	i2c_devnum(&f_i2cdev, &s_i2cdev, &i2cdevnum);
-	i2c_init_ip5306 (&f_i2cdev);
-	i2c_init_bme280 (0, &f_i2cdev);
-	i2c_init_bme280 (1, &f_i2cdev);
+	i2c_init_ip5306(&f_i2cdev);
+	i2c_init_ds3231(0, &f_i2cdev);
+	i2c_init_bme280(0, &f_i2cdev);
+	i2c_init_bme280(1, &f_i2cdev);
+	i2c_init_sht3x(0, &f_i2cdev);
+	i2c_init_sht3x(1, &f_i2cdev);
+	i2c_init_aht2x(0, &f_i2cdev);
+	i2c_init_htu21(0, &f_i2cdev);
 	if (f_i2cdev & 0x40000000) i2c_read_ip5306(&f_i2cdev, &ip5306_batmode, &ip5306_batlev);
 	} //if i2c init
 	} //if i2c
@@ -20483,23 +22315,6 @@ void app_main(void)
 	if (local_mtu_ret){
 	if (fdebug) ESP_LOGI(AP_TAG,"Set local  MTU failed, error code = 0x%X\n", local_mtu_ret);
 	}
-// read ds & bme & dht sensors before mqtt init
-	if (f_rmds & 0x01) rmt_readds(0, &f_rmds, &bStatG6, RmtRgHd0);
-	if (f_rmds & 0x02) rmt_readds(1, &f_rmds, &bStatG7, RmtRgHd1);
-	if (f_rmds & 0x04) rmt_readds(2, &f_rmds, &bStatG8, RmtRgHd2);
-	if ((bgpio6 > 191) && (bgpio6 < 226)) rmt_readdht(0, &f_rmds, &bStatG6, &bStatG6h, RmtRgHd0);
-	if ((bgpio7 > 191) && (bgpio7 < 226)) rmt_readdht(1, &f_rmds, &bStatG7, &bStatG7h, RmtRgHd1);
-	if ((bgpio8 > 191) && (bgpio8 < 226)) rmt_readdht(2, &f_rmds, &bStatG8, &bStatG8h, RmtRgHd2);
-	if (f_i2cdev & 0x80000000) {
-	if (f_i2cdev & 0x01) {
-	if (!i2c_read_bme280(0, &f_i2cdev, &SnPi2c[0].par1, &SnPi2c[0].par2, &SnPi2c[0].par3, &SnPi2c[0].par4)) i2c_init_bme280(0, &f_i2cdev);
-	}
-	if (f_i2cdev & 0x02) {
-	if (!i2c_read_bme280(1, &f_i2cdev, &SnPi2c[1].par1, &SnPi2c[1].par2, &SnPi2c[1].par3, &SnPi2c[1].par4)) i2c_init_bme280(1, &f_i2cdev);
-	}
-	}
-//Initialize Mqtt
-	if (MQTT_SERVER[0]) mqtt_app_start();
 //timezone
 /*
 to get MSK (GMT + 3) I need to write GMT-3
@@ -20516,6 +22331,42 @@ to get MSK (GMT + 3) I need to write GMT-3
 	strcat(tzbuf,tzbuff);
 	setenv("TZ", tzbuf, 1);
 	tzset();
+// read ds & bme & dht sensors before mqtt init
+	if (f_rmds & 0x01) rmt1w_readds(0, &f_rmds, &bStatG6, RmtRgHd0);
+	if (f_rmds & 0x02) rmt1w_readds(1, &f_rmds, &bStatG7, RmtRgHd1);
+	if (f_rmds & 0x04) rmt1w_readds(2, &f_rmds, &bStatG8, RmtRgHd2);
+#ifdef USE_IRTX
+
+#else
+	if ((bgpio6 > 191) && (bgpio6 < 226)) rmt1w_readdht(0, &f_rmds, &bStatG6, &bStatG6h, RmtRgHd0);
+#endif
+	if ((bgpio7 > 191) && (bgpio7 < 226)) rmt1w_readdht(1, &f_rmds, &bStatG7, &bStatG7h, RmtRgHd1);
+	if ((bgpio8 > 191) && (bgpio8 < 226)) rmt1w_readdht(2, &f_rmds, &bStatG8, &bStatG8h, RmtRgHd2);
+	if (f_i2cdev & 0x80000000) {
+	if (f_i2cdev & 0x01) {
+	if (i2c_read_bme280(0, &f_i2cdev, &SnPi2c[0].par1, &SnPi2c[0].par2, &SnPi2c[0].par3, &SnPi2c[0].par4)) i2c_init_bme280(0, &f_i2cdev);
+	}
+	if (f_i2cdev & 0x02) {
+	if (i2c_read_bme280(1, &f_i2cdev, &SnPi2c[1].par1, &SnPi2c[1].par2, &SnPi2c[1].par3, &SnPi2c[1].par4)) i2c_init_bme280(1, &f_i2cdev);
+	}
+	if (f_i2cdev & 0x04) {
+	if (i2c_read_sht3x(0, &f_i2cdev, &SnPi2c[2].par1, &SnPi2c[2].par2)) i2c_init_sht3x(0, &f_i2cdev);
+	}
+	if (f_i2cdev & 0x08) {
+	if (i2c_read_sht3x(1, &f_i2cdev, &SnPi2c[3].par1, &SnPi2c[3].par2)) i2c_init_sht3x(1, &f_i2cdev);
+	}
+	if (f_i2cdev & 0x10) {
+	if (i2c_read_aht2x(0, &f_i2cdev, &SnPi2c[4].par1, &SnPi2c[4].par2)) i2c_init_aht2x(0, &f_i2cdev);
+	}
+	if (f_i2cdev & 0x20) {
+	if (i2c_read_ds3231(0, &f_i2cdev, &SnPi2c[5].par1)) i2c_init_ds3231(0, &f_i2cdev);
+	}
+	if (f_i2cdev & 0x40) {
+	if (i2c_read_htu21(0, &f_i2cdev, &SnPi2c[6].par1, &SnPi2c[6].par2)) i2c_init_htu21(0, &f_i2cdev);
+	}
+	}
+//Initialize Mqtt
+	if (MQTT_SERVER[0]) mqtt_app_start();
 //sntp
 	sntp_setoperatingmode(SNTP_OPMODE_POLL);
 	if(!NTP_SERVER[0]) strcpy (NTP_SERVER, "pool.ntp.org");
@@ -20545,6 +22396,8 @@ to get MSK (GMT + 3) I need to write GMT-3
 	floop = 32;
 #ifdef USE_TFT
 	t_jpg = jpg_time * 10;	
+	blstnum_inc();
+	t_tinc = 40;	
 #endif
 
 //r4s state nonitoring and command execution loop
@@ -20555,7 +22408,12 @@ to get MSK (GMT + 3) I need to write GMT-3
 	lpcomstat(2);
 	lpcomstat(3);
 	lpcomstat(4);
-
+#ifdef USE_IRTX
+	if ((bgpio6 > 191) && (bgpio6 < 226)) {
+	rmtir_send(0, &bStatG6, &bprevStatG6, &bStatG6h);
+	if (bStatG6 != bprevStatG6) t_lasts = 0;
+	}
+#endif
 	if (!t_lasts && !t_ppcons) {
 	MqSState();
 	t_lasts = 60;
@@ -20595,61 +22453,97 @@ to get MSK (GMT + 3) I need to write GMT-3
 	if (f_update && tft_conn) tfblestate();
 #endif
 	if (!f_update) {
+	esp_err_t err = 0;
 	if(RmtDsNum > 2) RmtDsNum = 0;
 	switch (RmtDsNum) {
 	case 1:
-	if (f_rmds & 0x02) rmt_readds(1, &f_rmds, &bStatG7, RmtRgHd1);
-	if ((bgpio7 > 191) && (bgpio7 < 226)) rmt_readdht(1, &f_rmds, &bStatG7, &bStatG7h, RmtRgHd1);
+	if (f_rmds & 0x02) rmt1w_readds(1, &f_rmds, &bStatG7, RmtRgHd1);
+	if ((bgpio7 > 191) && (bgpio7 < 226)) rmt1w_readdht(1, &f_rmds, &bStatG7, &bStatG7h, RmtRgHd1);
 	if ((bStatG7 != bprevStatG7) || (bStatG7h != bprevStatG7h)) t_lasts = 0;
 	if (f_i2cdev & 0x80000000) {
 	if (f_i2cdev & 0x02) {
-	if (!i2c_read_bme280(1, &f_i2cdev, &SnPi2c[1].par1, &SnPi2c[1].par2, &SnPi2c[1].par3, &SnPi2c[1].par4)) i2c_init_bme280(1, &f_i2cdev);
-	} else i2c_init_bme280(1, &f_i2cdev);
+	err = i2c_read_bme280(1, &f_i2cdev, &SnPi2c[1].par1, &SnPi2c[1].par2, &SnPi2c[1].par3, &SnPi2c[1].par4);
+	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_bme280(1, &f_i2cdev);
 	if ((SnPi2c[1].ppar1 != SnPi2c[1].par1) || (SnPi2c[1].ppar2 != SnPi2c[1].par2) || (SnPi2c[1].ppar3 != SnPi2c[1].par3) || (SnPi2c[1].ppar4 != SnPi2c[1].par4)) t_lasts = 0;
+	} else if (s_i2cdev & 0x02) i2c_init_bme280(1, &f_i2cdev);
 	}
+	if (f_i2cdev & 0x08) {
+	err = i2c_read_sht3x(1, &f_i2cdev, &SnPi2c[3].par1, &SnPi2c[3].par2);
+	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_sht3x(1, &f_i2cdev);
+	if ((SnPi2c[3].ppar1 != SnPi2c[3].par1) || (SnPi2c[3].ppar2 != SnPi2c[3].par2)) t_lasts = 0;
+	} else if (s_i2cdev & 0x08)  i2c_init_sht3x(1, &f_i2cdev);
 	break;
 	case 2:
-	if (f_rmds & 0x04) rmt_readds(2, &f_rmds, &bStatG8, RmtRgHd2);
-	if ((bgpio8 > 191) && (bgpio8 < 226)) rmt_readdht(2, &f_rmds, &bStatG8, &bStatG8h, RmtRgHd2);
+	if (f_rmds & 0x04) rmt1w_readds(2, &f_rmds, &bStatG8, RmtRgHd2);
+	if ((bgpio8 > 191) && (bgpio8 < 226)) rmt1w_readdht(2, &f_rmds, &bStatG8, &bStatG8h, RmtRgHd2);
 	if (f_i2cdev & 0x80000000) {
+	if (f_i2cdev & 0x10) {
+	err = i2c_read_aht2x(0, &f_i2cdev, &SnPi2c[4].par1, &SnPi2c[4].par2);
+	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_aht2x(0, &f_i2cdev);
+	if ((SnPi2c[4].ppar1 != SnPi2c[4].par1) || (SnPi2c[4].ppar2 != SnPi2c[4].par2)) t_lasts = 0;
+	} else if (s_i2cdev & 0x10) i2c_init_aht2x(0, &f_i2cdev);
+	if (f_i2cdev & 0x20) {
+	if (i2c_read_ds3231(0, &f_i2cdev, &SnPi2c[5].par1)) i2c_init_ds3231(0, &f_i2cdev);
+	if (SnPi2c[5].ppar1 != SnPi2c[5].par1) t_lasts = 0;
+	}  else if (s_i2cdev & 0x20) i2c_init_ds3231(0, &f_i2cdev);
 	if (f_i2cdev & 0x40000000) {
-	i2c_read_ip5306(&f_i2cdev, &ip5306_batmode, &ip5306_batlev);
+	if (i2c_read_ip5306(&f_i2cdev, &ip5306_batmode, &ip5306_batlev)) i2c_init_ip5306(&f_i2cdev);
 	if (ip5306_batpscrmode != ip5306_batmode) {
 #ifdef USE_TFT
 	if (ip5306_batmode & 0x02) {
-	ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, bStateS);
+	ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, bStateS);
 	} else {
-	ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, (bStateS >> 5));
+	ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, (bStateS >> 5));
 	}
-	ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0);
+	ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 #endif
 	ip5306_batprevmode = 255;
 	ip5306_batpscrmode = ip5306_batmode;
 	}
-	}
+	} else if (s_i2cdev & 0x40000000) i2c_init_ip5306(&f_i2cdev);
 	i2c_devnum(&f_i2cdev, &s_i2cdev, &i2cdevnum);
 	if (FDHass && (i2cdevnum > i2cdevnumo)) i2cdevnumo =255;
 	else if ((i2cdevnumo == 255) && mqttConnected && HDisci2c(&f_i2cdev)) i2cdevnumo = i2cdevnum;
+	else if (i2cdevnumo > i2cdevnum)  i2cdevnumo = i2cdevnum;
 	}
 	if ((bStatG8 != bprevStatG8) || (bStatG8h != bprevStatG8h) || (ip5306_batlev != ip5306_batprevlev) || (ip5306_batmode != ip5306_batprevmode)) t_lasts = 0;
 	break;
 	default:
-	if (f_rmds & 0x01) rmt_readds(0, &f_rmds, &bStatG6, RmtRgHd0);
-	if ((bgpio6 > 191) && (bgpio6 < 226)) rmt_readdht(0, &f_rmds, &bStatG6, &bStatG6h, RmtRgHd0);
+	if (f_rmds & 0x01) rmt1w_readds(0, &f_rmds, &bStatG6, RmtRgHd0);
+#ifdef USE_IRTX
+
+#else
+	if ((bgpio6 > 191) && (bgpio6 < 226)) rmt1w_readdht(0, &f_rmds, &bStatG6, &bStatG6h, RmtRgHd0);
 	if ((bStatG6 != bprevStatG6) || (bStatG6h != bprevStatG6h)) t_lasts = 0;
+#endif
 	if (f_i2cdev & 0x80000000) {
 	if (f_i2cdev & 0x01) {
-	if (!i2c_read_bme280(0, &f_i2cdev, &SnPi2c[0].par1, &SnPi2c[0].par2, &SnPi2c[0].par3, &SnPi2c[0].par4)) i2c_init_bme280(0, &f_i2cdev);
-	} else i2c_init_bme280(0, &f_i2cdev);
+	err = i2c_read_bme280(0, &f_i2cdev, &SnPi2c[0].par1, &SnPi2c[0].par2, &SnPi2c[0].par3, &SnPi2c[0].par4);
+	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_bme280(0, &f_i2cdev);
 	if ((SnPi2c[0].ppar1 != SnPi2c[0].par1) || (SnPi2c[0].ppar2 != SnPi2c[0].par2) || (SnPi2c[0].ppar3 != SnPi2c[0].par3) || (SnPi2c[0].ppar4 != SnPi2c[0].par4)) t_lasts = 0;
+	} else if (s_i2cdev & 0x01) i2c_init_bme280(0, &f_i2cdev);
+	if (f_i2cdev & 0x04) {
+	err = i2c_read_sht3x(0, &f_i2cdev, &SnPi2c[2].par1, &SnPi2c[2].par2);
+	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_sht3x(0, &f_i2cdev);
+	if ((SnPi2c[2].ppar1 != SnPi2c[2].par1) || (SnPi2c[2].ppar2 != SnPi2c[2].par2))  t_lasts = 0;
+	} else if (s_i2cdev & 0x04) i2c_init_sht3x(0, &f_i2cdev);
+	if (f_i2cdev & 0x40) {
+	err = i2c_read_htu21(0, &f_i2cdev, &SnPi2c[6].par1, &SnPi2c[6].par2);
+	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_htu21(0, &f_i2cdev);
+	if ((SnPi2c[6].ppar1 != SnPi2c[6].par1) || (SnPi2c[6].ppar2 != SnPi2c[6].par2))  t_lasts = 0;
+	} else if (s_i2cdev & 0x40) i2c_init_htu21(0, &f_i2cdev);
 	}
 	break;
 	}
 	RmtDsNum++;
 	}
 	t_tinc = 40;
-	if (s_retry_num >= WIFI_MAXIMUM_RETRY) {
+	if (wf_retry_cnt >= (WIFI_MAXIMUM_RETRY << 4)) {
 	if (fdebug) ESP_LOGI(AP_TAG,"Wifi disconnected. Restarting now...");
+#ifdef USE_TFT
+	blstnum = 253;
+	if (tft_conn) tfststr("Wifi disconnected. Restarting ...", NULL, NULL); 
+#endif
 	fflush(stdout);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	floop = 0;

@@ -55,7 +55,7 @@
 #define AP_TAG "R4S"
 
 //*** wifi ***
-#define WIFI_MAXIMUM_RETRY  10
+#define WIFI_MAXIMUM_RETRY  11
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
@@ -129,9 +129,7 @@
 //AM43
 // AMREMOTE_SERVICE_UUID  "fe50"
 #define AMREMOTE_SERVICE_UUID 0xfe50
-
 // AMREMOTE_CHAR_UUID  "fe51"
-//#define AMREMOTE_CHAR_UUID     {0xfb, 0x34, 0x9b, 0x5f, 0x80, 0x00, 0x00, 0x80, 0x00, 0x10, 0x00, 0x00, 0x51, 0xfe, 0x00, 0x00}
 #define AMREMOTE_CHAR_UUID 0xfe51
 
 
@@ -190,52 +188,55 @@ uint8_t  t_ppcon;
 uint16_t t_rspdel;
 uint8_t  t_rspcnt;
 uint8_t  f_Sync;
-char     cprevStatus[cStatus_len];
 char     cStatus[cStatus_len];
 int      iRssi;
-int      iprevRssi;
-uint32_t bSEnergy;
-uint32_t bprevSEnergy;
-uint32_t bSTime;
-uint32_t bprevSTime;
-uint32_t bSCount;
-uint32_t bprevSCount;
-uint32_t bSHum;
-uint32_t bprevSHum;
+uint8_t  bState;
+uint8_t  bHeat;
 uint8_t  bLock;
 uint8_t  bProg;
-uint8_t  bKeep;
 uint8_t  bModProg;
-uint8_t  bHeat;
 uint8_t  bPHour;
 uint8_t  bPMin;
 uint8_t  bCHour;
 uint8_t  bCMin;
 uint8_t  bDHour;
 uint8_t  bDMin;
-uint8_t  bState;
 uint8_t  bStNl;
 uint8_t  bStBl;
 uint8_t  bStBp;
 uint8_t  bCtemp;
 uint8_t  bHtemp;
-uint8_t  bLtemp;
 uint8_t  bAwarm;
 int8_t   bBlTime;
 uint8_t  RgbR;
 uint8_t  RgbG;
 uint8_t  RgbB;
+uint32_t bSEnergy;
+uint32_t bSTime;
+uint32_t bSCount;
+uint32_t bSHum;
+uint8_t  bCVol;
+uint8_t  bCVoll;
+uint32_t bS1Energy;
+uint8_t  bC1temp;
+uint8_t  bCStemp;
+uint8_t  bLtemp;
+uint8_t  bKeep;
+uint8_t  bEfficiency;
+
+char     cprevStatus[cStatus_len];
+int      iprevRssi;
+uint8_t  bprevState;
+uint8_t  bprevHeat;
 uint8_t  bprevLock;
 uint8_t  bprevProg;
 uint8_t  bprevModProg;
-uint8_t  bprevHeat;
 uint8_t  bprevPHour;
 uint8_t  bprevPMin;
 uint8_t  bprevCHour;
 uint8_t  bprevCMin;
 uint8_t  bprevDHour;
 uint8_t  bprevDMin;
-uint8_t  bprevState;
 uint8_t  bprevStNl;
 uint8_t  bprevStBl;
 uint8_t  bprevStBp;
@@ -246,15 +247,12 @@ int8_t   bprevBlTime;
 uint8_t  PRgbR;
 uint8_t  PRgbG;
 uint8_t  PRgbB;
-
-uint32_t bS1Energy;
-uint8_t  bC1temp;
-uint8_t  bCStemp;
-uint8_t  bCVol;
-uint8_t  bCVoll;
+uint32_t bprevSEnergy;
+uint32_t bprevSTime;
+uint32_t bprevSCount;
+uint32_t bprevSHum;
 uint8_t  bprevCVol;
 uint8_t  bprevCVoll;
-uint8_t  bEfficiency;
 
 };
 struct BleMonRec {
@@ -300,18 +298,18 @@ uint16_t  par1;
 uint16_t  par2;
 uint16_t  par3;
 uint32_t  par4;
-uint16_t  par5;
-uint16_t  par6;
-uint16_t  par7;
-uint16_t  par8;
+//uint16_t  par5;
+//uint16_t  par6;
+//uint16_t  par7;
+//uint16_t  par8;
 uint16_t  ppar1;
 uint16_t  ppar2;
 uint16_t  ppar3;
 uint16_t  ppar4;
-uint16_t  ppar5;
-uint16_t  ppar6;
-uint16_t  ppar7;
-uint16_t  ppar8;
+//uint16_t  ppar5;
+//uint16_t  ppar6;
+//uint16_t  ppar7;
+//uint16_t  ppar8;
 };
 
 static bool Isscanning = false;
@@ -492,10 +490,10 @@ RingbufHandle_t RmtRgHd0 = 0;
 RingbufHandle_t RmtRgHd1 = 0;
 RingbufHandle_t RmtRgHd2 = 0;
 
-const uint8_t i2c_addr[30] = {0x76,0x77,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-			0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
-const uint8_t i2c_bits[30] = {0x07,0x07,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-			0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+const uint8_t i2c_addr[32] = {0x76,0x77,0x44,0x45,0x38,0x68,0x40,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+			      0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x75,0xff};
+const uint8_t i2c_bits[32] = {0x0f,0x0f,0x03,0x03,0x03,0x01,0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+			      0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
 
 bool f_update = false;
 

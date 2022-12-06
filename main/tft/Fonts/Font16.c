@@ -42,8 +42,8 @@ const unsigned char widtbl_f16[224] =         // character width table
         6, 6, 6, 6, 6, 6, 6, 6,             //C8 - CF
         6, 6, 6, 6, 6, 6, 6, 6,             //D0 - D7
         6, 6, 6, 6, 6, 6, 6, 6,             //D8 - DF
-        6, 6, 6, 6, 6, 6, 6, 6,             //E0 - E7
-        6, 6, 8, 8, 8, 8, 8, 8,             //E8 - EF
+        8, 8, 8, 8, 8, 14, 14, 14,          //E0 - E7
+        14,6, 8, 8, 8, 8, 8, 8,             //E8 - EF
         8, 8, 8, 8, 8, 6, 8, 8,             //F0 - F7
         8, 8, 8, 8, 8, 8, 8, 8              //F8 - FF
 };
@@ -874,6 +874,60 @@ const unsigned char chr_f16_BF[16] =         // 1 unsigned char per row
         0x44, 0x84, 0x00, 0x00, 0x00                                         // row 12 - 16
 };
 
+const unsigned char chr_f16_E0[16] =         // 1 unsigned char per row
+{
+        0x00, 0x30, 0xfc, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84,    // row 1 - 11
+        0x84, 0x84, 0xfc, 0x00, 0x00                                         // row 12 - 16
+};
+
+const unsigned char chr_f16_E1[16] =         // 1 unsigned char per row
+{
+        0x00, 0x30, 0xfc, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84, 0xfc,    // row 1 - 11
+        0xfc, 0xfc, 0xfc, 0x00, 0x00                                         // row 12 - 16
+};
+
+const unsigned char chr_f16_E2[16] =         // 1 unsigned char per row
+{
+        0x00, 0x30, 0xfc, 0x84, 0x84, 0x84, 0x84, 0x84, 0xfc, 0xfc, 0xfc,    // row 1 - 11
+        0xfc, 0xfc, 0xfc, 0x00, 0x00                                         // row 12 - 16
+};
+
+const unsigned char chr_f16_E3[16] =         // 1 unsigned char per row
+{
+        0x00, 0x30, 0xfc, 0x84, 0x84, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc,    // row 1 - 11
+        0xfc, 0xfc, 0xfc, 0x00, 0x00                                         // row 12 - 16
+};
+
+const unsigned char chr_f16_E4[16] =         // 1 unsigned char per row
+{
+        0x00, 0x30, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc,    // row 1 - 11
+        0xfc, 0xfc, 0xfc, 0x00, 0x00                                         // row 12 - 16
+};
+
+const unsigned char chr_f16_E5[32] =         // 2 unsigned chars per row
+{
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,    // row 1 - 6
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x38, 0x00, 0x60,    // row 7 - 12
+        0x00, 0x48, 0x00, 0x58, 0x00, 0x00, 0x00, 0x00                             // row 13 - 16
+};
+const unsigned char chr_f16_E6[32] =         // 2 unsigned chars per row
+{
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,    // row 1 - 6
+        0x00, 0x00, 0x00, 0x38, 0x00, 0xe0, 0x01, 0x80, 0x01, 0x38, 0x03, 0x60,    // row 7 - 12
+        0x02, 0x48, 0x02, 0x58, 0x00, 0x00, 0x00, 0x00                             // row 13 - 16
+};
+const unsigned char chr_f16_E7[32] =         // 2 unsigned chars per row
+{
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x01, 0xc0,    // row 1 - 6
+        0x03, 0x00, 0x06, 0x38, 0x0c, 0xe0, 0x09, 0x80, 0x19, 0x38, 0x13, 0x60,    // row 7 - 12
+        0x12, 0x48, 0x12, 0x58, 0x00, 0x00, 0x00, 0x00                             // row 13 - 16
+};
+const unsigned char chr_f16_E8[32] =         // 2 unsigned chars per row
+{
+        0x00, 0x00, 0x00, 0xf8, 0x03, 0x80, 0x0e, 0x00, 0x18, 0x78, 0x31, 0xc0,    // row 1 - 6
+        0x23, 0x00, 0x66, 0x38, 0x4c, 0xe0, 0xc9, 0x80, 0x99, 0x38, 0x93, 0x60,    // row 7 - 12
+        0x92, 0x48, 0x92, 0x58, 0x00, 0x00, 0x00, 0x00                             // row 13 - 16
+};
 
 const unsigned char chr_f16_EC[16] =         // 1 unsigned char per row
 {
@@ -1001,8 +1055,8 @@ const unsigned char* const chrtbl_f16[224] =       // character pointer table
         chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, //C8 - CF
         chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, //D0 - D7
         chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, //D8 - DF
-        chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, //E0 - E7
-        chr_f16_20, chr_f16_20, chr_f16_F2, chr_f16_F2, chr_f16_EC, chr_f16_F3, chr_f16_EE, chr_f16_EF, //E8 - EF
+        chr_f16_E0, chr_f16_E1, chr_f16_E2, chr_f16_E3, chr_f16_E4, chr_f16_E5, chr_f16_E6, chr_f16_E7, //E0 - E7
+        chr_f16_E8, chr_f16_20, chr_f16_F2, chr_f16_F2, chr_f16_EC, chr_f16_F3, chr_f16_EE, chr_f16_EF, //E8 - EF
         chr_f16_F0, chr_f16_F1, chr_f16_F2, chr_f16_F3, chr_f16_F4, chr_f16_20, chr_f16_F6, chr_f16_F7, //F0 - F7
         chr_f16_F8, chr_f16_F9, chr_f16_FA, chr_f16_FB, chr_f16_FC, chr_f16_FD, chr_f16_FE, chr_f16_FF  //F8 - FF
 
