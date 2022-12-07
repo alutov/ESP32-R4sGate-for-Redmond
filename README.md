@@ -149,7 +149,7 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 <details>
      <summary>Подробнее об IR Tx ...</summary>
 
-&emsp;Поддерживаются протоколы NEC (8 и 16 битный адрес) RC5 (для работы в режиме RC5ext нужно инвертировать 6 бит команды), RC6, Samsung, Sony SIRC (12, 15 и 20 бит), Panasonic. Управлять можно как из интерфейса ХА и отдельных топиков адреса, команды и протокола, так и прямой записью в топик ***r4sx/ir6code*** строки из 8 hex символов 0-9,a-f, например, 090a1c3d, где 09 - протокол(01-nec, 02-necx16, 03-rc5, 04-rc6, 05-samsung, 06-sircx12, 07-sircx15, 08-sircx20, 09-panasonic), 0a1c - адрес, 3d -команда.
+&emsp;Поддерживаются протоколы NEC (8 и 16 битный адрес) RC5 (для работы в режиме RC5ext нужно инвертировать 6 бит команды), RC6, Samsung, Sony SIRC (12, 15 и 20 бит), Panasonic. Управлять можно как из интерфейса ХА и отдельных топиков адреса, команды и протокола, так и прямой записью в топик ***r4sx/ir6code*** строки из 8 hex символов 0-9,a-f, например, 090a1c3d, где 09 - протокол(01-nec, 02-necx16, 03-rc5, 04-rc6, 05-samsung, 06-sircx12, 07-sircx15, 08-sircx20, 09-panasonic), 0a1c - адрес, 3d -команда.<br>
 Что проверено (интересовала команда включения питания):<br>
 **NEC:** pioneer vsx-830 power: addr 165, cmd 28, code 0100a51c<br>
 **NECx16:** lg dvd dks-2000h, power: addr 11565, cmd 48, code 022d2d30<br> 
@@ -333,7 +333,7 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 <details>
 <summary>Подробнее...</summary>
 
-&emsp; Пока использую версию [esp-idf версии 4.4](https://github.com/espressif/idf-installer/releases/download/offline-4.4/esp-idf-tools-setup-offline-4.4.exe). Особых проблем не замечал пока, кроме [I2C](https://github.com/espressif/esp-idf/commit/0b00831703ec351c4c3b1040b004b358e4396067), которую закрыли в версии 4.4.2. Однако, собрав проект в версии 4.4.2 обнаружил, что при прочих равных условиях свободной оперативной памяти стало меньше на 3/5-4 килобайта (68к против 71-72к). В версии 4.4.3 памяти стало еще на 2 к меньше (66к). Потому остановился на версии 4.4, поправив в ней 2 файла: **C:\Espressif\frameworks\esp-idf-v4.4\components\driver\i2c.c** и **C:\Espressif\frameworks\esp-idf-v4.4\components\soc\esp32c3\include\soc\soc_caps.h** Файлы вместе с оригинальными версиями в [архиве](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/utils/i2c44p.zip).
+&emsp; Пока использую версию [esp-idf версии 4.4](https://github.com/espressif/idf-installer/releases/download/offline-4.4/esp-idf-tools-setup-offline-4.4.exe). Особых проблем не замечал пока, кроме [I2C](https://github.com/espressif/esp-idf/commit/0b00831703ec351c4c3b1040b004b358e4396067), которую закрыли в версии 4.4.2. Однако, собрав проект в версии 4.4.2 обнаружил, что при прочих равных условиях свободной оперативной памяти стало меньше на 3/5-4 килобайта (68к против 71-72к). В версии 4.4.3 памяти стало еще на 2к меньше (66к). Потому остановился на версии 4.4, поправив в ней 2 файла: **C:\Espressif\frameworks\esp-idf-v4.4\components\driver\i2c.c** и **C:\Espressif\frameworks\esp-idf-v4.4\components\soc\esp32c3\include\soc\soc_caps.h** Файлы вместе с оригинальными версиями в [архиве](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/utils/i2c44p.zip).
 </details>
      
 &emsp; Добавлена лицензия MIT. Добавлена конфигурация для сборки в среде PlatformIO, спасибо [bvp](https://github.com/bvp),  его сообщение [здесь](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/89).
