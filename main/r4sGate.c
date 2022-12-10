@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 ****************************************************************
 */
-#define AP_VER "2022.12.06"
+#define AP_VER "2022.12.10"
 #define NVS_VER 4  //NVS config version (even only)
 // If use ili9341 320*240 tft
 #define USE_TFT
@@ -626,7 +626,7 @@ samsung ue32n5300, pwr: addr 7, cmd 2, code 05000702
 sircx12 sony cmtsx7, pwr: addr:16, cmd: 21, code 06001015
 sircx20 sony ubp-x800 pwr: addr 7258, cmd 21, code 081c5a15
 panasonic sa-pm20 pwr: addr 2588, cmd 61, code 090a1c3d
-panasonic dmp ub900 pwr: addr 2816, cmd 61, code 090a1c3d
+panasonic dmp ub900 pwr: addr 2816, cmd 61, code 090b00c3d
 ----------------------------------------------------------------
 freq/div:
 36004: 101*22
@@ -13421,7 +13421,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	if (ptr->DEV_TYP < 10) {	
 	//kettle
 	if (!memcmp(topic+topoff, "boil", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -13464,7 +13464,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 		} 
 
 	} else if (!memcmp(topic+topoff, "heat", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bHeat) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -13519,7 +13519,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 		} 
 
 	} else if (!memcmp(topic+topoff, "heat_temp", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -13559,7 +13559,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_HEAT_TEMP");
 
 	} else if (!memcmp(topic+topoff, "backlight", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bStBl) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -13577,7 +13577,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 
 	} else if (!memcmp(topic+topoff, "beep", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bStBp) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -13595,7 +13595,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 
 	} else if (!memcmp(topic+topoff, "nightlight", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bStNl) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -13613,7 +13613,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 
 	} else if (!memcmp(topic+topoff, "nightlight_rgb", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -13650,7 +13650,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 
 	} else if (!memcmp(topic+topoff, "nightlight_red", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -13665,7 +13665,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	ptr->t_rspcnt = 1;
 	}
 	} else if (!memcmp(topic+topoff, "nightlight_green", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -13680,7 +13680,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	ptr->t_rspcnt = 1;
 	}
 	} else if (!memcmp(topic+topoff, "nightlight_blue", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -13695,7 +13695,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	ptr->t_rspcnt = 1;
 	}
 	} else if (!memcmp(topic+topoff, "boil_time", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -13714,7 +13714,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if ( ptr->DEV_TYP < 12) {
 	//power
 	if (!memcmp(topic+topoff, "state", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -13739,7 +13739,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 
 	} else if (!memcmp(topic+topoff, "power", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -13757,7 +13757,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_POWER");
 
 	} else 	if (!memcmp(topic+topoff, "lock", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bLock) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {	
@@ -13774,7 +13774,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_lock_OFF");
 	}
 	} else 	if (!memcmp(topic+topoff, "keep", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bModProg) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {	
@@ -13794,7 +13794,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if ( ptr->DEV_TYP < 16) {
 	//coffee
 	if (!memcmp(topic+topoff, "state", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -13811,7 +13811,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CMD_OFF");
 	}
 	} else if (!memcmp(topic+topoff, "delay", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bStNl) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {	
@@ -13832,7 +13832,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_delay_OFF");
 	}
 	} else if (!memcmp(topic+topoff, "delay_hour", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -13843,7 +13843,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	ptr->t_rspcnt = 1;
 	}
 	} else if (!memcmp(topic+topoff, "delay_min", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -13854,7 +13854,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	ptr->t_rspcnt = 1;
 	}
 	} else 	if (!memcmp(topic+topoff, "lock", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bLock) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {	
@@ -13871,7 +13871,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_lock_OFF");
 	}
 	} else 	if (!memcmp(topic+topoff, "strength", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bProg) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {	
@@ -13892,7 +13892,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if (ptr->DEV_TYP < 61) {
 	//cooker
 	if (!memcmp(topic+topoff, "state", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((ptr->bState < 2) || (!ptr->r4sppcom) || (!fcommtp)) {
@@ -13909,7 +13909,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CMD_OFF");
 	}
 	} else if (!memcmp(topic+topoff, "prname", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	ptr->r4slppar1 = 0;
 	ptr->r4slppar2 = 0;
 	ptr->r4slppar3 = 0;
@@ -14036,7 +14036,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 	if ((!fcommtp) || (!ptr->r4sppcom) || (ptr->r4slppar1 != ptr->bProg) || (ptr->r4slppar2 != ptr->bModProg)) ptr->r4slpcom = 17;
 	} else if (!memcmp(topic+topoff, "prog", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -14047,7 +14047,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 11;
 	}
 	} else if (!memcmp(topic+topoff, "mode", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -14057,7 +14057,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 12;
 	}
 	} else if (!memcmp(topic+topoff, "temp", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -14067,7 +14067,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 13;
 	}
 	} else if (!memcmp(topic+topoff, "set_hour", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -14078,7 +14078,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 14;
 	}
 	} else if (!memcmp(topic+topoff, "set_min", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -14088,7 +14088,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 15;
 	}
 	} else if (!memcmp(topic+topoff, "delay_hour", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -14103,7 +14103,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 19;
 	}
 	} else if (!memcmp(topic+topoff, "delay_min", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -14117,7 +14117,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 20;
 	}
 	} else if (!memcmp(topic+topoff, "warm", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bAwarm) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {	
@@ -14135,7 +14135,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if (ptr->DEV_TYP == 61) {
 	//iron
 	if (!memcmp(topic+topoff, "state", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -14152,7 +14152,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CMD_OFF");
 	}
 	} else if (!memcmp(topic+topoff, "lock", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -14172,7 +14172,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if (ptr->DEV_TYP == 62) {
 	//weather station
 	if (!memcmp(topic+topoff, "clear", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -14199,7 +14199,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if (ptr->DEV_TYP == 63) {
 	//weather station
 	if (!memcmp(topic+topoff, "calibration", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -14226,7 +14226,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73)) {
 	//mikettle
 	if (!memcmp(topic+topoff, "boil", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -14243,7 +14243,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_BOIL_OFF");
 	}
 	} else if (!memcmp(topic+topoff, "heat", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bHeat) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -14272,7 +14272,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_AUTO_ON");
 	}
 	} else if (!memcmp(topic+topoff, "heat_temp", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -14292,7 +14292,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if (ptr->DEV_TYP == 73) {
 	//galcon
 	if (!memcmp(topic+topoff, "state", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
@@ -14309,7 +14309,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_SWITCH_OFF");
 	}
 	} else if (!memcmp(topic+topoff, "set_hour", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -14320,7 +14320,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	ptr->t_rspcnt = 1;
 	}
 	} else if (!memcmp(topic+topoff, "set_min", topic_len-topoff)) {
-	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	int tempsz = data_len;
 	if  (tempsz > 60) tempsz = 60;
 	mystrcpy(tbuff, data, tempsz);
@@ -14333,7 +14333,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 	} else if (ptr->DEV_TYP == 74) {
 	if (!memcmp(topic+topoff, "set", topic_len-topoff)) {
-	esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if (!incascmp("open",data,data_len)) {
 	ptr->r4slppar1 = 100;
 	ptr->r4slpcom = 26;
@@ -16392,7 +16392,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	memcpy(ttopic, event->topic, event->topic_len);
         mqtdel = 20;
 	if (event->data_len) esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
-	} else if ((event->data_len) && (event->data_len < 384) && (event->topic_len) && (event->topic_len < 64)) {
+	} else if (event->data_len && (event->data[0] != 0x2e) && (event->data_len < 384) && (event->topic_len) && (event->topic_len < 64)) {
 	int topoffa = 0;
 	int topoffb = 0;
 	int topoffc = 0;
@@ -16755,7 +16755,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	t_lasts = 0;
 	}
 	} else if (!memcmp(event->topic+topoffi, "code", event->topic_len-topoffi)) {
-	esp_mqtt_client_publish(mqttclient, ttopic, "", 0, 1, 1);
+	esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if (event->data_len && (event->data_len == 8)) {
 	uint8_t buf[4];
 	mystrcpy(tbuff, event->data, event->data_len);
@@ -16855,7 +16855,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
 static void mqtt_app_start(void)
 {
-	char buff[16];
 	char luri[128];
 	char llwtt[16];
 	if (fmwss) {
@@ -16864,11 +16863,6 @@ static void mqtt_app_start(void)
 	(fmssl)? strcpy(luri,"mqtts://") : strcpy(luri,"mqtt://");
 	}
 	strcat(luri,MQTT_SERVER);
-	if (mqtt_port) {
-	strcat(luri,":");
-	itoa(mqtt_port,buff,10);
-	strcat(luri,buff);
-	}
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/status");
 //
@@ -16876,13 +16870,14 @@ static void mqtt_app_start(void)
 	.uri = luri,
 	.username = MQTT_USER,
 	.password = MQTT_PASSWORD,
+	.port = mqtt_port,
 	.lwt_topic = llwtt,
 	.lwt_msg = "offline",
 	.keepalive = 60,
 	.client_id = MQTT_BASE_TOPIC,
 	.buffer_size = 2048,
 	};
-	if (fdebug) ESP_LOGI(AP_TAG,"Mqtt url: %s, login: %s, password: %s", luri, MQTT_USER, MQTT_PASSWORD);
+	if (fdebug) ESP_LOGI(AP_TAG,"Mqtt url: %s, port: %d, login: %s, password: %s", luri, mqtt_port, MQTT_USER, MQTT_PASSWORD);
 	if (fmssl && (bufcert[0] || fmsslbundle)) {
 	if (!fmsslhost) mqtt_cfg.skip_cert_common_name_check = 1;
 	if (fmsslbundle) {
@@ -20012,7 +20007,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (fmsslbundle) strcat(bsend,"checked");
 	strcat(bsend,"> Use x509 Bundle&emsp;<input type=\"checkbox\" name=\"smsslh\" value=\"3\"");
 	if (fmsslhost) strcat(bsend,"checked");
-	strcat(bsend,"> Hostname verify&emsp;<input type=\"checkbox\" name=\"chk1\" value=\"1\"");
+	strcat(bsend,"> Hostname Verify&emsp;<input type=\"checkbox\" name=\"chk1\" value=\"1\"");
 	if (FDHass) strcat(bsend,"checked");
 	strcat(bsend,"> Hass Discovery&emsp;<input type=\"checkbox\" name=\"chk2\" value=\"2\"");
 	if (fcommtp) strcat(bsend,"checked");
@@ -20050,7 +20045,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (macauth) strcat(bsend,"checked");
 	strcat(bsend,"> Use MAC in BLE Authentication &emsp;<input type=\"checkbox\" name=\"chk9\" value=\"9\"");
 	if (volperc) strcat(bsend,"checked");
-	strcat(bsend,"> Volume in percent &emsp;<input type=\"checkbox\" name=\"skpmd\" value=\"1\"");
+	strcat(bsend,"> Volume in Percent &emsp;<input type=\"checkbox\" name=\"skpmd\" value=\"1\"");
 	if (fkpmd) strcat(bsend,"checked");
 	strcat(bsend,"> Keep kettle mode</br>");
 	strcat(bsend, "<h3>System Setting</h3></br>");
@@ -20083,9 +20078,9 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (ble_mon == 2) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"2\">Active</option><option ");
 	if (ble_mon == 3) strcat(bsend,"selected ");
-	strcat(bsend,"value=\"3\">Auto</option></select> BLE monitoring &emsp;");
+	strcat(bsend,"value=\"3\">Auto</option></select> BLE Monitoring &emsp;");
 	strcat(bsend,"<input type=\"checkbox\" name=\"mqtdel\" value=\"1\"");
-	strcat(bsend,"> Delete Mqtt topics &emsp;");
+	strcat(bsend,"> Delete Mqtt Topics &emsp;");
 	strcat(bsend,"<input type=\"checkbox\" name=\"chk0\" value=\"0\"");
 	strcat(bsend,"> Format NVS &emsp;");
 	strcat(bsend,"<input type=\"checkbox\" name=\"chkd\" value=\"1\"");
@@ -20109,7 +20104,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"\"size=\"64\">320*176 JPEG Url &emsp;<input name=\"sjpgtim\" type=\"number\" value=\"");
 	itoa(jpg_time,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"65535\" size=\"5\">JPEG refresh time (sec)</br>");
+	strcat(bsend,"\" min=\"0\" max=\"65535\" size=\"5\">JPEG Refresh Time (sec)</br>");
 	strcat(bsend,"<input type=\"checkbox\" name=\"chk6\" value=\"6\"");
 	if (tft_conf) strcat(bsend,"checked");
 	strcat(bsend,"> TFT: <input type=\"checkbox\" name=\"chk4\" value=\"4\"");

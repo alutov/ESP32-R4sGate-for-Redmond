@@ -1561,12 +1561,13 @@ uint8_t tftinit()
   	uint32_t sumx = 0;
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 	itoa(CONFIG_ESP32C3_DEFAULT_CPU_FREQ_MHZ,buf,10);
-	sumx = drawString("r4s gate 32c3/", 0, 0, 4);
+	sumx = drawString("esp32c3/", 0, 0, 4);
 #else
 	itoa(CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ,buf,10);
-	sumx = drawString("r4s gate 32/", 0, 0, 4);
+	sumx = drawString("esp32/", 0, 0, 4);
 #endif
 	sumx += drawString(buf, sumx, 0, 4);
+	sumx += drawString(" gate", sumx, 0, 4);
 	sumx = drawString("ver:  ", 0, 26, 4);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
 	sumx += drawString(AP_VER, sumx, 26, 4);
