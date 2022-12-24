@@ -1,4 +1,5 @@
 build/
+C3/build/
 *.bin
 
 .pio
