@@ -355,7 +355,8 @@ uint16_t t_ppcons = 0;
 
 #ifdef USE_TFT
 //tft
-#define MyJPGbuflen 32768
+uint16_t xoffs  = 0;
+uint16_t MyJPGbuflen  = 32768;
 uint16_t jpg_time  = 32;
 uint8_t tft_conn = 0;
 uint8_t tft_conf = 0;
@@ -388,7 +389,7 @@ char tESP32Addr[16];                        //esp mac
 char tESP32Addr1[32];                       //esp mac
 
 char AUTH_BASIC[51];
-char bufcert[2048];
+char bufcert[2000];
 uint16_t bcertofs;
 uint16_t bcertsz;
 uint8_t R4SNUM = 0;                         //r4s number
@@ -456,44 +457,52 @@ int  cntgpio3 = 0;
 int  cntgpio4 = 0;
 int  cntgpio5 = 0;
 
-uint8_t bgpio6 = 0;
+uint32_t bStatHx6 = 0;
+uint32_t bZeroHx6 = 0;
+uint32_t bDivHx6 = 0;
+uint32_t bprevStatHx6 = 0;
+uint8_t  bgpio6 = 0;
 uint16_t bprevStatG6 = 0;
 uint16_t bStatG6 = 0;
 uint16_t bprevStatG6h = 0;
 uint16_t bStatG6h = 0;
-uint8_t bgpio7 = 0;
+uint8_t  bgpio7 = 0;
 uint16_t bprevStatG7 = 0;
 uint16_t bStatG7 = 0;
 uint16_t bprevStatG7h = 0;
 uint16_t bStatG7h = 0;
-uint8_t bgpio8 = 0;
+uint8_t  bgpio8 = 0;
 uint16_t bprevStatG8 = 0;
 uint16_t bStatG8 = 0;
 uint16_t bprevStatG8h = 0;
 uint16_t bStatG8h = 0;
-uint8_t bgpio9 = 0;
-uint8_t bgpio10 = 0;
+uint8_t  bgpio9 = 0;
+uint8_t  bgpio10 = 0;
 uint8_t  f_rmds = 0;
 uint32_t s_i2cdev = 0;
 uint32_t f_i2cdev = 0;
 uint32_t i2c_errcnt = 0;
-uint8_t i2cdevnum = 0;
-uint8_t i2cdevnumo = 0;
+uint8_t  i2cdevnum = 0;
+uint8_t  i2cdevnumo = 0;
 uint8_t  RmtDsNum = 0;
-uint8_t  ip5306_batmode = 0;
-uint8_t  ip5306_batprevmode = 0;    //mqtt
-uint8_t  ip5306_batpscrmode = 0;    //screen
-uint8_t  ip5306_batlev = 0;
-uint8_t  ip5306_batprevlev = 0;
+uint8_t  pwr_batmode = 0;
+uint8_t  pwr_batprevmode = 0;    //mqtt
+uint8_t  pwr_batpscrmode = 0;    //screen
+uint8_t  pwr_batlevp = 0;
+uint8_t  pwr_batprevlevp = 0;
+uint16_t pwr_batlevv = 0;
+uint16_t pwr_batprevlevv = 0;
+uint16_t pwr_batlevc = 0;
+uint16_t pwr_batprevlevc = 0;
 
 RingbufHandle_t RmtRgHd0 = 0;
 RingbufHandle_t RmtRgHd1 = 0;
 RingbufHandle_t RmtRgHd2 = 0;
 
-const uint8_t i2c_addr[32] = {0x76,0x77,0x44,0x45,0x38,0x68,0x40,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-			      0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x75,0xff};
-const uint8_t i2c_bits[32] = {0x0f,0x0f,0x03,0x03,0x03,0x01,0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-			      0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+const uint8_t i2c_addr[28] = {0x76,0x77,0x44,0x45,0x38,0x40,0x68,0x51,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+			      0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff};
+const uint8_t i2c_bits[28] = {0x0f,0x0f,0x03,0x03,0x03,0x03,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+			      0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
 
 bool f_update = false;
 

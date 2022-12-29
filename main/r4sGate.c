@@ -1,21 +1,31 @@
 /* 
-****************************************************************
+*************************************************************
 	ESP32 r4sGate for Redmond+ main
 	Lutov Andrey  Donetsk
 Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
-****************************************************************
+*************************************************************
 */
-#define AP_VER "2022.12.10"
-#define NVS_VER 4  //NVS config version (even only)
-// If use ili9341 320*240 tft
-#define USE_TFT
-// If use IR TX
-#define USE_IRTX
+#define AP_VER "2022.12.29"
+#define NVS_VER 6  //NVS config version (even only)
+
 // Init WIFI setting
 #define INIT_WIFI_SSID "r4s"
 #define INIT_WIFI_PASSWORD "12345678"
 
+// If use ili9341 320*240 tft
+#define USE_TFT
+// If use IR TX
+#define USE_IRTX
+
+// define max pin + 1
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+#define MxPOutP 22 
+//#define MxPInP 22 
+#else
+#define MxPOutP 34 
+//#define MxPInP 40 
+#endif
 
 #include "r4sGate.h"
 //************** my common proc ***************
@@ -47,35 +57,6 @@ void itoat (uint32_t val, char* cout, size_t len)
 	itoa(seconds,buff,10);
 	strcat (cout,buff);
 }
-// int32 to kwh
-void itoakw (uint32_t val, char* cout, size_t len)
-{
-	char buff[16];
-	uint32_t watt = val;
-	uint32_t kwatt = watt / 1000;
-	watt = watt % 1000;
-	itoa(kwatt,buff,10);
-	strcpy (cout,buff);
-	strcat (cout,".");
-	if (watt < 100) strcat (cout,"0");
-	if (watt < 10) strcat (cout,"0");
-	itoa(watt,buff,10);
-	strcat (cout,buff);
-}
-// convert uint32 as decimal point 1 (0.0) & strcpy 
-void u32_strcpy_p1 (uint32_t val, char* cout)
-{
-	char tmp[32] = {0}; 
-	uint32_t var1 = val;
-	itoa(var1 / 10,tmp,10);
-	strcpy(cout,tmp);
-	var1 = var1 % 10;
-	if (var1) {
-	strcat(cout,".");
-	itoa(var1,tmp,10);
-	strcat(cout,tmp);
-	}
-}
 // convert uint32 as decimal point 1 (0.0) & strcat 
 void u32_strcat_p1 (uint32_t val, char* cout)
 {
@@ -90,24 +71,6 @@ void u32_strcat_p1 (uint32_t val, char* cout)
 	strcat(cout,tmp);
 	}
 }
-// convert uint32 as decimal point 2 (0.00) & strcpy 
-void u32_strcpy_p2 (uint32_t val, char* cout)
-{
-	char tmp[32] = {0}; 
-	uint32_t var1 = val;
-	itoa(var1 / 100,tmp,10);
-	strcpy(cout,tmp);
-	var1 = var1 % 100;
-	if (var1) {
-	strcat(cout,".");
-	if (var1 % 10) {
-	if (var1 < 10) strcat (cout,"0");
-	} else var1 = var1 / 10;
-	itoa(var1,tmp,10);
-	strcat(cout,tmp);
-	}
-}
-/*
 // convert uint32 as decimal point 2 (0.00) & strcat 
 void u32_strcat_p2 (uint32_t val, char* cout)
 {
@@ -125,14 +88,34 @@ void u32_strcat_p2 (uint32_t val, char* cout)
 	strcat(cout,tmp);
 	}
 }
-*/
+// convert uint32 as decimal point 3 (0.000) & strcat 
+void u32_strcat_p3 (uint32_t val, char* cout)
+{
+	char tmp[32];
+	uint32_t var1 = val;
+	itoa(var1 / 1000,tmp,10);
+	strcat (cout,tmp);
+	var1 = var1 % 1000;
+	if (var1) {
+	strcat (cout,".");
+	if (var1 % 100) {
+	if (var1 < 100) strcat (cout,"0");
+	if (var1 % 10) {
+	if (var1 < 10) strcat (cout,"0");
+	} else var1 = var1 / 10;
+	} else var1 = var1 / 100;
+	itoa(var1,tmp,10);
+	strcat (cout,tmp);
+	}
+}
+
 // 18b20 uint * 10 / 16 to string cat 
 void s18b20_strcat (uint16_t val, char* cout)
 {
 	char tmp[32] = {0}; 
 	uint16_t var1 = val;
 	if (var1 & 0x8000) {
-	var1 = (var1  ^ 0x0ffff);  
+	var1 = (var1 ^ 0x0ffff);  
 	if (var1) var1++;     // ffff = -0 (sensor not connected)
 	strcat(cout,"-");
 	}
@@ -171,7 +154,7 @@ void sbme280_strcat (uint16_t val, char* cout)
 	char tmp[32] = {0}; 
 	uint16_t var1 = val;
 	if (var1 & 0x8000) {
-	var1 = (var1  ^ 0x0ffff) + 1;
+	var1 = (var1 ^ 0x0ffff) + 1;
 	strcat(cout,"-");
 	}
 	var1 >>= 4;
@@ -190,7 +173,7 @@ void s16_strcat_p2 (uint16_t val, char* cout)
 	char tmp[32] = {0}; 
 	uint16_t var1 = val;
 	if (var1 & 0x8000) {
-	var1 = (var1  ^ 0x0ffff) + 1;
+	var1 = (var1 ^ 0x0ffff) + 1;
 	strcat(cout,"-");
 	}
 	itoa(var1 / 100, tmp, 10);
@@ -323,15 +306,16 @@ void parscertstr(char *cin, char *cout, char *ckey, int isize, int osize)
 	}	
 	j = 0;
 
-	a = 0;
 	if (i < isize) a = cin[i];
+	else a = 0;
 	if (a == 0x2d) {                               //remove begin certificate line if exist
 	c = 0;
 	b = 0;
 	while (c < 2) {
 	if (a > 0x2b) b = a;
 	i++;
-	a = cin[i];
+	if (i < isize) a = cin[i];
+	else a = 0;
 	if (a < 0x20) { 
 	c = 2;
 	i = isize;
@@ -343,17 +327,18 @@ void parscertstr(char *cin, char *cout, char *ckey, int isize, int osize)
 	if ((a > 0x1f) && (a != 0x26) && (a != 0x2d)) {       //0x26-> &  2d -> remove end certificate line
 	if (a == 0x25) {
 	i++;
-	a = cin[i];
+	if (i < isize) a = cin[i];
+	else found = 0;
 	b =  (a <= '9') ? (a - '0') : (a - 'A' + 10);
-	b = (b & 0xf)*16;
+	b = (b & 0xf) * 16;
 	i++;
-	a = cin[i];
+	if (i < isize) a = cin[i];
+	else found = 0;
 	c =  (a <= '9') ? (a - '0') : (a - 'A' + 10);
 	c = (c & 0xf) + b;
 	cout[j] = c;
-	} else if (a == 0x2b) {
-	cout[j] = 0x0a;
-	} else cout[j] = cin[i];
+	} else if (a == 0x2b) cout[j] = 0x0a;
+	else cout[j] = cin[i];
 	i++; j++;
 	cout[j] = 0;
 	} else found = 0;
@@ -438,6 +423,7 @@ void myurlcpy(char *cout, char *cin, int osize)
 	a = cin[i];
 	i++;
 	if  ((a > 0x20) && (a < 0x80)) {
+	if (f && (a == 0x2f)) f = 0;
 	if (f && ((a < 0x30) || (a > 0x39))) j = osize;
 	else {
 	if ((a == 0x3a) && (i > 7) && !g) f = j + 6;
@@ -1323,7 +1309,8 @@ bool rmtir_send (uint8_t idx,  uint16_t* ptxcmd, uint16_t* pprtxcmd, uint16_t* p
 	out >>= 1;
 	}
 	xor = (out & 0xff) ^ ((out >> 8) & 0xff);
-	out = xor ^ (xor >> 4);
+	xor = xor ^ (xor >> 4);
+	out = xor;
 	for (int i = 17; i < 21; i++) {   //4 xor bits
 	tx_items[i].level0 = 1;
 	tx_items[i].level1 = 0;
@@ -1397,6 +1384,85 @@ bool rmtir_send (uint8_t idx,  uint16_t* ptxcmd, uint16_t* pprtxcmd, uint16_t* p
 	return result;
 }
 #endif
+
+//***************** Hx711 *********************
+
+bool    rmthx_ssck(uint8_t idx, uint16_t usec)
+{
+	bool result = 0;
+	uint8_t tidx;
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (idx > 1) return result;
+	tidx = idx;
+#else
+	if (idx > 2) return result;
+	tidx = idx << 1;
+#endif
+	rmt_item32_t tx_items[2] = {0};
+	tx_items[0].level0 = 0;
+	tx_items[0].duration0 = 5;
+	tx_items[0].level1 = 1;
+	tx_items[0].duration1 = usec & 0x7fff;
+	tx_items[1].level0 = 0;
+	tx_items[1].duration0 = 5;
+	tx_items[1].level1 = 0;
+	tx_items[1].duration1 = 0;
+	if (rmt_write_items(tidx, tx_items, 2, true) == ESP_OK) result = 1;
+	return result;
+}
+bool rmthx_init (uint8_t idx, uint8_t  gpio_num)
+{
+	bool result = 0;
+	uint8_t tidx;
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (idx > 1) return result;
+	tidx = idx;
+#else
+	if (idx > 2) return result;
+	tidx = idx << 1;
+#endif
+//rmt tx init
+	rmt_config_t rmt_tx = {0};
+	rmt_tx.channel = tidx;
+	rmt_tx.gpio_num = gpio_num;
+	rmt_tx.mem_block_num = 1;
+	rmt_tx.clk_div = 80;
+	rmt_tx.tx_config.loop_en = false;
+	rmt_tx.tx_config.carrier_en = false;
+	rmt_tx.tx_config.carrier_level = 1;
+	rmt_tx.tx_config.idle_level = 0;
+	rmt_tx.tx_config.idle_output_en = true;
+	rmt_tx.rmt_mode = RMT_MODE_TX;
+	if (rmt_config(&rmt_tx) == ESP_OK) {  //1
+	rmt_set_source_clk(rmt_tx.channel, RMT_BASECLK_APB);
+	if (rmt_driver_install(rmt_tx.channel, 0, ESP_INTR_FLAG_LOWMED
+			| ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_SHARED) == ESP_OK) result = rmthx_ssck(idx, 1000);
+//end of init	
+	}  //1
+	return result;
+}
+bool readHx(uint8_t idx,  uint32_t* data) 
+{
+	bool result = 0;
+	uint32_t in = 0;
+	if (gpio_get_level(bgpio5 & 0x3f)) {
+	in = 0xffffffff;
+	} else {
+	for(int i = 0; i < 24; ++i) {
+	if (rmthx_ssck(idx, 20)) in |= gpio_get_level(bgpio5 & 0x3f) << (31 - i);
+	else return result;
+	}
+        if (!rmthx_ssck(idx, 20)) return result;
+	result = gpio_get_level(bgpio5 & 0x3f);
+	}
+	if (result) *data = in;
+	else {
+	*data = 0xffffffff;
+	rmthx_ssck(idx, 1000);
+	}
+//ESP_LOGI(AP_TAG, "Hx read: 0x%X, end: %d", in, result);
+	return result;
+}
 
 //***************** 1w 18b20 ******************
 //https://github.com/DavidAntliff/esp32-owb
@@ -1684,9 +1750,8 @@ void rmt1w_readdht (uint8_t idx, uint8_t* f_rmds, uint16_t* temp, uint16_t* humi
 // end
 }
 
-
 //****************** i2c **********************
-esp_err_t i2c_init_bus () 
+esp_err_t i2c_init_bus() 
 {
 /*
 timeout:  10us(1bit @100kbit) * 10 bit(~byte+start/stop/ack) * 256 bytes(max) = 25.6ms
@@ -1735,7 +1800,7 @@ esp_err_t i2c_devnum(uint32_t* f_i2cdev, uint32_t* s_i2cdev, uint8_t* i2cdevnum)
 	err = i2c_check(i);
 	if (!err) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Found i2c addr: 0x%X", i);
-	for (j = 0; j < 31; j++) {
+	for (j = 0; j < 28; j++) {
 	if (i == i2c_addr[j]) i2csbits = i2csbits | 0x01 << j;
 	}
 	devnum++;
@@ -1879,92 +1944,344 @@ esp_err_t i2c_write_data(uint8_t addr, uint8_t reg, uint8_t* data, uint16_t len)
 	}
 	return err;
 }
-//***************** ip5306 ********************
+//************* ip5306 & axp192 ***************
 //https://sharvielectronics.com/wp-content/uploads/2021/07/IP5306-I2C-registers.pdf
 //https://mobile.twitter.com/lovyan03/status/1104548868199337984
 //https://docs.nanoframework.net/devicesdetails/Ip5306/README.html
-esp_err_t i2c_init_ip5306 (uint32_t* f_i2cdev) 
+esp_err_t i2c_init_pwr (uint32_t* f_i2cdev) 
 {
 	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
 	if (!(i2cbits & 0x80000000)) return err;
-	err = i2c_check(0x75);
-	if (err) return err;
+	uint8_t addr;
+	if (!i2c_check(0x75)) {           //ip5306
+	addr = 0x75;
 	uint8_t var = 0;   
 //ip5306 setting for m5stack or ttgo-t4
 	const uint8_t ip5306_addr[8] = {0x00, 0x01, 0x02, 0x20, 0x21, 0x22, 0x23, 0x24};
 	const uint8_t ip5306_data[8] = {0x35, 0x1d, 0x64, 0x01, 0x89, 0x02, 0xbf, 0xd6};
 //detect ip5306 by register 0x77
-	err = i2c_read_data(0x75, 0x77, &var, 1);
+	err = i2c_read_data(addr, 0x77, &var, 1);
 	if (err || ((var & 0xf8) != 0x80)) return err;
-	err =i2c_write_byte(0x75, 0x77, 0x87);
+	err =i2c_write_byte(addr, 0x77, 0x87);
 	if (err) return err;
-	err = i2c_read_data(0x75, 0x77, &var, 1);
+	err = i2c_read_data(addr, 0x77, &var, 1);
 	if (err || (var ^ 0x80)) return err;
 //verify all settings for m5stack or ttgo-t4
 	for (int i = 0; i < 8; i++) {
-	err = i2c_read_data(0x75, ip5306_addr[i], &var, 1);
+	err = i2c_read_data(addr, ip5306_addr[i], &var, 1);
 	if (err) return err;
 	if (var != ip5306_data[i]) {
-	err = i2c_write_byte(0x75, ip5306_addr[i], ip5306_data[i]);
+	err = i2c_write_byte(addr, ip5306_addr[i], ip5306_data[i]);
 	if (err) return err;
-	err = i2c_read_data(0x75, ip5306_addr[i], &var, 1);
+	err = i2c_read_data(addr, ip5306_addr[i], &var, 1);
 	if (err || (var != ip5306_data[i])) return err;
 	}
 	}
 	err = 0;
 	i2cbits = i2cbits | 0x40000000;
 	*f_i2cdev = i2cbits;
+	} else if (!i2c_check(0x34)) {    //axp192
+	addr = 0x34;
+	uint8_t var;
+	uint8_t buf[8];
+	memset(buf, 0xff, sizeof(buf));
+	err = i2c_read_data(addr, 0x00, buf, 8);
+	if (err) return err;
+	if (!(buf[0] & 0xfb) || buf[2] || buf[4] || buf[5]) return err;
+//https://github.com/m5stack/M5Tough
+	err =  i2c_read_data(addr, 0x30, &var, 1);
+	if (err) return err;
+	var = (var & 0x04) | 0x02;  //vbus V-limit off, curr 0.5A
+	err = i2c_write_byte(addr, 0x30, var);	
+	if (err) return err;
+	err =  i2c_read_data(addr, 0x35, &var, 1);
+	if (err) return err;
+	var = (var & 0x1c) | 0xa2;  //rtc charging
+	err = i2c_write_byte(addr, 0x35, var);	
+	if (err) return err;
+	err =  i2c_read_data(addr, 0x26, &var, 1);
+	if (err) return err;
+	var = (var & 0x80) | 0x6a;  //dc1(esp32) voltage 3.35v
+	err = i2c_write_byte(addr, 0x26, var);	
+	if (err) return err;
+	err =  i2c_read_data(addr, 0x27, &var, 1);
+	if (err) return err;
+	var = (var & 0x80) | 0x68;  //dc3 voltage 3.3v
+	err = i2c_write_byte(addr, 0x27, var);	
+	if (err) return err;
+	err =  i2c_read_data(addr, 0x12, &var, 1);
+	if (err) return err;
+	var = var | 0x01;  //dc1 enable
+	err = i2c_write_byte(addr, 0x12, var);	
+	if (err) return err;
+	err =  i2c_read_data(addr, 0x33, &var, 1);
+	if (err) return err;
+	var = var & 0xf0;  //0 - charge current 100ma
+	err = i2c_write_byte(addr, 0x33, var);	
+	if (err) return err;
+	err = i2c_write_byte(addr, 0x82, 0xff); //all adc enable
+	if (err) return err;
+	err = i2c_write_byte(addr, 0x36, 0x4c); //pwr switch delays
+	if (err) return err;
+// vbus for tough
+	err =  i2c_read_data(addr, 0x00, &var, 1);
+	if (err) return err;
+	if (var & 0x08) {     //use vbus in
+	err =  i2c_read_data(addr, 0x30, &var, 1);
+	if (err) return err;
+	var |= 0x80;  //enable vbus
+	err = i2c_write_byte(addr, 0x30, var);	
+	if (err) return err;
+	err =  i2c_read_data(addr, 0x12, &var, 1);
+	if (err) return err;
+	var = var & 0xbf;                       //set EXTEN to disable 5v boost
+	err = i2c_write_byte(addr, 0x12, var);	
+	if (err) return err;
+	vTaskDelay(200 / portTICK_RATE_MS);
+	err =  i2c_read_data(addr, 0x90, &var, 1);
+	if (err) return err;
+	var = (var & 0xf8) | 0x01;              //set GPIO0 to float , using enternal pulldown resistor to enable supply from BUS_5VS
+	err = i2c_write_byte(addr, 0x90, var);	
+	if (err) return err;
+	} else {              //enable 5v out
+	err =  i2c_read_data(addr, 0x91, &var, 1);
+	if (err) return err;
+	var = (var & 0x0f) | 0xf0;
+	err = i2c_write_byte(addr, 0x91, var);	
+	if (err) return err;
+	err =  i2c_read_data(addr, 0x90, &var, 1);
+	if (err) return err;
+	var = (var & 0xf8) | 0x02;              //set GPIO0 to LDO OUTPUT , pullup N_VBUSEN to disable supply from BUS_5V
+	err = i2c_write_byte(addr, 0x90, var);	
+	if (err) return err;
+	err =  i2c_read_data(addr, 0x12, &var, 1);
+	if (err) return err;
+	var = var | 0x40;
+	err = i2c_write_byte(addr, 0x12, var);	
+	if (err) return err;
+	}
+	err = 0;
+	i2cbits = i2cbits | 0x20000000;
+	*f_i2cdev = i2cbits;
+	}
 	return err;
 }
-esp_err_t i2c_read_ip5306 (uint32_t* f_i2cdev, uint8_t* ip5306_batmode, uint8_t* ip5306_batlev) 
+esp_err_t i2c_read_pwr (uint32_t* f_i2cdev, uint8_t* pwr_batmode, uint8_t* pwr_batlevp, uint16_t* pwr_batlevv, uint16_t* pwr_batlevc) 
 {
 	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
-	uint8_t ip5306batmode = 0;
-	uint8_t ip5306batlev = 0;
+	uint8_t pwrbatmode = 0;
+	uint8_t pwrbatlevp = 0;
+	uint16_t pwrbatlevv = 0;
+	uint16_t pwrbatlevc = 0;
 	if (!(i2cbits & 0x80000000)) return err;
 	uint8_t data[8] = {0};   
-	err = i2c_read_data(0x75, 0x70, data, 1);
+	uint8_t addr;
+	if (i2cbits & 0x40000000) {
+	addr = 0x75;
+	err = i2c_read_data(addr, 0x70, data, 1);
 	if (!err) {  //70
-	err = i2c_read_data(0x75, 0x71, &data[1], 1);
+	err = i2c_read_data(addr, 0x71, &data[1], 1);
 	if (!err) {  //71
-	err = i2c_read_data(0x75, 0x72, &data[2], 1);
+	err = i2c_read_data(addr, 0x72, &data[2], 1);
 	if (!err) {  //72
-	err = i2c_read_data(0x75, 0x77, &data[3], 1);
+	err = i2c_read_data(addr, 0x77, &data[3], 1);
 	if (!err) {  //77
-	err = i2c_read_data(0x75, 0x78, &data[4], 1);
+	err = i2c_read_data(addr, 0x78, &data[4], 1);
 	if (!err) {  //78
 	switch (data[4] & 0xf0) {
 	case 0xe0:
-        ip5306batlev = 25;
+        pwrbatlevp = 25;
 	break;
 	case 0xc0:
-        ip5306batlev = 50;
+        pwrbatlevp = 50;
 	break;
 	case 0x80:
-        ip5306batlev = 75;
+        pwrbatlevp = 75;
 	break;
 	case 0x00:
-        ip5306batlev = 100;
+        pwrbatlevp = 100;
 	break;
 	default:
-        ip5306batlev = 0;
+        pwrbatlevp = 0;
 	break;
 	}
-	if (data[0] & 0x08) ip5306batmode = ip5306batmode | 0x02;
-	if (data[1] & 0x08) ip5306batmode = ip5306batmode | 0x01;
+	if (data[0] & 0x08) pwrbatmode = pwrbatmode | 0x02;
+	if (data[1] & 0x08) pwrbatmode = pwrbatmode | 0x01;
 	err = 0;
-	*ip5306_batmode = ip5306batmode;
-	*ip5306_batlev = ip5306batlev;
+	*pwr_batmode = pwrbatmode;
+	*pwr_batlevp = pwrbatlevp;
+	*pwr_batlevv = pwrbatlevv;
+	*pwr_batlevc = pwrbatlevc;
 	} //78
 	} //77
 	} //72
 	} //71
 	} //70
-	if (err) *ip5306_batlev = 0;
+	} else if (i2cbits & 0x20000000) {
+	addr = 0x34;
+	err = i2c_read_data(addr, 0x00, data, 4);
+	if (!err) {  //00
+	if (data[0] & 0x04) pwrbatmode = pwrbatmode | 0x02;
+	if (!(data[1] & 0x40)) pwrbatmode = pwrbatmode | 0x01;
+	if (!(data[1] & 0x20)) pwrbatmode = pwrbatmode | 0x07;
+	if (pwrbatmode & 0x04) {
+	*pwr_batmode = pwrbatmode;
+	*pwr_batlevp = 0;
+	*pwr_batlevv = 0;
+	*pwr_batlevc = 0;
+	} else {
+	err = i2c_read_data(addr, 0x78, data, 8);
+	if (!err) {  //78
+        pwrbatlevv = (data[0] << 4) | (data[1] & 0x0f);
+	pwrbatlevv = pwrbatlevv + ((pwrbatlevv / 5) >> 1);
+	pwrbatlevc = (((data[2] << 5) | (data[3] & 0x1f)) >> 1) -
+			(((data[4] << 5) | (data[5] & 0x1f)) >> 1);
+	if (pwrbatlevv < 3248) pwrbatlevp = 0;
+	else pwrbatlevp = (pwrbatlevv - 3120) / 10;
+	if (pwrbatlevp > 100) pwrbatlevp = 100;
+	err = 0;
+	*pwr_batmode = pwrbatmode;
+	*pwr_batlevp = pwrbatlevp;
+	*pwr_batlevv = pwrbatlevv;
+	*pwr_batlevc = pwrbatlevc;
+	} //78
+	}
+	} //00
+	}
+	if (err) {
+	*pwr_batmode = 4;
+	*pwr_batlevp = 0;
+	*pwr_batlevv = 0;
+	*pwr_batlevc = 0;
+	}
 	return err;
 }
+esp_err_t i2c_axpin_set (uint32_t* f_i2cdev, uint8_t gpio, uint8_t val) 
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	if (!(i2cbits & 0x80000000) || !(i2cbits & 0x20000000) || (gpio < 40) || (gpio > 48)) return err;
+	uint8_t buf[4] = {0};
+	uint8_t addr;
+	addr = 0x34;
+	switch (gpio) {
+/*
+	case 40:     //gpio 0
+	if (!i2c_read_data(addr, 0x90, &buf[0], 1) && !i2c_read_data(addr, 0x94, &buf[1], 1)) {
+	err = 0;
+	if (buf[0] & 0x07) err = i2c_write_byte(addr, 0x90, (buf[0] & 0xf8));
+	if (val) {
+	if (!err && !(buf[1] & 0x01)) err = i2c_write_byte(addr, 0x94, (buf[1] | 0x01));
+	} else {
+	if (!err && (buf[1] & 0x01)) err = i2c_write_byte(addr, 0x94, (buf[1] & ~0x01));
+	}
+	}
+	break;
+*/
+	case 41:     //gpio 1
+	if (!i2c_read_data(addr, 0x92, &buf[0], 1) && !i2c_read_data(addr, 0x94, &buf[1], 1)) {
+	err = 0;
+	if (buf[0] & 0x07) err = i2c_write_byte(addr, 0x92, (buf[0] & 0xf8));
+	if (val) {
+	if (!err && !(buf[1] & 0x02)) err = i2c_write_byte(addr, 0x94, (buf[1] | 0x02));
+	} else {
+	if (!err && (buf[1] & 0x02)) err = i2c_write_byte(addr, 0x94, (buf[1] & ~0x02));
+	}
+	}
+	break;
+	case 42:     //gpio 2
+	if (!i2c_read_data(addr, 0x93, &buf[0], 1) && !i2c_read_data(addr, 0x94, &buf[1], 1)) {
+	err = 0;
+	if (buf[0] & 0x07) err = i2c_write_byte(addr, 0x93, (buf[0] & 0xf8));
+	if (val) {
+	if (!err && !(buf[1] & 0x04)) err = i2c_write_byte(addr, 0x94, (buf[1] | 0x04));
+	} else {
+	if (!err && (buf[1] & 0x04)) err = i2c_write_byte(addr, 0x94, (buf[1] & ~0x04));
+	}
+	}
+	break;
+	case 43:     //gpio 3
+	if (!i2c_read_data(addr, 0x95, &buf[0], 3)) {
+	err = 0;
+	if ((buf[0] & 0x83) ^ 0x81) err = i2c_write_byte(addr, 0x95, ((buf[0] & 0xfc) | 0x81));
+	if (val) {
+	if (!err && !(buf[1] & 0x01)) err = i2c_write_byte(addr, 0x96, (buf[1] | 0x01));
+	} else {
+	if (!err && (buf[1] & 0x01)) err = i2c_write_byte(addr, 0x96, (buf[1] & ~0x01));
+	}
+	}
+	break;
+	case 44:     //gpio 4
+	if (!i2c_read_data(addr, 0x95, &buf[0], 3)) {
+	err = 0;
+	if ((buf[0] & 0x8c) ^ 0x84) err = i2c_write_byte(addr, 0x95, ((buf[0] & 0xf3) | 0x84));
+	if (val) {
+	if (!err && !(buf[1] & 0x02)) err = i2c_write_byte(addr, 0x96, (buf[1] | 0x02));
+	} else {
+	if (!err && (buf[1] & 0x02)) err = i2c_write_byte(addr, 0x96, (buf[1] & ~0x02));
+	}
+	}
+	break;
+	case 45:     //gpio 5
+	if (!i2c_read_data(addr, 0x9e, &buf[0], 1)) {
+	err = 0;
+	if (val) {
+        if ((buf[0] & 0xe0) ^ 0xa0) err = i2c_write_byte(addr, 0x9e, ((buf[0] & 0x1f) | 0xa0));
+	} else {
+        if ((buf[0] & 0xe0) ^ 0x80) err = i2c_write_byte(addr, 0x9e, ((buf[0] & 0x1f) | 0x80));
+	}
+	}
+	break;
+	case 46:     //ldo2
+	if (!i2c_read_data(addr, 0x12, &buf[0], 1) && !i2c_read_data(addr, 0x28, &buf[1], 1)) {
+	err = 0;
+	if (val) {
+	if ((val & 0xf0) ^ (buf[1] & 0xf0)) {
+	buf[1] = (buf[1] & 0x0f) | (val & 0xf0);
+	err = i2c_write_byte(addr, 0x28, buf[1]);
+	}
+	if (!err && !(buf[0] & 0x04)) {
+	buf[0] |= 0x04;
+	err = i2c_write_byte(addr, 0x12, buf[0]);
+	}
+	} else {
+	if (buf[0] & 0x04) {
+	buf[0] &= ~0x04;
+	err = i2c_write_byte(addr, 0x12, buf[0]);
+	}
+	}
+	}
+	break;
+	case 47:     //ldo3
+	if (!i2c_read_data(addr, 0x12, &buf[0], 1) && !i2c_read_data(addr, 0x28, &buf[1], 1)) {
+	err = 0;
+	if (val) {
+	if ((val & 0xf0) ^ ((buf[1] << 4) & 0xf0)) {
+	buf[1] = (buf[1] & 0xf0) | ((val >> 4) & 0x0f);
+	err = i2c_write_byte(addr, 0x28, buf[1]);
+	}
+	if (!err && !(buf[0] & 0x08)) {
+	buf[0] |= 0x08;
+	err = i2c_write_byte(addr, 0x12, buf[0]);
+	}
+	} else {
+	if (buf[0] & 0x08) {
+	buf[0] &= ~0x08;
+	err = i2c_write_byte(addr, 0x12, buf[0]);
+	}
+	}
+	}
+	break;
+	default:
+        err = -1;
+	break;
+	}
+	return err;
+}
+
+
 //***************** bme280 ********************
 //https://github.com/BoschSensortec/BME280_driver
 //https://cdn.sparkfun.com/assets/e/7/3/b/1/BME280_Datasheet.pdf
@@ -2495,7 +2812,7 @@ esp_err_t i2c_init_htu21(uint8_t idx,uint32_t* f_i2cdev)
 	if (!(i2cbits & 0x80000000) || idx) return err;
 	uint8_t buf = 0xff;
 	uint8_t addr;
-	addr = i2c_addr[idx + 6];
+	addr = i2c_addr[idx + 5];
 	err = i2c_check(addr);
 	if (err) return err;
 	err = i2c_write_data(addr, 0xfe, &buf, 0);  //write reset command
@@ -2503,7 +2820,6 @@ esp_err_t i2c_init_htu21(uint8_t idx,uint32_t* f_i2cdev)
 	vTaskDelay(30 / portTICK_PERIOD_MS);      //15ms htu21 ready time after reset
 	err = i2c_read_data(addr, 0xe7, &buf, 1); //read status
 	if (err) return err;
-ESP_LOGI(AP_TAG, "htu user: 0x%X", buf);
 	if (buf & 0x38) return -1;
 	if (buf & 0x04) {
 	buf &= 0xfb;
@@ -2513,7 +2829,7 @@ ESP_LOGI(AP_TAG, "htu user: 0x%X", buf);
 	if (err) return err;
 	if (buf & 0x3c) return -1;
 	}
-	i2cbits = i2cbits | (0x0040 << idx);
+	i2cbits = i2cbits | (0x0020 << idx);
 	*f_i2cdev = i2cbits;
 	return err;
 }
@@ -2525,7 +2841,7 @@ esp_err_t i2c_read_htu21(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_
 	if (!(i2cbits & 0x80000000) || idx) return err;
 	uint8_t buf[4] = {0};
 	uint8_t addr;
-	addr = i2c_addr[idx + 6];
+	addr = i2c_addr[idx + 5];
 	err = i2c_check(addr);
 	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
 	if (!err) {  //1
@@ -2533,15 +2849,13 @@ esp_err_t i2c_read_htu21(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_
 	if (!err) {  //2
 	vTaskDelay(100 / portTICK_PERIOD_MS);      //50ms ready temperature
 	err = i2c_read0_data(addr, buf, 3); //read data
-esp_log_buffer_hex(AP_TAG, buf, 4);
 	if (!err) { //3
 	tmp = ((((buf[0] << 8) + buf[1]) * 1757 ) >> 12) - 7488; 
 	*temp = tmp;
 	err = i2c_write_data(addr, 0xf5, buf, 0);  //Start Measurement Command for humidity
 	if (!err) { //4
-	vTaskDelay(50 / portTICK_PERIOD_MS);      //16ms ready humidity
-	err = i2c_read0_data(addr, buf, 3); //read data
-esp_log_buffer_hex(AP_TAG, buf, 4);
+	vTaskDelay(50 / portTICK_PERIOD_MS);       //16ms ready humidity
+	err = i2c_read0_data(addr, buf, 3);        //read data
 	if (!err) { //5
 	hum = ((((buf[0] << 8) + buf[1]) * 1250 ) >> 16) - 60; 
 	*humid = hum;
@@ -2558,29 +2872,37 @@ esp_log_buffer_hex(AP_TAG, buf, 4);
 	return err;
 }
 
-
-
-
-//***************** ds3231 ********************
-esp_err_t i2c_init_ds3231(uint8_t idx,uint32_t* f_i2cdev)
+//********* rtc: ds3231(0)/pcf8563(1) *********
+esp_err_t i2c_init_rtc(uint8_t idx,uint32_t* f_i2cdev)
 {
 	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
-	if (!(i2cbits & 0x80000000) || idx) return err;
+	if (!(i2cbits & 0x80000000) || (idx > 1)) return err;
 	uint8_t data[32];
 	uint8_t addr;
-	addr = i2c_addr[idx + 5];
+	addr = i2c_addr[idx + 6];
 	err = i2c_check(addr);
 	if (err) return err;
 	memset(data, 0xff, sizeof(data));
+	if (!idx) {                                //ds3231
 	err = i2c_read_data(addr, 0x00, data, 20);
 	if (err) return err;
 	if ((data[0x00] & 0x80) || (data[0x01] & 0x80) || (data[0x02] & 0x80) || (data[0x03] & 0xf8)
 	 || (data[0x04] & 0xc0) || (data[0x05] & 0x60) || (data[0x0f] & 0x70) || (data[0x12] & 0x3f)) return -1;
 	if (!(data[0x0e] & 0x20) && !(data[0x0f] & 0x04)) err = i2c_write_byte(addr, 0x0e, 0x3c);
 	else err = i2c_write_byte(addr, 0x0e, 0x1c);
+	} else {                                   //pcf8563
+	err = i2c_read_data(addr, 0x00, data, 16);
+	if (err) return err;
+	if ((data[0x00] & 0x57) || (data[0x01] & 0xe0) || (data[0x03] & 0x80) || (data[0x04] & 0xc0)
+	 || (data[0x05] & 0xc0) || (data[0x06] & 0xf8) || (data[0x07] & 0x60)) return -1;
+	if (data[0x00]) err = i2c_write_byte(addr, 0x00, 0x00);
+	if (err) return err;
+	if (data[0x01]) err = i2c_write_byte(addr, 0x01, 0x00);
+	if (err) return err;
+	}
 	if (!err) {
-	i2cbits = i2cbits | (0x0020 << idx);
+	i2cbits = i2cbits | (0x0040 << idx);
 	*f_i2cdev = i2cbits;
 	}
 	return err;
@@ -2597,21 +2919,22 @@ uint8_t bcd2b(uint8_t x)
 	y = (x & 0x0f) + ((x & 0xf0) >> 1) + ((x & 0xf0) >> 3);
 	return y;
 }
-esp_err_t i2c_read_ds3231(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp)
+esp_err_t i2c_read_rtc(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp)
 {
 	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
-	if (!(i2cbits & 0x80000000) || idx) return err;
+	if (!(i2cbits & 0x80000000) || (idx > 1)) return err;
 	struct tm timeinfo;
 	time_t now;
 	int16_t itmp;
 	uint8_t data[32];
 	uint8_t addr;
-	addr = i2c_addr[idx + 5];
+	addr = i2c_addr[idx + 6];
 	memset(data, 0xff, sizeof(data));
 	err = i2c_check(addr);
 	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
 	if (!err) {  //1
+	if (!idx) {                                //ds3231
 	err = i2c_read_data(addr, 0x00, data, 20);
 	itmp =  (data[0x11]<< 8) | data[0x12];
 	itmp = (itmp >> 1) + (itmp >> 3) + 8;
@@ -2624,13 +2947,13 @@ esp_err_t i2c_read_ds3231(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp)
 	data[22] = b2bcd(timeinfo.tm_hour);
 	data[23] = timeinfo.tm_wday + 1;
 	data[24] = b2bcd(timeinfo.tm_mday);
-	data[25] = b2bcd(timeinfo.tm_mon);
+	data[25] = b2bcd(timeinfo.tm_mon + 1);
 	data[26] = b2bcd(timeinfo.tm_year % 100);
         if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED) {
 	if ((data[0x0f] & 0x80) || ((data[0] ^ data[20]) & 0xf0) || memcmp(&data[21], &data[1], 6)) {
 	err = i2c_write_data(addr, 0x00, &data[20], 7);  //write data
 	if (!err) err = i2c_write_byte(addr, 0x0f, (data[0x0f] & 0x7f)); //clear OSF
-	if (!err && fdebug) ESP_LOGI(AP_TAG, "Write to RTC Ok");
+	if (!err && fdebug) ESP_LOGI(AP_TAG, "Write to RTC%d Ok", idx);
 	}
 	}
 	} else if (!(data[0x0f] & 0x80)) {
@@ -2638,25 +2961,63 @@ esp_err_t i2c_read_ds3231(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp)
 	timeinfo.tm_min = bcd2b(data[1]);
 	timeinfo.tm_hour = bcd2b(data[2]);
 	timeinfo.tm_mday = bcd2b(data[4]);
-	timeinfo.tm_mon = bcd2b(data[5] & 0x1f);
+	timeinfo.tm_mon = bcd2b(data[5] & 0x1f) - 1;
 	timeinfo.tm_year = bcd2b(data[6]) + 100;
 	now = mktime(&timeinfo);
 	struct timeval stnow = { .tv_sec = now};
 	settimeofday(&stnow, NULL);
-	if (fdebug) ESP_LOGI(AP_TAG, "Read from RTC Ok");
+	if (fdebug) ESP_LOGI(AP_TAG, "Read from RTC%d Ok", idx);
 	} else {
-	if (fdebug) ESP_LOGI(AP_TAG, "RTC Oscillator Stop detected");
+	if (fdebug) ESP_LOGI(AP_TAG, "RTC%d Oscillator Stop detected", idx);
 	} //3
 	} //2
-	} //1
 	if (!err && !(data[0x0e] & 0x20) && !(data[0x0f] & 0x04))  {
 	data[0x0e] |= 0x20;
 	err = i2c_write_byte(addr, 0x0e, data[0x0e]);
 	}
+	} else {                                   //pcf8563
+	err = i2c_read_data(addr, 0x00, data, 16);
+	itmp = 0;
+	if (!err) {  //2
+	time(&now);
+	localtime_r(&now, &timeinfo);
+	if (timeinfo.tm_year > 100) {  //3
+	data[20] = b2bcd(timeinfo.tm_sec);
+	data[21] = b2bcd(timeinfo.tm_min);
+	data[22] = b2bcd(timeinfo.tm_hour);
+	data[23] = b2bcd(timeinfo.tm_mday);
+	data[24] = timeinfo.tm_wday;
+	data[25] = b2bcd(timeinfo.tm_mon + 1);
+	data[26] = b2bcd(timeinfo.tm_year % 100);
+        if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED) {
+	if ((data[0x02] & 0x80) || ((data[0x02] ^ data[20]) & 0xf0) || memcmp(&data[21], &data[0x03], 6)) {
+	err = i2c_write_data(addr, 0x02, &data[20], 7);  //write data
+	if (!err && fdebug) ESP_LOGI(AP_TAG, "Write to RTC%d Ok", idx);
+	}
+	}
+	} else if (!(data[0x02] & 0x80)) {
+	timeinfo.tm_sec = bcd2b(data[0x02]);
+	timeinfo.tm_min = bcd2b(data[0x03]);
+	timeinfo.tm_hour = bcd2b(data[0x04]);
+	timeinfo.tm_mday = bcd2b(data[0x05]);
+	timeinfo.tm_mon = bcd2b(data[0x07] & 0x1f) - 1;
+	timeinfo.tm_year = bcd2b(data[0x08]) + 100;
+	now = mktime(&timeinfo);
+	struct timeval stnow = { .tv_sec = now};
+	settimeofday(&stnow, NULL);
+	if (fdebug) ESP_LOGI(AP_TAG, "Read from RTC%d Ok", idx);
+	} else {
+	if (fdebug) ESP_LOGI(AP_TAG, "RTC%d Oscillator Stop detected", idx);
+	} //3
+	} //2
+	}
+	} //1
+	if (!idx) {
 	if (err) {
 	*temp = 0xffff;
 	} else {
 	*temp = itmp;
+	}
 	}
 	return err;
 }
@@ -2673,7 +3034,7 @@ static int wf_retry_cnt;
 
 static struct BleMonRec BleMR[BleMonNum];
 static struct BleMonExt BleMX[BleMonNum];
-static struct SnPari2c SnPi2c[30];
+static struct SnPari2c SnPi2c[28];
 
 #ifdef USE_TFT
 #include "tft/tft.c"
@@ -2989,54 +3350,7 @@ static void hw_timer_callback(void *arg)
 	lvgpio4 = lvgpio4 ^ 1;
 	t_lasts = 0;
 	cntgpio4 = 0;
-	if (!lvgpio4 && BleDevStD.btauthoriz) {
-	if ((BleDevStD.DEV_TYP > 0) && (BleDevStD.DEV_TYP < 10)) { 
-	if (!BleDevStD.bState) {
-	BleDevStD.r4slppar1 = 0;
-	BleDevStD.r4slpcom = 2;
-	} else {
-	BleDevStD.r4slppar1 = 0;
-	BleDevStD.r4slpcom = 1;
-	}
-	} else if ((BleDevStD.DEV_TYP > 9) && (BleDevStD.DEV_TYP < 16)) { 
-	if (!BleDevStD.bState) {
-	BleDevStD.r4slppar1 = 0;
-	BleDevStD.r4slpcom = 6;
-	} else {
-	BleDevStD.r4slppar1 = 0;
-	BleDevStD.r4slpcom = 1;
-	}
-	} else if ((BleDevStD.DEV_TYP > 15) && (BleDevStD.DEV_TYP < 62)) { 
-	if (!BleDevStD.bState) {
-	BleDevStD.r4slppar1 = 1;
-	BleDevStD.r4slpcom = 10;
-	} else {
-	BleDevStD.r4slppar1 = 0;
-	BleDevStD.r4slpcom = 10;
-	}
-	} else if ((BleDevStD.DEV_TYP == 62)) { 
-	if (!BleDevStD.bState) {
-	BleDevStD.bState = 1;
-	BleDevStD.r4slppar1 = 0;
-	BleDevStD.r4slpcom = 62;
-	}
-	} else if ((BleDevStC.DEV_TYP == 63)) { 
-	if (!BleDevStD.bState) {
-	BleDevStD.bState = 1;
-	BleDevStD.r4slppar1 = 0;
-	BleDevStD.r4slpcom = 63;
-	}
-	} else if ((BleDevStD.DEV_TYP > 63) && (BleDevStD.DEV_TYP < 73)) { 
-	if (!BleDevStD.bState) {
-	BleDevStD.r4slppar1 = 0;
-	BleDevStD.r4slpcom = 65;
-	} else {
-	BleDevStD.r4slppar1 = 0;
-	BleDevStD.r4slpcom = 64;
-	}
-	}
-
-	}
+	t_jpg = 0;	
 	}
 	} else cntgpio4 = 0;
 	break;
@@ -3051,18 +3365,6 @@ static void hw_timer_callback(void *arg)
 	lvgpio5 = lvgpio5 ^ 1;
 	t_lasts = 0;
 	cntgpio5 = 0;
-	}
-	} else cntgpio5 = 0;
-	break;
-	case 192:
-	if ((gpio_get_level(bgpio5 & 0x3f)) != lvgpio5) {
-        cntgpio5++;
-	if (cntgpio5 > 5) {
-	fgpio5 = 1;
-	lvgpio5 = lvgpio5 ^ 1;
-	t_lasts = 0;
-	cntgpio5 = 0;
-	t_jpg = 0;	
 	}
 	} else cntgpio5 = 0;
 	break;
@@ -11630,7 +11932,8 @@ void MqSState() {
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(ldata,tmpvar);
 	strcat(ldata,"/weight");
-	u32_strcpy_p2 (BleMX[i].par1, tmpvar);
+	tmpvar[0] = 0;
+	u32_strcat_p2 (BleMX[i].par1, tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 
 	strcpy(ldata,MQTT_BASE_TOPIC);           //date
@@ -11775,7 +12078,8 @@ void MqSState() {
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(ldata,tmpvar);
 	strcat(ldata,"/prov_weight");
-	u32_strcpy_p2 (BleMX[i].par6, tmpvar);
+	tmpvar[0] = 0;
+	u32_strcat_p2 (BleMX[i].par6, tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	BleMX[i].ppar6 = BleMX[i].par6;
 	}
@@ -11808,7 +12112,8 @@ void MqSState() {
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(ldata,tmpvar);
 	strcat(ldata,"/humidity");
-	u32_strcpy_p2 (BleMX[i].par2, tmpvar);
+	tmpvar[0] = 0;
+	u32_strcat_p2 (BleMX[i].par2, tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	BleMX[i].ppar2 = BleMX[i].par2;
 	}
@@ -11863,6 +12168,23 @@ void MqSState() {
 	}
 
 	if  ((mqttConnected) && (bStateS != bprevStateS)) {
+#ifdef USE_TFT
+	uint8_t duty = bStateS;
+	if (tft_conn && PIN_NUM_BCKL) {
+	if ((f_i2cdev & 0x60000000) && !(pwr_batmode & 0x06)) duty >>= 5;
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (PIN_NUM_BCKL < 22) {	
+#else
+	if (PIN_NUM_BCKL < 34) {	
+#endif
+	ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
+	ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+	} else {
+	if (bStateS) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, duty | 1);
+	else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, 0);
+	}
+	}
+#endif
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/screen");
 	itoa(bStateS,tmpvar,10);
@@ -11911,6 +12233,28 @@ void MqSState() {
 	r4sppcoms = 30;
 	fgpio5 = 0;
 	}
+	if  ((mqttConnected) && (bStatHx6 != bprevStatHx6) && (bgpio6 > 127) && (bgpio6 < 192) && (bgpio5 > 191)) {
+	uint32_t var;
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/Hx6");
+	tmpvar[0] = 0;
+	if (bStatHx6 & 0xff) strcpy (tmpvar,"-0");
+	else {
+	var = bStatHx6 - bZeroHx6;
+	if (var & 0x80000000) {
+	var = (var ^ 0xffffffff) + 1;
+	strcpy (tmpvar,"-");
+	}
+	if (bDivHx6 & 0x7fffffff) var = var / (bDivHx6 & 0x7fffffff);
+//ESP_LOGI(AP_TAG, "Hx pub: st: %d, zr: %d, diff: %d, div: %d, var: %d", bStatHx6, bZeroHx6, (bStatHx6 - bZeroHx6),bDivHx6, var);
+	if(!var) tmpvar[0] = 0;
+	if (bDivHx6 & 0x80000000) u32_strcat_p1(var,tmpvar);
+	else u32_strcat_p3(var,tmpvar);
+	}
+
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	bprevStatHx6 = bStatHx6;
+	}
 	if  ((mqttConnected) && (bStatG6 != bprevStatG6) && (bgpio6 > 63)) {
 	if (bgpio6 < 128) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
@@ -11919,12 +12263,14 @@ void MqSState() {
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	r4sppcoms = 30;
 	} else if (bgpio6 < 192) {
+	if (bgpio5 < 192) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/1w6");
 	tmpvar[0] = 0;
 	s18b20_strcat (bStatG6, tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
-	} else if (bgpio6 < 226) {
+	}
+	} else if (bgpio6 < (MxPOutP + 192)) {
 #ifdef USE_IRTX
 	r4sppcoms = 30;
 	if ((bStatG6 ^ bprevStatG6) & 0xff00) {
@@ -11994,7 +12340,7 @@ void MqSState() {
 	tmpvar[0] = 0;
 	s18b20_strcat (bStatG7, tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
-	} else if (bgpio7 < 226) {
+	} else if (bgpio7 < (MxPOutP + 192)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/dht7t");
 	tmpvar[0] = 0;
@@ -12016,7 +12362,7 @@ void MqSState() {
 	tmpvar[0] = 0;
 	s18b20_strcat (bStatG8, tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
-	} else if (bgpio8 < 226) {
+	} else if (bgpio8 < (MxPOutP + 192)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/dht8t");
 	tmpvar[0] = 0;
@@ -12025,7 +12371,7 @@ void MqSState() {
 	}
 	bprevStatG8 = bStatG8;
 	}
-	if  ((mqttConnected) && (bStatG6h != bprevStatG6h) && (bgpio6 > 191) && (bgpio6 < 226)) {
+	if  ((mqttConnected) && (bStatG6h != bprevStatG6h) && (bgpio6 > 191) && (bgpio6 < (MxPOutP + 192))) {
 #ifdef USE_IRTX
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/ir6addr");
@@ -12034,29 +12380,32 @@ void MqSState() {
 #else
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/dht6h");
-	u32_strcpy_p1 (bStatG6h,tmpvar);
+	tmpvar[0] = 0;
+	u32_strcat_p1 (bStatG6h,tmpvar);
 #endif
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	bprevStatG6h = bStatG6h;
 	}
-	if  ((mqttConnected) && (bStatG7h != bprevStatG7h) && (bgpio7 > 191) && (bgpio7 < 226)) {
+	if  ((mqttConnected) && (bStatG7h != bprevStatG7h) && (bgpio7 > 191) && (bgpio7 < (MxPOutP + 192))) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/dht7h");
-	u32_strcpy_p1 (bStatG7h,tmpvar);
+	tmpvar[0] = 0;
+	u32_strcat_p1 (bStatG7h,tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	bprevStatG7h = bStatG7h;
 	}
-	if  ((mqttConnected) && (bStatG8h != bprevStatG8h) && (bgpio8 > 191) && (bgpio8 < 226)) {
+	if  ((mqttConnected) && (bStatG8h != bprevStatG8h) && (bgpio8 > 191) && (bgpio8 < (MxPOutP + 192))) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/dht8h");
-	u32_strcpy_p1 (bStatG8h,tmpvar);
+	tmpvar[0] = 0;
+	u32_strcat_p1 (bStatG8h,tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	bprevStatG8h = bStatG8h;
 	}
 
 	if (f_i2cdev & 0x80000000) {
 //i2c
-	for (int i = 0; i < 30; i++) {
+	for (int i = 0; i < 28; i++) {
 	if (f_i2cdev & (1 << i)) {
 	if (i2c_bits[i] & 0x01) {
 //i2c temp
@@ -12080,7 +12429,8 @@ void MqSState() {
 	bin2hex(&i2c_addr[i],tmpvar,1,0);
 	strcat(ldata,tmpvar);
 	strcat(ldata,"humid");
-	u32_strcpy_p1 (SnPi2c[i].par2,tmpvar);
+	tmpvar[0] = 0;
+	u32_strcat_p1 (SnPi2c[i].par2,tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	SnPi2c[i].ppar2 = SnPi2c[i].par2;
 	}
@@ -12093,14 +12443,16 @@ void MqSState() {
 	bin2hex(&i2c_addr[i],tmpvar,1,0);
 	strcat(ldata,tmpvar);
 	strcat(ldata,"pressp");
-	u32_strcpy_p1 (SnPi2c[i].par3,tmpvar);
+	tmpvar[0] = 0;
+	u32_strcat_p1 (SnPi2c[i].par3,tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/i2c");
 	bin2hex(&i2c_addr[i],tmpvar,1,0);
 	strcat(ldata,tmpvar);
 	strcat(ldata,"pressm");
-	u32_strcpy_p1 ((SnPi2c[i].par3 * 3) >> 2,tmpvar);
+	tmpvar[0] = 0;
+	u32_strcat_p1 ((SnPi2c[i].par3 * 3) >> 2,tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	SnPi2c[i].ppar3 = SnPi2c[i].par3;
 	}
@@ -12122,22 +12474,49 @@ void MqSState() {
 //
 	} //bit i
 	} //for i
-	if  (f_i2cdev & 0x40000000) {
-	if  ((mqttConnected) && (ip5306_batprevlev != ip5306_batlev)) {
+	if  (f_i2cdev & 0x60000000) {
+	if  ((mqttConnected) && (pwr_batprevlevp != pwr_batlevp)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
-	strcat(ldata,"/i2c75battery");
-	itoa(ip5306_batlev,tmpvar,10);
+	if (f_i2cdev & 0x40000000) strcat(ldata,"/i2c75battery");
+	else if (f_i2cdev & 0x20000000) strcat(ldata,"/i2c34battery");
+	itoa(pwr_batlevp,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
-	ip5306_batprevlev = ip5306_batlev;
+	pwr_batprevlevp = pwr_batlevp;
 	}
-	if  ((mqttConnected) && (ip5306_batprevmode != ip5306_batmode)) {
+	if  ((mqttConnected) && (pwr_batprevmode != pwr_batmode)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
-	strcat(ldata,"/i2c75batmode");
-	if(!(ip5306_batmode & 0x02)) strcpy(tmpvar,"Discharging");
-	else if (!(ip5306_batmode & 0x01)) strcpy(tmpvar,"Charging");
+	if (f_i2cdev & 0x40000000) strcat(ldata,"/i2c75batmode");
+	else if (f_i2cdev & 0x20000000) strcat(ldata,"/i2c34batmode");
+	if (pwr_batmode & 0x04) strcpy(tmpvar,"Disconnected");
+	else if (!(pwr_batmode & 0x02)) strcpy(tmpvar,"Discharging");
+	else if (!(pwr_batmode & 0x01)) strcpy(tmpvar,"Charging");
 	else strcpy(tmpvar,"Charged");
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
-	ip5306_batprevmode = ip5306_batmode;
+	pwr_batprevmode = pwr_batmode;
+	}
+	if  (f_i2cdev & 0x20000000) {
+	if  ((mqttConnected) && (pwr_batprevlevv != pwr_batlevv)) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/i2c34batvoltage");
+	tmpvar[0]= 0;
+	u32_strcat_p3(pwr_batlevv,tmpvar);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	pwr_batprevlevv = pwr_batlevv;
+	}
+	if  ((mqttConnected) && (pwr_batprevlevc != pwr_batlevc)) {
+	uint16_t var = pwr_batlevc;
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/i2c34batcurrent");
+	tmpvar[0]= 0;
+	if (var & 0x8000) {
+	var = (var ^ 0x0ffff) + 1;  
+	strcat(tmpvar,"-");
+	}
+	u32_strcat_p3(var,tmpvar);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	pwr_batprevlevc = pwr_batlevc;
+	}
+
 	}
 	}
 	}
@@ -12346,7 +12725,8 @@ void MqState(uint8_t blenum) {
 	strcat(ldata,ptr->tBLEAddr);
 	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/total_energy");
-	itoakw(ptr->bSEnergy,tmpvar,10);
+	tmpvar[0] = 0;
+	u32_strcat_p3(ptr->bSEnergy,tmpvar);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	ptr->r4sppcom = 30;
 	ptr->bprevSEnergy = ptr->bSEnergy;
@@ -15016,7 +15396,7 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ipInfo);
 	sprintf(wbuff, "%d.%d.%d.%d", IP2STR(&ipInfo.ip));
 	if (FDHass && tESP32Addr[0]) {
-	for (int i = 0; i < 30; i++) {
+	for (int i = 0; i < 28; i++) {
 	if (i2cbits & (1 << i)) {
 	if (i2c_bits[i] & 0x01) {
 //i2c temp
@@ -15258,10 +15638,11 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	} //bit i
 	} //for i
 //ip5306 battery level
-	if (i2cbits & 0x40000000) {
+	if (i2cbits & 0x60000000) {
 	strcpy(llwtt,"homeassistant/sensor/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
-	strcat(llwtt,"/i2c75");
+	if (i2cbits & 0x40000000) strcat(llwtt,"/i2c75");
+	else if (i2cbits & 0x20000000) strcat(llwtt,"/i2c34");
 	strcat(llwtt,"blvx");
 	strcat(llwtt,tESP32Addr);
 	strcat(llwtt,"/config");
@@ -15269,7 +15650,8 @@ bool HDisci2c(uint32_t* f_i2cdev)
 //	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 	strcpy(llwtd,"{\"name\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,".Gate.i2c75.battery\",\"icon\":\"mdi:battery\",\"uniq_id\":\"i2c75");
+	if (i2cbits & 0x40000000) strcat(llwtd,".Gate.i2c75.battery\",\"icon\":\"mdi:battery\",\"uniq_id\":\"i2c75");
+	else if (i2cbits & 0x20000000) strcat(llwtd,".Gate.i2c34.battery\",\"icon\":\"mdi:battery\",\"uniq_id\":\"i2c34");
 	strcat(llwtd,"_battery_");
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
@@ -15290,7 +15672,8 @@ bool HDisci2c(uint32_t* f_i2cdev)
 //	}
 	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"device_class\":\"battery\",\"state_class\":\"measurement\",\"state_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/i2c75");
+	if (i2cbits & 0x40000000) strcat(llwtd,"/i2c75");
+	else if (i2cbits & 0x20000000) strcat(llwtd,"/i2c34");
 	strcat(llwtd,"battery\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
@@ -15298,7 +15681,8 @@ bool HDisci2c(uint32_t* f_i2cdev)
 //ip5306 battery state
 	strcpy(llwtt,"homeassistant/sensor/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
-	strcat(llwtt,"/i2c75");
+	if (i2cbits & 0x40000000) strcat(llwtt,"/i2c75");
+	else if (i2cbits & 0x20000000) strcat(llwtt,"/i2c34");
 	strcat(llwtt,"bstx");
 	strcat(llwtt,tESP32Addr);
 	strcat(llwtt,"/config");
@@ -15306,7 +15690,8 @@ bool HDisci2c(uint32_t* f_i2cdev)
 //	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 	strcpy(llwtd,"{\"name\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,".Gate.i2c75.batmode\",\"icon\":\"mdi:battery\",\"uniq_id\":\"i2c75");
+	if (i2cbits & 0x40000000) strcat(llwtd,".Gate.i2c75.batmode\",\"icon\":\"mdi:battery\",\"uniq_id\":\"i2c75");
+	else if (i2cbits & 0x20000000) strcat(llwtd,".Gate.i2c34.batmode\",\"icon\":\"mdi:battery\",\"uniq_id\":\"i2c34");
 	strcat(llwtd,"_batmode_");
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
@@ -15327,12 +15712,89 @@ bool HDisci2c(uint32_t* f_i2cdev)
 //	}
 	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"state_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/i2c75");
+	if (i2cbits & 0x40000000) strcat(llwtd,"/i2c75");
+	else if (i2cbits & 0x20000000) strcat(llwtd,"/i2c34");
 	strcat(llwtd,"batmode\",\"availability_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 //
+	if (i2cbits & 0x20000000) {
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/i2c34");
+	strcat(llwtt,"bvvx");
+	strcat(llwtt,tESP32Addr);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate.i2c34.batvoltage\",\"icon\":\"mdi:battery\",\"uniq_id\":\"i2c34");
+	strcat(llwtd,"_batvoltage_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"],\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate\",\"model\":\"ESP32\",\"sw_version\":\"");
+	strcat(llwtd,AP_VER);
+	if (wbuff[0]) {
+	strcat(llwtd,"\",\"configuration_url\":\"http://");
+	strcat(llwtd,wbuff);
+	}
+	strcat(llwtd,"\",\"connections\":[[\"mac\",\"");
+	strcat(llwtd,tESP32Addr1);
+//	if (wbuff[0]) {
+//	strcat(llwtd,"\"],[\"ip\",\"");
+//	strcat(llwtd,wbuff);
+	}
+	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"device_class\":\"voltage\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/i2c34");
+	strcat(llwtd,"batvoltage\",\"unit_of_meas\":\"V\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/i2c34");
+	strcat(llwtt,"bvcx");
+	strcat(llwtt,tESP32Addr);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate.i2c34.batcurrent\",\"icon\":\"mdi:battery\",\"uniq_id\":\"i2c34");
+	strcat(llwtd,"_batcurrent_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"],\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate\",\"model\":\"ESP32\",\"sw_version\":\"");
+	strcat(llwtd,AP_VER);
+	if (wbuff[0]) {
+	strcat(llwtd,"\",\"configuration_url\":\"http://");
+	strcat(llwtd,wbuff);
+	}
+	strcat(llwtd,"\",\"connections\":[[\"mac\",\"");
+	strcat(llwtd,tESP32Addr1);
+//	if (wbuff[0]) {
+//	strcat(llwtd,"\"],[\"ip\",\"");
+//	strcat(llwtd,wbuff);
+//	}
+	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"device_class\":\"current\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/i2c34");
+	strcat(llwtd,"batcurrent\",\"unit_of_meas\":\"A\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+//	}
 	}
 	result = 1;
 	} //fdhass
@@ -15504,14 +15966,17 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	BleDevStE.bprevCVoll = 255;
 
 	bprevStateS = ~bStateS;
+	bprevStatHx6 = ~bStatHx6;
 	bprevStatG6 = ~bStatG6;
 	bprevStatG7 = ~bStatG7;
 	bprevStatG8 = ~bStatG8;
 	bprevStatG6h = ~bStatG6h;
 	bprevStatG7h = ~bStatG7h;
 	bprevStatG8h = ~bStatG8h;
-	ip5306_batprevlev = 255;
-	ip5306_batprevmode = 255;
+	pwr_batprevlevp = 255;
+	pwr_batprevlevv = ~pwr_batlevv;
+	pwr_batprevlevc = ~pwr_batlevc;
+	pwr_batprevmode = 255;
 
 	fgpio1 = 1;
 	fgpio2 = 1;
@@ -15531,7 +15996,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	BleMX[i].ppar6 = ~BleMX[i].par6;
 	BleMX[i].ppar7 = ~BleMX[i].par7;
 	}
-	for (int i = 0; i < 30; i++) {
+	for (int i = 0; i < 28; i++) {
 	SnPi2c[i].ppar1 = ~SnPi2c[i].par1;
 	SnPi2c[i].ppar2 = ~SnPi2c[i].par2;
 	SnPi2c[i].ppar3 = ~SnPi2c[i].par3;
@@ -15649,7 +16114,113 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/number/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/jtx");
+	strcat(llwtt,tESP32Addr);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate.jpg.time\",\"icon\":\"mdi:image-check-outline\",\"uniq_id\":\"jpgtime_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"],\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate\",\"model\":\"ESP32\",\"sw_version\":\"");
+	strcat(llwtd,AP_VER);
+	if (wbuff[0]) {
+	strcat(llwtd,"\",\"configuration_url\":\"http://");
+	strcat(llwtd,wbuff);
 	}
+	strcat(llwtd,"\",\"connections\":[[\"mac\",\"");
+	strcat(llwtd,tESP32Addr1);
+//	if (wbuff[0]) {
+//	strcat(llwtd,"\"],[\"ip\",\"");
+//	strcat(llwtd,wbuff);
+//	}
+	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"command_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/jpg_time\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/jpg_time\",\"min\":\"0\",\"max\":\"65535\",\"retain\":\"true\",\"unit_of_meas\":\"s\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/text/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/jux");
+	strcat(llwtt,tESP32Addr);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate.jpg.url\",\"icon\":\"mdi:image-edit-outline\",\"uniq_id\":\"jpgurl_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"],\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate\",\"model\":\"ESP32\",\"sw_version\":\"");
+	strcat(llwtd,AP_VER);
+	if (wbuff[0]) {
+	strcat(llwtd,"\",\"configuration_url\":\"http://");
+	strcat(llwtd,wbuff);
+	}
+	strcat(llwtd,"\",\"connections\":[[\"mac\",\"");
+	strcat(llwtd,tESP32Addr1);
+//	if (wbuff[0]) {
+//	strcat(llwtd,"\"],[\"ip\",\"");
+//	strcat(llwtd,wbuff);
+//	}
+	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"command_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/jpg_url\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/jpg_url\",\"retain\":\"true\",\"min\":\"0\",\"max\":\"255\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	}
+	strcpy(llwtt,"homeassistant/button/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/2x");
+	strcat(llwtt,tESP32Addr);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate.jpg.refresh\",\"icon\":\"mdi:image-auto-adjust\",\"uniq_id\":\"jpgrefr_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"],\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate\",\"model\":\"ESP32\",\"sw_version\":\"");
+	strcat(llwtd,AP_VER);
+	if (wbuff[0]) {
+	strcat(llwtd,"\",\"configuration_url\":\"http://");
+	strcat(llwtd,wbuff);
+	}
+	strcat(llwtd,"\",\"connections\":[[\"mac\",\"");
+	strcat(llwtd,tESP32Addr1);
+//	if (wbuff[0]) {
+//	strcat(llwtd,"\"],[\"ip\",\"");
+//	strcat(llwtd,wbuff);
+//	}
+	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"command_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/jpg_time\",\"payload_press\":\"65536\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 #endif
 	strcpy(llwtt,"homeassistant/button/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
@@ -15708,7 +16279,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	default:
 	tbgpio = bgpio1;
 	}
-	if ((tbgpio > 63) && (tbgpio < 98)) {
+	if ((tbgpio > 63) && (tbgpio < (MxPOutP + 64))) {
 	strcpy(llwtt,"homeassistant/switch/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/");
@@ -15824,7 +16395,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	default:
 	tbgpio = bgpio6;
 	}
-	if ((tbgpio > 63) && (tbgpio < 98)) {
+	if ((tbgpio > 63) && (tbgpio < (MxPOutP + 64))) {
 	strcpy(llwtt,"homeassistant/number/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/");
@@ -15888,6 +16459,15 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 //	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 	strcpy(llwtd,"{\"name\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
+	if ((i == 6) && (bgpio5 > 191)) {
+	strcat(llwtd,".Gate.Hx");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,".weight\",\"icon\":\"mdi:weight-kilogram\",\"uniq_id\":\"Hx");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"_weight_");
+	} else {
 	strcat(llwtd,".Gate.1w");
 	itoa(i,tbuff,10);
 	strcat(llwtd,tbuff);
@@ -15895,6 +16475,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	itoa(i,tbuff,10);
 	strcat(llwtd,tbuff);
 	strcat(llwtd,"_temp_");
+	}
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
 	strcat(llwtd,tESP32Addr);
@@ -15912,17 +16493,27 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 //	strcat(llwtd,"\"],[\"ip\",\"");
 //	strcat(llwtd,wbuff);
 //	}
-	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"device_class\":\"temperature\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"state_class\":\"measurement\",\"state_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
+	if ((i == 6) && (bgpio5 > 191)) {
+	strcat(llwtd,"/Hx");
+	itoa(i,tbuff,10);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"\",\"device_class\":\"weight\",\"unit_of_meas\":\"");
+	if (bDivHx6 & 0x80000000) strcat(llwtd,"\x25\"");
+	else strcat(llwtd,"kg\"");
+	} else {
 	strcat(llwtd,"/1w");
 	itoa(i,tbuff,10);
 	strcat(llwtd,tbuff);
-	strcat(llwtd,"\",\"unit_of_meas\":\"\xc2\xb0\x43\",\"availability_topic\":\"");
+	strcat(llwtd,"\",\"device_class\":\"temperature\",\"unit_of_meas\":\"\xc2\xb0\x43\"");
+	}
+	strcat(llwtd,",\"availability_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 #ifdef USE_IRTX
-	} else if ((i == 6) && (tbgpio > 191) &&  (tbgpio < 226)) {
+	} else if ((i == 6) && (tbgpio > 191) &&  (tbgpio < (MxPOutP + 192))) {
 	strcpy(llwtt,"homeassistant/select/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/");
@@ -16078,7 +16669,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 //
 #endif
-	} else if ((tbgpio > 191) &&  (tbgpio < 226)) {
+	} else if ((tbgpio > 191) &&  (tbgpio < (MxPOutP + 192))) {
 	strcpy(llwtt,"homeassistant/sensor/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/");
@@ -16203,12 +16794,12 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcat(llwtt,"/gpio5");
 	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
 	}
-	if ((bgpio6 > 63) && (bgpio6 < 98)) {
+	if ((bgpio6 > 63) && (bgpio6 < (MxPOutP + 64))) {
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/gpio6");
 	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
 #ifdef USE_IRTX
-	} else if ((bgpio6 > 191) && (bgpio6 < 226)) {
+	} else if ((bgpio6 > 191) && (bgpio6 < (MxPOutP + 192))) {
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/ir6tx");
 	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
@@ -16223,12 +16814,12 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
 #endif
 	}
-	if ((bgpio7 > 63) && (bgpio7 < 98)) {
+	if ((bgpio7 > 63) && (bgpio7 < (MxPOutP + 64))) {
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/gpio7");
 	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
 	}
-	if ((bgpio8 > 63) && (bgpio8 < 98)) {
+	if ((bgpio8 > 63) && (bgpio8 < (MxPOutP + 64))) {
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/gpio8");
 	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
@@ -16477,15 +17068,9 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	duty = atoi(tbuff);
 	if (duty > 255) duty = 255;
 	if ((duty != bStateS) || (!r4sppcoms)) { 
-	if (tft_conn) {
-        bStateS = duty;
-	if ((f_i2cdev & 0x40000000) && !(ip5306_batmode & 0x02)) duty >>= 5;
-	ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
-	ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
-	} else {
-	if (!bStateS) bStateS = duty;
-        bprevStateS = ~bStateS;
-	}
+	if (tft_conn) bStateS = duty;
+	else if (!bStateS) bStateS = duty;
+	bprevStateS = ~bStateS;
 	t_lasts = 0;
 	}
 #endif
@@ -16496,7 +17081,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	if ((!incascmp("1",event->data,event->data_len)) || (!incascmp("on",event->data,event->data_len))
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio1) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
-	if (bgpio1 < 98) {
+	if (bgpio1 < (MxPOutP + 64)) {
 	gpio_set_level((bgpio1 & 0x3f), 1);
 	lvgpio1 = 1;
 			}
@@ -16506,7 +17091,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	} else if ((!incascmp("0",event->data,event->data_len)) || (!incascmp("off",event->data,event->data_len))
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio1)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
-	if (bgpio1 < 98) {
+	if (bgpio1 < (MxPOutP + 64)) {
 	gpio_set_level((bgpio1 & 0x3f), 0);
 	lvgpio1 = 0;
 			}
@@ -16518,7 +17103,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	if ((!incascmp("1",event->data,event->data_len)) || (!incascmp("on",event->data,event->data_len))
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio2) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
-	if (bgpio2 < 98) {
+	if (bgpio2 < (MxPOutP + 64)) {
 	gpio_set_level((bgpio2 & 0x3f), 1);
 	lvgpio2 = 1;
 			}
@@ -16528,7 +17113,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	} else if ((!incascmp("0",event->data,event->data_len)) || (!incascmp("off",event->data,event->data_len))
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio2)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
-	if (bgpio2 < 98) {
+	if (bgpio2 < (MxPOutP + 64)) {
 	gpio_set_level((bgpio2 & 0x3f), 0);
 	lvgpio2 = 0;
 			}
@@ -16540,7 +17125,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	if ((!incascmp("1",event->data,event->data_len)) || (!incascmp("on",event->data,event->data_len))
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio3) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
-	if (bgpio3 < 98) {
+	if (bgpio3 < (MxPOutP + 64)) {
 	gpio_set_level((bgpio3 & 0x3f), 1);
 	lvgpio3 = 1;
 			}
@@ -16550,7 +17135,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	} else if ((!incascmp("0",event->data,event->data_len)) || (!incascmp("off",event->data,event->data_len))
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio3)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
-	if (bgpio3 < 98) {
+	if (bgpio3 < (MxPOutP + 64)) {
 	gpio_set_level((bgpio3 & 0x3f), 0);
 	lvgpio3 = 0;
 			}
@@ -16562,7 +17147,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	if ((!incascmp("1",event->data,event->data_len)) || (!incascmp("on",event->data,event->data_len))
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio4) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
-	if (bgpio4 < 98) {
+	if (bgpio4 < (MxPOutP + 64)) {
 	gpio_set_level((bgpio4 & 0x3f), 1);
 	lvgpio4 = 1;
 			}
@@ -16572,7 +17157,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	} else if ((!incascmp("0",event->data,event->data_len)) || (!incascmp("off",event->data,event->data_len))
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio4)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
-	if (bgpio4 < 98) {
+	if (bgpio4 < (MxPOutP + 64)) {
 	gpio_set_level((bgpio4 & 0x3f), 0);
 	lvgpio4 = 0;
 			}
@@ -16584,7 +17169,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	if ((!incascmp("1",event->data,event->data_len)) || (!incascmp("on",event->data,event->data_len))
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio5) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
-	if (bgpio5 < 98) {
+	if (bgpio5 < (MxPOutP + 64)) {
 	gpio_set_level((bgpio5 & 0x3f), 1);
 	lvgpio5 = 1;
 			}
@@ -16594,7 +17179,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	} else if ((!incascmp("0",event->data,event->data_len)) || (!incascmp("off",event->data,event->data_len))
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio5)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
-	if (bgpio5 < 98) {
+	if (bgpio5 < (MxPOutP + 64)) {
 	gpio_set_level((bgpio5 & 0x3f), 0);
 	lvgpio5 = 0;
 			}
@@ -16603,7 +17188,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		}	
 	}
 	} else if ((!memcmp(event->topic+topoffs, "6", event->topic_len-topoffs)) && (bgpio6 > 63)) {
-	if (bgpio6 < 98) {
+	if (bgpio6 < (MxPOutP + 64)) {
 	if (event->data_len && (event->data_len < 5)){
 	uint16_t duty = 255;
 	mystrcpy(tbuff, event->data, event->data_len);
@@ -16618,7 +17203,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	t_lasts = 0;
 	}
 	} else if ((!memcmp(event->topic+topoffs, "7", event->topic_len-topoffs)) && (bgpio7 > 63)) {
-	if (bgpio7 < 98) {
+	if (bgpio7 < (MxPOutP + 64)) {
 	if (event->data_len && (event->data_len < 5)){
 	uint16_t duty = 255;
 	mystrcpy(tbuff, event->data, event->data_len);
@@ -16633,7 +17218,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	t_lasts = 0;
 	}
 	} else if ((!memcmp(event->topic+topoffs, "8", event->topic_len-topoffs)) && (bgpio8 > 63)) {
-	if (bgpio8 < 98) {
+	if (bgpio8 < (MxPOutP + 64)) {
 	if (event->data_len && (event->data_len < 5)){
 	uint16_t duty = 255;
 	mystrcpy(tbuff, event->data, event->data_len);
@@ -16780,14 +17365,22 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 //if (fdebug) ESP_LOGI(AP_TAG,"MQTT_EVENT_JPG_URL");
 	}
 	} else if (!memcmp(event->topic+topoffj, "time", event->topic_len-topoffj)) {
+	uint32_t var = 0;
 	tbuff[0] = 0;
-	if (event->data_len < 6) {
+	if (event->data_len < 7) {
 	mystrcpy(tbuff, event->data, event->data_len);
 	if (tbuff[0]) {
-	jpg_time = atoi(tbuff);
+	var = atoi(tbuff);
+	if  (var < 65536) {
+	if (var != jpg_time) MyHttpMqtt = MyHttpMqtt | 0x40;
+	jpg_time = var;
+	MyHttpMqtt = MyHttpMqtt | 0x02;
+	} else {
+	itoa(jpg_time,tbuff,10);
+	esp_mqtt_client_publish(mqttclient, ttopic, tbuff, 0, 1, 1);
+	}
 	if (!jpg_time) 	MyHttpMqtt = MyHttpMqtt | 0x80;
 	t_jpg = 0;	
-	MyHttpMqtt = MyHttpMqtt | 0x42;
 //if (fdebug) ESP_LOGI(AP_TAG,"MQTT_EVENT_JPG_TIME");
 	}
 	}
@@ -17075,6 +17668,8 @@ uint8_t ReadNVS(){
 	uint16_t nvsver = 0;
 #ifdef USE_TFT
 	nvs_get_u16(my_handle, "sjpgtim", &jpg_time);
+	nvs_get_u16(my_handle, "sjpgbuf", &MyJPGbuflen);
+	if (MyJPGbuflen < 20000) MyJPGbuflen = 20000;
 #endif
 	nvs_get_u16(my_handle, "smqprt", &mqtt_port);
 //
@@ -17132,7 +17727,7 @@ uint8_t ReadNVS(){
 	PIN_NUM_DC = (nvtemp >> 32) & 0xff;	
 	PIN_NUM_RST = (nvtemp >> 40) & 0xff;	
 	PIN_NUM_BCKL = (nvtemp >> 48) & 0xff;	
-	PIN_TOUCH_CS = (nvtemp >> 56) & 0xff;	
+	PIN_NUM_PWR = (nvtemp >> 56) & 0xff;	
 #endif
 	nvtemp = 0;
 	nvs_get_u64(my_handle, "bgpio", &nvtemp);
@@ -17184,6 +17779,10 @@ uint8_t ReadNVS(){
 	if (nvtemp & 0x2000) fmwss = 1;
 	if (nvtemp & 0x4000) fdebug = 1;
 	if (nvtemp & 0x8000) fkpmd = 1;
+	nvtemp = 0;
+	nvs_get_u64(my_handle, "bhx1", &nvtemp);
+	bZeroHx6 = nvtemp & 0xffffffff;
+	bDivHx6 =  nvtemp >> 32;
 	size_t nvsize = 20;
 	nvs_get_blob(my_handle,"pnpsw", tmpbuf, &nvsize);
 	nvtemp = tmpbuf[3];
@@ -17254,7 +17853,7 @@ uint8_t ReadNVS(){
 	nvs_get_u8(my_handle, "pndc", &PIN_NUM_DC);
 	nvs_get_u8(my_handle, "pnrst", &PIN_NUM_RST);
 	nvs_get_u8(my_handle, "pnbckl", &PIN_NUM_BCKL);
-	nvs_get_u8(my_handle, "pntouchcs", &PIN_TOUCH_CS);
+	nvs_get_u8(my_handle, "pnpwr", &PIN_NUM_PWR);
 #endif
 	nvs_get_u8(my_handle, "bgpio1", &bgpio1);
 	nvs_get_u8(my_handle, "bgpio2", &bgpio2);
@@ -17340,17 +17939,30 @@ uint8_t ReadNVS(){
 	nvsize = 128;
 	nvs_get_str(my_handle,"smjpuri", MyHttpUri,&nvsize);
 #endif
+	memset (bufcert,0,sizeof(bufcert));
 	strcpy(bufcert,"-----BEGIN CERTIFICATE-----\n");
 	bcertofs = strlen(bufcert);
-	nvsize = (sizeof(bufcert) - 64);   //64 bytes for begin & end headers
-	bcertsz = nvsize;
-	nvs_get_blob(my_handle,"bmcert",  bufcert + bcertofs,&nvsize);
-	if ((bcertsz == nvsize) || !nvsize) {  //if bcertsz == nvsize record not found
+/*
+	nvsize = 960;   //64 bytes for begin & end headers
+	nvs_get_blob(my_handle,"bmcer1",  bufcert + bcertofs,&nvsize);
+	if (nvsize == 960) nvs_get_blob(my_handle,"bmcer2",  bufcert + bcertofs + 960,&nvsize);
+	if (nvsize == 960) {
+*/
+	nvsize = 1920;   //64 bytes for begin & end headers
+	nvs_get_blob(my_handle,"bmcrt",  bufcert + bcertofs,&nvsize);
+	if (nvsize == 1920) {
+	bcertsz = strlen(bufcert) - bcertofs;
+	if (bcertsz > 16) strcat(bufcert,"\n-----END CERTIFICATE-----\n");
+	else {
 	bcertofs = 0;
 	bcertsz = 0;
-	} else bcertsz = nvsize;
-	if (bcertsz > 16) strcat(bufcert,"\n-----END CERTIFICATE-----\n");
-	else memset (bufcert,0,sizeof(bufcert));
+	memset (bufcert,0,sizeof(bufcert));
+	}
+	} else {
+	bcertofs = 0;
+	bcertsz = 0;
+	memset (bufcert,0,sizeof(bufcert));
+	}
 // Close nvs
 	nvs_close(my_handle);
 	if (fdebug) ESP_LOGI(AP_TAG, "Read NVS done");
@@ -17378,9 +17990,9 @@ void WriteNVS () {
 	if (ret == ESP_OK) {
 	uint64_t nvtemp = 0;
 	nvs_set_u16(my_handle, "nvsid", defnvs);
-	nvs_set_str(my_handle, "auth", AUTH_BASIC);
 #ifdef USE_TFT
 	nvs_set_u16(my_handle, "sjpgtim", jpg_time);
+	nvs_set_u16(my_handle, "sjpgbuf", MyJPGbuflen);
 #endif
 	nvs_set_u16(my_handle, "smqprt", mqtt_port);
 
@@ -17409,7 +18021,7 @@ void WriteNVS () {
 	nvtemp = nvtemp | BleDevStA.bEfficiency | (BleDevStB.bEfficiency << 8) | (BleDevStC.bEfficiency << 16) | (BleDevStD.bEfficiency << 24);	
 	nvs_set_u64(my_handle,  "effic", nvtemp);
 #ifdef USE_TFT
-	nvtemp = PIN_TOUCH_CS;
+	nvtemp = PIN_NUM_PWR;
 	nvtemp = (nvtemp << 8) | PIN_NUM_BCKL;
 	nvtemp = (nvtemp << 8) | PIN_NUM_RST;
 	nvtemp = (nvtemp << 8) | PIN_NUM_DC;
@@ -17449,7 +18061,9 @@ void WriteNVS () {
 	if (fdebug) nvtemp = nvtemp | 0x4000;
 	if (fkpmd) nvtemp = nvtemp | 0x8000;
 	nvs_set_u64(my_handle, "cmbits", nvtemp);
-
+	nvtemp = bDivHx6;
+	nvtemp = (nvtemp << 32) | bZeroHx6;
+	nvs_set_u64(my_handle, "bhx1", nvtemp);
 	nvs_set_u8(my_handle,  "timzon", TimeZone);
 	nvs_set_u8(my_handle,  "r4snum", R4SNUM);
 	nvs_set_str(my_handle, "swfid", WIFI_SSID);
@@ -17462,7 +18076,18 @@ void WriteNVS () {
 	nvs_set_str(my_handle, "sreqnmc", BleDevStC.REQ_NAME);
 	nvs_set_str(my_handle, "sreqnmd", BleDevStD.REQ_NAME);
 	nvs_set_str(my_handle, "sreqnme", BleDevStE.REQ_NAME);
+	nvs_set_str(my_handle, "auth", AUTH_BASIC);
 	nvs_set_str(my_handle, "sntp", NTP_SERVER);
+#ifdef USE_TFT
+	nvs_set_str(my_handle, "smtopp1", MQTT_TOPP1);
+	nvs_set_str(my_handle, "smtopp2", MQTT_TOPP2);
+	nvs_set_str(my_handle, "smtopp3", MQTT_TOPP3);
+	nvs_set_str(my_handle, "smtopp4", MQTT_TOPP4);
+	nvs_set_str(my_handle, "smtopp5", MQTT_TOPP5);
+	nvs_set_str(my_handle, "smtopp6", MQTT_TOPP6);
+	nvs_set_str(my_handle, "smtopp7", MQTT_TOPP7);
+	nvs_set_str(my_handle, "smjpuri", MyHttpUri);
+#endif
 	nvtemp = BleDevStA.PassKey;
 	tmpbuf[0] = nvtemp & 0xff;
 	tmpbuf[1] = (nvtemp >> 8) & 0xff;
@@ -17489,21 +18114,20 @@ void WriteNVS () {
 	tmpbuf[18] = (nvtemp >> 16) & 0xff;
 	tmpbuf[19] = (nvtemp >> 24) & 0xff;
 	nvs_set_blob(my_handle,"pnpsw", tmpbuf, 20);
+	ret = nvs_commit(my_handle);
+	if (ret != ESP_OK) {
+	if (fdebug) ESP_LOGE(AP_TAG, "NVS write 1 error");
+	} else {
 	nvs_set_blob(my_handle,"sblemd",  BleMR, sizeof(BleMR));
-#ifdef USE_TFT
-	nvs_set_str(my_handle, "smtopp1", MQTT_TOPP1);
-	nvs_set_str(my_handle, "smtopp2", MQTT_TOPP2);
-	nvs_set_str(my_handle, "smtopp3", MQTT_TOPP3);
-	nvs_set_str(my_handle, "smtopp4", MQTT_TOPP4);
-	nvs_set_str(my_handle, "smtopp5", MQTT_TOPP5);
-	nvs_set_str(my_handle, "smtopp6", MQTT_TOPP6);
-	nvs_set_str(my_handle, "smtopp7", MQTT_TOPP7);
-	nvs_set_str(my_handle, "smjpuri", MyHttpUri);
-#endif
-	nvs_set_blob(my_handle,"bmcert",  bufcert, strlen(bufcert) + 1);
-        ret = nvs_commit(my_handle);
+/*
+	nvs_set_blob(my_handle,"bmcer1",  bufcert, 960);
+	nvs_set_blob(my_handle,"bmcer2",  bufcert + 960, 960);
+*/
+	nvs_set_blob(my_handle,"bmcrt",  bufcert, 1920);
+	ret = nvs_commit(my_handle);
 	if (ret != ESP_OK) {
 	if (fdebug) ESP_LOGE(AP_TAG, "NVS write error");
+	}
 	}
 // Close nvs
 	nvs_close(my_handle);
@@ -17908,9 +18532,9 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	MnHtpBleSt(3, bsend);
 	MnHtpBleSt(4, bsend);
 #ifdef USE_IRTX
-	if ((bgpio9 & 0xc0) || (bgpio10 & 0xc0) || (bgpio1 & 0xc0) || (bgpio2 & 0xc0) || (bgpio3 & 0xc0) || (bgpio4 & 0xc0) || (bgpio5 & 0xc0) || ((bgpio6  > 63) && (bgpio6  < 192)) || (bgpio7 & 0xc0) || (bgpio8 & 0xc0)) {
+	if ((bgpio9 & 0xc0) || (bgpio10 & 0xc0) || (bgpio1 & 0xc0) || (bgpio2 & 0xc0) || (bgpio3 & 0xc0) || (bgpio4 & 0xc0) || ((bgpio5 & 0xc0) && (bgpio5  < 192)) || ((bgpio6  > 63) && (bgpio6  < 192)) || (bgpio7 & 0xc0) || (bgpio8 & 0xc0)) {
 #else
-	if ((bgpio9 & 0xc0) || (bgpio10 & 0xc0) || (bgpio1 & 0xc0) || (bgpio2 & 0xc0) || (bgpio3 & 0xc0) || (bgpio4 & 0xc0) || (bgpio5 & 0xc0) || (bgpio6 & 0xc0) || (bgpio7 & 0xc0) || (bgpio8 & 0xc0)) {
+	if ((bgpio9 & 0xc0) || (bgpio10 & 0xc0) || (bgpio1 & 0xc0) || (bgpio2 & 0xc0) || (bgpio3 & 0xc0) || (bgpio4 & 0xc0) || ((bgpio5 & 0xc0) && (bgpio5  < 192)) || (bgpio6 & 0xc0) || (bgpio7 & 0xc0) || (bgpio8 & 0xc0)) {
 #endif
 	strcat(bsend,"<h3>Ports & Sensors:</h3><h2>");
 	if (bgpio1 & 0xc0) {
@@ -17929,23 +18553,44 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,"&emsp;Port4: ");
 	(lvgpio4)? strcat(bsend,"On") : strcat(bsend,"Off");
 	}
-	if (bgpio5 & 0xc0) {
+	if ((bgpio5 & 0xc0) && (bgpio5 < 192)){
 	strcat(bsend,"&emsp;Port5: ");
 	(lvgpio5)? strcat(bsend,"On") : strcat(bsend,"Off");
 	}
 	if (bgpio6 & 0xc0) {
-	if (bgpio6 < 98) {
+	if (bgpio6 < (MxPOutP + 64)) {
 	strcat(bsend,"&emsp;Pwm6: ");
 	itoa(bStatG6,buff,10);
 	strcat(bsend,buff);
 	} else if ((bgpio6 > 127) && (bgpio6 < 192)) {
+	if (bgpio5 > 191) {
+	uint32_t var;
+	strcat(bsend,"&emsp;Hx6: ");
+	buff[0] = 0;
+	if (bStatHx6 & 0xff) strcpy (buff,"-0");
+	else {
+	var = bStatHx6 - bZeroHx6;
+	if (var & 0x80000000) {
+	var = (var ^ 0xffffffff) + 1;
+	strcpy (buff,"-");
+	}
+	if (bDivHx6 & 0x7fffffff) var = var / (bDivHx6 & 0x7fffffff);
+	if(!var) buff[0] = 0;
+	if (bDivHx6 & 0x80000000) u32_strcat_p1(var,buff);
+	else u32_strcat_p3(var,buff);
+	}
+	if (bDivHx6 & 0x80000000) strcat(buff,"%");
+	else strcat(buff,"kg");
+	strcat(bsend,buff);
+	} else {
 	strcat(bsend,"&emsp;1w6: ");
 	s18b20_strcat (bStatG6, bsend);
 	strcat(bsend,"&deg;C");
+	}
 #ifdef USE_IRTX
 	}
 #else
-	} else if ((bgpio6 > 191) && (bgpio6 < 226)) {
+	} else if ((bgpio6 > 191) && (bgpio6 < (MxPOutP + 192))) {
 	strcat(bsend,"&emsp;dht6: ");
 	sdht22strcat (bStatG6, bsend);
 	strcat(bsend,"&deg;C, ");
@@ -17955,7 +18600,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 #endif
 	}
 	if (bgpio7 & 0xc0) {
-	if (bgpio7 < 98) {
+	if (bgpio7 < (MxPOutP + 64)) {
 	strcat(bsend,"&emsp;Pwm7: ");
 	itoa(bStatG7,buff,10);
 	strcat(bsend,buff);
@@ -17963,7 +18608,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,"&emsp;1w7: ");
 	s18b20_strcat (bStatG7, bsend);
 	strcat(bsend,"&deg;C");
-	} else if ((bgpio7 > 191) && (bgpio7 < 226)) {
+	} else if ((bgpio7 > 191) && (bgpio7 < (MxPOutP + 192))) {
 	strcat(bsend,"&emsp;dht7: ");
 	sdht22strcat (bStatG7, bsend);
 	strcat(bsend,"&deg;C, ");
@@ -17972,7 +18617,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	}
 	}
 	if (bgpio8 & 0xc0) {
-	if (bgpio8 < 98) {
+	if (bgpio8 < (MxPOutP + 64)) {
 	strcat(bsend,"&emsp;Pwm8: ");
 	itoa(bStatG8,buff,10);
 	strcat(bsend,buff);
@@ -17980,7 +18625,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,"&emsp;1w8: ");
 	s18b20_strcat (bStatG8, bsend);
 	strcat(bsend,"&deg;C");
-	} else if ((bgpio8 > 191) && (bgpio8 < 226)) {
+	} else if ((bgpio8 > 191) && (bgpio8 < (MxPOutP + 192))) {
 	strcat(bsend,"&emsp;dht8: ");
 	sdht22strcat (bStatG8, bsend);
 	strcat(bsend,"&deg;C, ");
@@ -17995,16 +18640,33 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,", Err: ");
 	itoa(i2c_errcnt,buff,10);
 	strcat(bsend,buff);
-	if (f_i2cdev & 0x40000000) {
-	strcat(bsend,"&emsp;I2C.75> Bat: ");
-	itoa(ip5306_batlev,buff,10);
+	if (f_i2cdev & 0x60000000) {
+	if (f_i2cdev & 0x40000000) strcat(bsend,"&emsp;I2C.75> Bat: ");
+	else if (f_i2cdev & 0x20000000) strcat(bsend,"&emsp;I2C.34> Bat: ");
+	if (pwr_batmode & 0x04) {
+	strcat(bsend,"Disconnected");
+	} else {
+	itoa(pwr_batlevp,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"%");
-	if(!(ip5306_batmode & 0x02)) strcat(bsend,", Discharging");
-	else if (!(ip5306_batmode & 0x01)) strcat(bsend,", Charging");
+	if (f_i2cdev & 0x20000000) {
+	uint16_t var = pwr_batlevc;
+	strcat(bsend,", ");
+	u32_strcat_p3(pwr_batlevv, bsend);
+	strcat(bsend,"V, ");
+	if (var & 0x8000) {
+	var = (var ^ 0x0ffff) + 1;  
+	strcat(bsend,"-");
+	}
+	u32_strcat_p3(var, bsend);
+	strcat(bsend,"A");
+	}
+	if (!(pwr_batmode & 0x02)) strcat(bsend,", Discharging");
+	else if (!(pwr_batmode & 0x01)) strcat(bsend,", Charging");
 	else strcat(bsend,", Charged");
 	}
-	for (int i = 0; i < 30; i++) {
+	}
+	for (int i = 0; i < 28; i++) {
 	if (f_i2cdev & (1 << i)) {
 	if (i2c_bits[i] & 0x0f) {
 	strcat(bsend,"&emsp;I2C.");
@@ -18243,7 +18905,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 #ifdef USE_TFT
 	strcat(bsend,"</td></tr>");
 	strcat(bsend,"<tr><td>TFT 320*240 LCD</td><td>");
-	if (!tft_conf) strcat(bsend,"Disabled");
+	if (!tft_conf) strcat(bsend,"Not defined");
 	else switch (tft_conn) {
 	case 0:
 	strcat(bsend,"Disconnected");
@@ -19798,16 +20460,18 @@ static const httpd_uri_t pblemonok = {
 
 
 
-bool pinvalid(uint8_t pin) {
-	bool retc = true;
+uint8_t pinvalid(uint8_t pin) {
+	uint8_t retc = 7;
 #ifdef CONFIG_IDF_TARGET_ESP32C3
-	if (pin > 21) retc = false;
+	if (pin > 21) retc = 0;
 #else
-	if (pin > 39) retc = false;
-	if ((pin > 5) && (pin < 11)) retc = false;
-	if ((pin > 27) && (pin < 32)) retc = false;
-	if ((pin == 20) ||(pin == 24)) retc = false;
+	if (pin > 39) retc = 0;
+	if (pin > 33) retc = 3;
+	if ((pin > 5) && (pin < 11)) retc = 0;
+	if ((pin > 27) && (pin < 32)) retc = 0;
+	if ((pin == 20) ||(pin == 24)) retc = 0;
 #endif
+	if ((pin > 39) && (pin < 49)) retc = 1;
 	return retc;
 }
 
@@ -19950,7 +20614,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	}
 	ble_mon_refr = ble_mon_refr & 0xfd;
 	char *bsend = NULL;
-	bsend = malloc(21800);
+	bsend = malloc(24000);
 	if (bsend == NULL) {
 	if (fdebug) ESP_LOGE(AP_TAG, "Http setting: No memory");
 	MemErr++;
@@ -19999,7 +20663,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (MQTT_PASSWORD[0]) strcat(bsend,MQTT_PASSWORD);
 	strcat(bsend,"\"size=\"19\">Password &emsp;<input name=\"smcert\" value=\"");
 	if (bcertsz) mycertcpy(bsend + strlen(bsend), bufcert + bcertofs, bcertsz);
-	strcat(bsend,"\"size=\"20\">Certificate</br><input type=\"checkbox\" name=\"smssl\" value=\"1\"");
+	strcat(bsend,"\"size=\"20\" maxlength=\"1920\">Certificate</br><input type=\"checkbox\" name=\"smssl\" value=\"1\"");
 	if (fmssl) strcat(bsend,"checked");
 	strcat(bsend,"> Use SSL / TLS&emsp;<input type=\"checkbox\" name=\"smwss\" value=\"4\"");
 	if (fmwss) strcat(bsend,"checked");
@@ -20051,8 +20715,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend, "<h3>System Setting</h3></br>");
 
 	strcat(bsend, "<input name=\"auth\" type=\"text\" value=\"");
-	if (AUTH_BASIC[0])
-		strcat(bsend, AUTH_BASIC);
+	if (AUTH_BASIC[0]) strcat(bsend, AUTH_BASIC);
 	strcat(bsend, "\" size=\"15\">Basic Auth &emsp;");
 
 	strcat(bsend, "<input name=\"r4snum\" type=\"number\" value=\"");
@@ -20092,7 +20755,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 #ifdef USE_TFT
 // read nvs
 	nvs_handle_t my_handle;
-	buff[0] = 0;
+	memset (buff,0,sizeof(buff));
 	if (nvs_open("storage", NVS_READWRITE, &my_handle) == ESP_OK) {
 	size_t nvsize = 128;
 	nvs_get_str(my_handle,"smjpuri", buff,&nvsize);
@@ -20101,10 +20764,13 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	}
 	strcat(bsend,"<input name=\"smjpuri\" value=\"");
 	if (buff[0]) strcat(bsend,buff);
-	strcat(bsend,"\"size=\"64\">320*176 JPEG Url &emsp;<input name=\"sjpgtim\" type=\"number\" value=\"");
+	strcat(bsend,"\"size=\"60\">JPEG Url&emsp;<input name=\"sjpgtim\" type=\"number\" value=\"");
 	itoa(jpg_time,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"65535\" size=\"5\">JPEG Refresh Time (sec)</br>");
+	strcat(bsend,"\" min=\"0\" max=\"65535\" size=\"5\">JPEG Time(s)&emsp;<input name=\"sjpgbuf\" type=\"number\" value=\"");
+	itoa(MyJPGbuflen,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend,"\" min=\"20000\" max=\"65535\" size=\"5\">JPEG Memory</br>");
 	strcat(bsend,"<input type=\"checkbox\" name=\"chk6\" value=\"6\"");
 	if (tft_conf) strcat(bsend,"checked");
 	strcat(bsend,"> TFT: <input type=\"checkbox\" name=\"chk4\" value=\"4\"");
@@ -20112,7 +20778,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"> flip 180&deg; &ensp;GPIO<input name=\"pnmiso\" type=\"number\" value=\"");
 	itoa(PIN_NUM_MISO,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">MISO <input name=\"pnmosi\" type=\"number\" value=\"");
+	strcat(bsend,"\" min=\"0\" max=\"39\" size=\"2\">MISO <input name=\"pnmosi\" type=\"number\" value=\"");
 	itoa(PIN_NUM_MOSI,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">MOSI <input name=\"pnclk\" type=\"number\" value=\"");
@@ -20127,13 +20793,13 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">DC <input name=\"pnrst\" type=\"number\" value=\"");
 	itoa(PIN_NUM_RST,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">RES <input name=\"pnbckl\" type=\"number\" value=\"");
+	strcat(bsend,"\" min=\"0\" max=\"63\" size=\"2\">RES <input name=\"pnbckl\" type=\"number\" value=\"");
 	itoa(PIN_NUM_BCKL,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">LED <input name=\"pntouchcs\" type=\"number\" value=\"");
-	itoa(PIN_TOUCH_CS,buff,10);
+	strcat(bsend,"\" min=\"0\" max=\"63\" size=\"2\">LED <input name=\"pnpwr\" type=\"number\" value=\"");
+	itoa(PIN_NUM_PWR,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">T_CS");
+	strcat(bsend,"\" min=\"0\" max=\"63\" size=\"2\">PWR");
 #endif
 	strcat(bsend,"</br><input name=\"ppin1\" type=\"number\" value=\"");
 	itoa((bgpio1 & 0x3f),buff,10);
@@ -20179,7 +20845,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if ((bgpio4 & 0xc0) == 0x80) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"128\">In</option><option ");
 	if ((bgpio4 & 0xc0) == 0xc0) strcat(bsend,"selected ");
-	strcat(bsend,"value=\"192\">Sw4</option></select>&emsp;<input name=\"ppin5\" type=\"number\" value=\"");
+	strcat(bsend,"value=\"192\">Jpg</option></select>&emsp;<input name=\"ppin5\" type=\"number\" value=\"");
 	itoa((bgpio5 & 0x3f),buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"39\" size=\"2\">Port5<select name=\"popt5\"><option ");
@@ -20190,7 +20856,23 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if ((bgpio5 & 0xc0) == 0x80) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"128\">In</option><option ");
 	if ((bgpio5 & 0xc0) == 0xc0) strcat(bsend,"selected ");
-	strcat(bsend,"value=\"192\">Jpg</option></select><br><input name=\"ppin6\" type=\"number\" value=\"");
+	strcat(bsend,"value=\"192\">Hx D</option></select>");
+	if ((bgpio5 > 192) && (bgpio6 > 128) && (bgpio6 < 192)) {
+	strcat(bsend,"&emsp;<select name=\"bhx1\"><option ");
+	strcat(bsend,"value=\"0\">Hx setting</option><option ");
+	strcat(bsend,"value=\"1\">\x3e 0.0 \x3c</option><option ");
+	strcat(bsend,"value=\"2\">\x3e 0.9kg \x3c</option><option ");
+	strcat(bsend,"value=\"3\">\x3e 1.0kg \x3c</option><option ");
+	strcat(bsend,"value=\"4\">\x3e 1.5kg \x3c</option><option ");
+	strcat(bsend,"value=\"5\">\x3e 1.6kg \x3c</option><option ");
+	strcat(bsend,"value=\"6\">\x3e 1.7kg \x3c</option><option ");
+	strcat(bsend,"value=\"7\">\x3e 1.8kg \x3c</option><option ");
+	strcat(bsend,"value=\"8\">\x3e 2.0kg \x3c</option><option ");
+	strcat(bsend,"value=\"9\">\x3e 2.2kg \x3c</option><option ");
+	strcat(bsend,"value=\"10\">\x3e 2.4kg \x3c</option><option ");
+	strcat(bsend,"value=\"11\">\x3e 100% \x3c</option></select>");
+	}
+	strcat(bsend,"<br><input name=\"ppin6\" type=\"number\" value=\"");
 	itoa((bgpio6 & 0x3f),buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"39\" size=\"2\">Port6<select name=\"popt6\"><option ");
@@ -20199,12 +20881,12 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if ((bgpio6 & 0xc0) == 0x40) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"64\">Pwm</option><option ");
 	if ((bgpio6 & 0xc0) == 0x80) strcat(bsend,"selected ");
-	strcat(bsend,"value=\"128\">DS 1Wire</option><option ");
+	strcat(bsend,"value=\"128\">18b20/Hx C</option><option ");
 	if ((bgpio6 & 0xc0) == 0xc0) strcat(bsend,"selected ");
 #ifdef USE_IRTX
 	strcat(bsend,"value=\"192\">IR Tx</option></select>&emsp;<input name=\"ppin7\" type=\"number\" value=\"");
 #else
-	strcat(bsend,"value=\"192\">DHT22</option></select>&emsp;<input name=\"ppin7\" type=\"number\" value=\"");
+	strcat(bsend,"value=\"192\">Dht22</option></select>&emsp;<input name=\"ppin7\" type=\"number\" value=\"");
 #endif
 	itoa((bgpio7 & 0x3f),buff,10);
 	strcat(bsend,buff);
@@ -20214,9 +20896,9 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if ((bgpio7 & 0xc0) == 0x40) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"64\">Pwm</option><option ");
 	if ((bgpio7 & 0xc0) == 0x80) strcat(bsend,"selected ");
-	strcat(bsend,"value=\"128\">DS 1Wire</option><option ");
+	strcat(bsend,"value=\"128\">18b20</option><option ");
 	if ((bgpio7 & 0xc0) == 0xc0) strcat(bsend,"selected ");
-	strcat(bsend,"value=\"192\">DHT22</option></select>&emsp;<input name=\"ppin8\" type=\"number\" value=\"");
+	strcat(bsend,"value=\"192\">Dht22</option></select>&emsp;<input name=\"ppin8\" type=\"number\" value=\"");
 	itoa((bgpio8 & 0x3f),buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"39\" size=\"2\">Port8<select name=\"popt8\"><option ");
@@ -20228,9 +20910,9 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 #else
 	strcat(bsend,"value=\"64\">Pwm</option><option ");
 	if ((bgpio8 & 0xc0) == 0x80) strcat(bsend,"selected ");
-	strcat(bsend,"value=\"128\">DS 1Wire</option><option ");
+	strcat(bsend,"value=\"128\">18b20</option><option ");
 	if ((bgpio8 & 0xc0) == 0xc0) strcat(bsend,"selected ");
-	strcat(bsend,"value=\"192\">DHT22</option></select>&emsp;<input name=\"ppin9\" type=\"number\" value=\"");
+	strcat(bsend,"value=\"192\">Dht22</option></select>&emsp;<input name=\"ppin9\" type=\"number\" value=\"");
 #endif
 	itoa((bgpio9 & 0x3f),buff,10);
 	strcat(bsend,buff);
@@ -20273,7 +20955,7 @@ static esp_err_t psetsave_get_handler(httpd_req_t *req)
 	}
 
 	char *buf1 = NULL;
-	buf1 = malloc(4096);
+	buf1 = malloc(4128);
 	if (buf1 == NULL) {
 	if (fdebug) ESP_LOGE(AP_TAG, "Http save setting: No memory");
 	MemErr++;
@@ -20282,7 +20964,7 @@ static esp_err_t psetsave_get_handler(httpd_req_t *req)
 	httpd_resp_set_hdr(req, "Location", "/");
 	httpd_resp_send(req, NULL, 0);  // Response body can be empty
 	} else {	
-	memset (buf1,0,4096);
+	memset (buf1,0,4128);
 	char buf2[16] = {0};
 	char buf3[16] = {0};
 	uint8_t pintemp;
@@ -20297,8 +20979,22 @@ static esp_err_t psetsave_get_handler(httpd_req_t *req)
 	}
 	}
 	int  ret;
-	ret = httpd_req_recv(req,buf1,4095);
-	if ( ret > 0 ) {
+	int  rdoffs;
+	int  rdcnt;
+	rdoffs = 0;
+	while (rdoffs < 4096) {
+	rdcnt = 4096 - rdoffs;
+	if (rdcnt > 1024) rdcnt = 1024;
+	ret = httpd_req_recv(req, buf1 + rdoffs, rdcnt);
+	rdcnt = 0;
+	if (ret < 0) rdoffs = 4096;
+	else if (ret > 0) rdoffs += ret;
+	else if (ret == 0) {
+	rdcnt = rdoffs;
+	rdoffs = 4096;
+	}
+	}
+	if (rdcnt > 0) {
 /*
 in buf1 after httpd_req_recv string like below
 swfid=wifiname&swfpsw=wifipassword&smqsrv=192.168.1.10&smqid=esp&
@@ -20349,137 +21045,141 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	buf3[0] = 0;
 	strcpy(buf2,"pnpswa");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStA.PassKey = atoi(buf3);
+	if (buf3[0]) BleDevStA.PassKey = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"pnpswb");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStB.PassKey = atoi(buf3);
+	if (buf3[0]) BleDevStB.PassKey = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"pnpswc");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStC.PassKey = atoi(buf3);
+	if (buf3[0]) BleDevStC.PassKey = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"pnpswd");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStD.PassKey = atoi(buf3);
+	if (buf3[0]) BleDevStD.PassKey = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"pnpswe");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStE.PassKey = atoi(buf3);
+	if (buf3[0]) BleDevStE.PassKey = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"rlighta");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStA.RgbR = atoi(buf3);
+	if (buf3[0]) BleDevStA.RgbR = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"glighta");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStA.RgbG = atoi(buf3);
+	if (buf3[0]) BleDevStA.RgbG = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"blighta");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStA.RgbB = atoi(buf3);
+	if (buf3[0]) BleDevStA.RgbB = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"rlightb");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStB.RgbR = atoi(buf3);
+	if (buf3[0]) BleDevStB.RgbR = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"glightb");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStB.RgbG = atoi(buf3);
+	if (buf3[0]) BleDevStB.RgbG = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"blightb");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStB.RgbB = atoi(buf3);
+	if (buf3[0]) BleDevStB.RgbB = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"rlightc");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStC.RgbR = atoi(buf3);
+	if (buf3[0]) BleDevStC.RgbR = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"glightc");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStC.RgbG = atoi(buf3);
+	if (buf3[0]) BleDevStC.RgbG = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"blightc");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStC.RgbB = atoi(buf3);
+	if (buf3[0]) BleDevStC.RgbB = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"rlightd");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStD.RgbR = atoi(buf3);
+	if (buf3[0]) BleDevStD.RgbR = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"glightd");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStD.RgbG = atoi(buf3);
+	if (buf3[0]) BleDevStD.RgbG = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"blightd");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStD.RgbB = atoi(buf3);
+	if (buf3[0]) BleDevStD.RgbB = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"rlighte");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStE.RgbR = atoi(buf3);
+	if (buf3[0]) BleDevStE.RgbR = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"glighte");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStE.RgbG = atoi(buf3);
+	if (buf3[0]) BleDevStE.RgbG = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"blighte");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStE.RgbB = atoi(buf3);
+	if (buf3[0]) BleDevStE.RgbB = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"ltempa");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStA.bLtemp = atoi(buf3);
+	if (buf3[0]) BleDevStA.bLtemp = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"ltempb");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStB.bLtemp = atoi(buf3);
+	if (buf3[0]) BleDevStB.bLtemp = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"ltempc");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStC.bLtemp = atoi(buf3);
+	if (buf3[0]) BleDevStC.bLtemp = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"ltempd");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStD.bLtemp = atoi(buf3);
+	if (buf3[0]) BleDevStD.bLtemp = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"ltempe");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStE.bLtemp = atoi(buf3);
+	if (buf3[0]) BleDevStE.bLtemp = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"sreqtpa");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStA.DEV_TYP = atoi(buf3);
+	if (buf3[0]) BleDevStA.DEV_TYP = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"sreqtpb");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStB.DEV_TYP = atoi(buf3);
+	if (buf3[0]) BleDevStB.DEV_TYP = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"sreqtpc");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStC.DEV_TYP = atoi(buf3);
+	if (buf3[0]) BleDevStC.DEV_TYP = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"sreqtpd");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStD.DEV_TYP = atoi(buf3);
+	if (buf3[0]) BleDevStD.DEV_TYP = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"sreqtpe");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	BleDevStE.DEV_TYP = atoi(buf3);
+	if (buf3[0]) BleDevStE.DEV_TYP = atoi(buf3);
 #ifdef USE_TFT
 	buf3[0] = 0;
 	strcpy(buf2,"sjpgtim");
 	parsuri(buf1,buf3,buf2,4096,8,0);
-	jpg_time = atoi(buf3);
+	if (buf3[0]) jpg_time = atoi(buf3);
+	buf3[0] = 0;
+	strcpy(buf2,"sjpgbuf");
+	parsuri(buf1,buf3,buf2,4096,8,0);
+	if (buf3[0]) MyJPGbuflen = atoi(buf3);
 #endif
 	buf3[0] = 0;
 	strcpy(buf2,"smqprt");
 	parsuri(buf1,buf3,buf2,4096,8,0);
-	mqtt_port = atoi(buf3);
+	if (buf3[0]) mqtt_port = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"timzon");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	TimeZone = atoi(buf3);
+	if (buf3[0]) TimeZone = atoi(buf3);
 	strcpy(buf2, "auth");
 	parsuri(buf1, AUTH_BASIC, buf2, 4096, 50,0);
 	strcpy(buf2, "sntp");
@@ -20487,10 +21187,10 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	buf3[0] = 0;
 	strcpy(buf2,"r4snum");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	R4SNUM = atoi(buf3);
+	if (buf3[0]) R4SNUM = atoi(buf3);
 	memset (bufcert,0,sizeof(bufcert));
 	strcpy(buf2,"smcert");
-	parscertstr(buf1,bufcert,buf2,4096,2047);
+	parscertstr(buf1,bufcert,buf2,4096,1920);
 #ifdef USE_TFT
 	strcpy(buf2,"smjpuri");
 	parsuri(buf1,MyHttpUri,buf2,4096,128,0);
@@ -20583,169 +21283,253 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	}
 #ifdef USE_TFT
 	tft_conn = 0;
+	buf3[0] = 0;
 	strcpy(buf2,"pnmiso");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) PIN_NUM_MISO = pintemp;
+	if (pinvalid(pintemp) & 0x02) PIN_NUM_MISO = pintemp;
 	else tft_conf = 0;
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"pnmosi");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) PIN_NUM_MOSI = pintemp;
+	if (pinvalid(pintemp) & 0x04) PIN_NUM_MOSI = pintemp;
 	else tft_conf = 0;
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"pnclk");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) PIN_NUM_CLK = pintemp;
+	if (pinvalid(pintemp) & 0x04) PIN_NUM_CLK = pintemp;
 	else tft_conf = 0;
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"pncs");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) PIN_NUM_CS = pintemp;
+	if (pinvalid(pintemp) & 0x04) PIN_NUM_CS = pintemp;
 	else tft_conf = 0;
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"pndc");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) PIN_NUM_DC = pintemp;
+	if (pinvalid(pintemp) & 0x04) PIN_NUM_DC = pintemp;
 	else tft_conf = 0;
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"pnrst");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) PIN_NUM_RST = pintemp;
 	else tft_conf = 0;
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"pnbckl");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
 	if (pinvalid(pintemp)) PIN_NUM_BCKL = pintemp;
 	else tft_conf = 0;
-	strcpy(buf2,"pntouchcs");
+	}
+	buf3[0] = 0;
+	strcpy(buf2,"pnpwr");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) PIN_TOUCH_CS = pintemp;
+	if (pinvalid(pintemp)) PIN_NUM_PWR = pintemp;
 	else tft_conf = 0;
+	}
 #endif
+	buf3[0] = 0;
 	strcpy(buf2,"ppin1");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) {
+	if (pinvalid(pintemp) & 0x02) {
 	bgpio1 = pintemp;
+	buf3[0] = 0;
 	strcpy(buf2,"popt1");
 	parsuri(buf1,buf3,buf2,4096,4,0);
 	pintemp = atoi(buf3);
 	bgpio1 = bgpio1 | pintemp;
 	} else bgpio1 = 0;
-
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"ppin2");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) {
+	if (pinvalid(pintemp) & 0x02) {
 	bgpio2 = pintemp;
+	buf3[0] = 0;
 	strcpy(buf2,"popt2");
 	parsuri(buf1,buf3,buf2,4096,4,0);
 	pintemp = atoi(buf3);
 	bgpio2 = bgpio2 | pintemp;
 	} else bgpio2 = 0;
-
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"ppin3");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) {
+	if (pinvalid(pintemp) & 0x02) {
 	bgpio3 = pintemp;
+	buf3[0] = 0;
 	strcpy(buf2,"popt3");
 	parsuri(buf1,buf3,buf2,4096,4,0);
 	pintemp = atoi(buf3);
 	bgpio3 = bgpio3 | pintemp;
 	} else bgpio3 = 0;
-
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"ppin4");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) {
+	if (pinvalid(pintemp) & 0x02) {
 	bgpio4 = pintemp;
+	buf3[0] = 0;
 	strcpy(buf2,"popt4");
 	parsuri(buf1,buf3,buf2,4096,4,0);
 	pintemp = atoi(buf3);
 	bgpio4 = bgpio4 | pintemp;
 	} else bgpio4 = 0;
-
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"ppin5");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) {
+	if (pinvalid(pintemp) & 0x02) {
 	bgpio5 = pintemp;
+	buf3[0] = 0;
 	strcpy(buf2,"popt5");
 	parsuri(buf1,buf3,buf2,4096,4,0);
 	pintemp = atoi(buf3);
 	bgpio5 = bgpio5 | pintemp;
 	} else bgpio5 = 0;
-
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"ppin6");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) {
+	if (pinvalid(pintemp) & 0x02) {
 	bgpio6 = pintemp;
+	buf3[0] = 0;
 	strcpy(buf2,"popt6");
 	parsuri(buf1,buf3,buf2,4096,4,0);
 	pintemp = atoi(buf3);
 	bgpio6 = bgpio6 | pintemp;
 	} else bgpio6 = 0;
-
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"ppin7");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) {
+	if (pinvalid(pintemp) & 0x02) {
 	bgpio7 = pintemp;
+	buf3[0] = 0;
 	strcpy(buf2,"popt7");
 	parsuri(buf1,buf3,buf2,4096,4,0);
 	pintemp = atoi(buf3);
 	bgpio7 = bgpio7 | pintemp;
 	} else bgpio7 = 0;
-
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"ppin8");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) {
+	if (pinvalid(pintemp) & 0x02) {
+	buf3[0] = 0;
 	bgpio8 = pintemp;
 	strcpy(buf2,"popt8");
 	parsuri(buf1,buf3,buf2,4096,4,0);
 	pintemp = atoi(buf3);
 	bgpio8 = bgpio8 | pintemp;
 	} else bgpio8 = 0;
-
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"ppin9");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) {
+	if (pinvalid(pintemp) & 0x04) {
 	bgpio9 = pintemp;
+	buf3[0] = 0;
 	strcpy(buf2,"popt9");
 	parsuri(buf1,buf3,buf2,4096,4,0);
 	pintemp = atoi(buf3);
 	bgpio9 = bgpio9 | pintemp;
 	} else bgpio9 = 0;
-
+	}
+	buf3[0] = 0;
 	strcpy(buf2,"ppina");
 	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) {
 	pintemp = atoi(buf3);
-	if (pinvalid(pintemp)) {
+	if (pinvalid(pintemp) & 0x04) {
 	bgpio10 = pintemp;
+	buf3[0] = 0;
 	strcpy(buf2,"popta");
 	parsuri(buf1,buf3,buf2,4096,4,0);
 	pintemp = atoi(buf3);
 	bgpio10 = bgpio10 | pintemp;
 	} else bgpio10 = 0;
+	}
+	buf3[0] = 0;
+	strcpy(buf2,"bhx1");
+	parsuri(buf1,buf3,buf2,4096,4,0);
+	pintemp = atoi(buf3);
+	switch (pintemp) {
+	case 1:
+	bZeroHx6 = bStatHx6;
+	break;
+	case 2:
+	bDivHx6 =  (bStatHx6 - bZeroHx6) / 900;
+	break;
+	case 3:
+	bDivHx6 =  (bStatHx6 - bZeroHx6) / 1000;
+	break;
+	case 4:
+	bDivHx6 =  (bStatHx6 - bZeroHx6) / 1500;
+	break;
+	case 5:
+	bDivHx6 =  (bStatHx6 - bZeroHx6) / 1600;
+	break;
+	case 6:
+	bDivHx6 =  (bStatHx6 - bZeroHx6) / 1700;
+	break;
+	case 7:
+	bDivHx6 =  (bStatHx6 - bZeroHx6) / 1800;
+	break;
+	case 8:
+	bDivHx6 =  (bStatHx6 - bZeroHx6) / 2000;
+	break;
+	case 9:
+	bDivHx6 =  (bStatHx6 - bZeroHx6) / 2200;
+	break;
+	case 10:
+	bDivHx6 =  (bStatHx6 - bZeroHx6) / 2400;
+	break;
+	case 11:
+	bDivHx6 =  ((bStatHx6 - bZeroHx6) / 1000) | 0x80000000;
+	break;
+	}
+//ESP_LOGI(AP_TAG, "Hx set: st: %d, zr: %d, diff: %d, div: %d", bStatHx6, bZeroHx6, (bStatHx6 - bZeroHx6),bDivHx6);
 
 	if (mqttConnected) {
-	strcpy(buf2, "r4s");
-	itoa(R4SNUM,buf3,10);
-	strcat(buf2, buf3);
-	strcat(buf2, "/jpg_url");
-	esp_mqtt_client_publish(mqttclient, buf2, "", 0, 1, 1);
-	strcpy(buf2, "r4s");
-	itoa(R4SNUM,buf3,10);
-	strcat(buf2, buf3);
-	strcat(buf2, "/jpg_time");
-	esp_mqtt_client_publish(mqttclient, buf2, "", 0, 1, 1);
-
 	buf3[0] = 0;
 	strcpy(buf2,"mqtdel");
 	parsuri(buf1,buf3,buf2,4096,2,0);
@@ -20812,6 +21596,12 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
 	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
 	strcpy(buf1,"homeassistant/number/");
+	strcat(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+	strcpy(buf1,"homeassistant/text/");
 	strcat(buf1,buf2);
 	strcat(buf1,"/#");
 	mqtdel = 20;
@@ -20954,6 +21744,12 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	mqtdel = 20;
 	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
 	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+	strcpy(buf1,"homeassistant/text/");
+	strcat(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
 	strcpy(buf1,"homeassistant/device_tracker/");
 	strcat(buf1,buf2);
 	strcat(buf1,"/#");
@@ -20987,7 +21783,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	free(buf1);
 
 	if (fdebug) ESP_LOGI(AP_TAG, "Prepare to restart system!");
-	vTaskDelay(3000 / portTICK_PERIOD_MS);
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
 	}
 	return ESP_OK;
@@ -21373,12 +22169,13 @@ void lpcomstat(uint8_t blenum) {
 	m171s_ModOff(blenum);
 //	ptr->bKeep = 0;
 	}
-	m171sOff(blenum);
-	} else if ((ptr->DEV_TYP > 11) && (ptr->DEV_TYP < 16)) {
+	}
+	if ((ptr->DEV_TYP > 11) && (ptr->DEV_TYP < 16)) {
 	if (ptr->r4slppar1 == 1) m103sToff(blenum);
 	else if (ptr->r4slppar1 == 2) m103sTon(blenum);
 	ptr->bprevProg = 254;
-	} else 	m171sOff(blenum);
+	}
+	m171sOff(blenum);
 	ptr->bprevHtemp = 255;
 	ptr->bprevState = 255;
 	ptr->bprevHeat = 255;
@@ -21823,7 +22620,7 @@ void app_main(void)
 	PIN_NUM_DC   = 17;	// Data Command control pin
 	PIN_NUM_RST  = 18;	// Reset pin (could connect to RST pin)
 	PIN_NUM_BCKL = 21;	// TFT_BACKLIGHT
-	PIN_TOUCH_CS = 33;	// Chip select pin (T_CS) of touch screen not used always high
+	PIN_NUM_PWR = 33;	// lcd pwr pin always high
 #endif
 /* Print chip information */
 	esp_chip_info_t chip_info;
@@ -21901,6 +22698,7 @@ void app_main(void)
 	memset (WIFI_SSID,0,sizeof(WIFI_SSID));
 	memset (WIFI_PASSWORD,0,sizeof(WIFI_PASSWORD));
 	memset (NTP_SERVER,0,sizeof(NTP_SERVER));
+	memset (AUTH_BASIC,0,sizeof(AUTH_BASIC));
 #ifdef USE_TFT
 	memset (MQTT_TOPP1,0,sizeof(MQTT_TOPP1));
 	memset (MQTT_TOPP2,0,sizeof(MQTT_TOPP2));
@@ -21918,6 +22716,7 @@ void app_main(void)
 	memset (MQTT_VALP7,0,sizeof(MQTT_VALP7));
 	memset (MyHttpUri,0,sizeof(MyHttpUri));
 	MyHttpMqtt = 0;
+	MyJPGbuflen  = 32768;
 #endif
 	ble_mon = 0;
 	ble_mon_refr = 0;
@@ -21934,7 +22733,7 @@ void app_main(void)
 	memset (BleMR,0,sizeof(BleMR));
 	memset (BleMX,0,sizeof(BleMX));
 	memset (SnPi2c,0,sizeof(SnPi2c));
-	for (int i = 0; i < 30; i++) {
+	for (int i = 0; i < 28; i++) {
         SnPi2c[i].par1 = 0xffff;
 	}
 	memset (bufcert,0,sizeof(bufcert));
@@ -21959,15 +22758,14 @@ void app_main(void)
 	f_rmds = 0;
 	f_i2cdev = 0;
 	i2c_errcnt = 0;
-	ip5306_batmode = 0;
-	ip5306_batpscrmode = 255;
-	ip5306_batprevmode = 255;
-	ip5306_batlev = 0;
+	pwr_batmode = 0;
+	pwr_batpscrmode = 255;
+	pwr_batprevmode = 255;
+	pwr_batlevp = 0;
 	i2cdevnum = 0;
 	i2cdevnumo = 0;
 	strcpy(strON,"ON");
 	strcpy(strOFF,"OFF");
-	AUTH_BASIC[0] = 0;
 	ret = ReadNVS();
 	if (ret) {
 	FinitNVS();
@@ -21984,17 +22782,8 @@ void app_main(void)
 	if ((BleDevStD.DEV_TYP > 15) && (BleDevStD.DEV_TYP < 61)) BleDevStD.bProg = 255;
 	if ((BleDevStE.DEV_TYP > 15) && (BleDevStE.DEV_TYP < 61)) BleDevStE.bProg = 255;
 #ifdef USE_TFT
-	if ((PIN_NUM_MISO > 33) || (PIN_NUM_MISO > 33) || (PIN_NUM_MOSI > 33) || (PIN_NUM_CLK > 33) || 
-	(PIN_NUM_CS > 33) || (PIN_NUM_DC > 33) || (PIN_NUM_RST > 33) || (PIN_NUM_BCKL > 33) || (PIN_TOUCH_CS > 33)) {
-	PIN_NUM_MISO = 25;	//MISO
-	PIN_NUM_MOSI = 23;	//MOSI
-	PIN_NUM_CLK  = 19;	//CLK
-	PIN_NUM_CS   = 16;	// Chip select control pin
-	PIN_NUM_DC   = 17;	// Data Command control pin
-	PIN_NUM_RST  = 18;	// Reset pin (could connect to RST pin)
-	PIN_NUM_BCKL = 21;	// TFT_BACKLIGHT
-	PIN_TOUCH_CS = 33;	// Chip select pin (T_CS) of touch screen not used always high
-	}
+	if ((PIN_NUM_MISO > 39) || (PIN_NUM_MOSI > 33) || (PIN_NUM_CLK > 33) || 
+	(PIN_NUM_CS > 33) || (PIN_NUM_DC > 33)) tft_conf = 0;
 #endif
 
 	if (!WIFI_SSID[0]) {
@@ -22019,62 +22808,57 @@ void app_main(void)
 	cntgpio4 = 0;
 	cntgpio5 = 0;
 	if (bgpio1 > 63) {
-	if (bgpio1 < 98) {
+	if (bgpio1 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_OUTPUT);
 	gpio_set_level((bgpio1 & 0x3f), 0);
 	lvgpio1 = 0;
 	} else {
 	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio1 = 0;
-//	if ((bgpio1 > 127) && ((bgpio1 & 0x3f) < 34)) gpio_set_pull_mode((bgpio1 & 0x3f), GPIO_PULLUP_ONLY);
 	if ((bgpio1 & 0x3f) < 34) gpio_set_pull_mode((bgpio1 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 	if (bgpio2 > 63) {
-	if (bgpio2 < 98) {
+	if (bgpio2 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_OUTPUT);
 	gpio_set_level((bgpio2 & 0x3f), 0);
 	lvgpio2 = 0;
 	} else {
 	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio2 = 0;
-//	if ((bgpio2 > 127) && ((bgpio2 & 0x3f) < 34)) gpio_set_pull_mode((bgpio2 & 0x3f), GPIO_PULLUP_ONLY);
 	if ((bgpio2 & 0x3f) < 34) gpio_set_pull_mode((bgpio2 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 	if (bgpio3 > 63) {
-	if (bgpio3 < 98) {
+	if (bgpio3 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_OUTPUT);
 	gpio_set_level((bgpio3 & 0x3f), 0);
 	lvgpio3 = 0;
 	} else {
 	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio3 = 0;
-//	if ((bgpio3 > 127) && ((bgpio3 & 0x3f) < 34)) gpio_set_pull_mode((bgpio3 & 0x3f), GPIO_PULLUP_ONLY);
 	if ((bgpio3 & 0x3f) < 34) gpio_set_pull_mode((bgpio3 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 	if (bgpio4 > 63) {
-	if (bgpio4 < 98) {
+	if (bgpio4 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_OUTPUT);
 	gpio_set_level((bgpio4 & 0x3f), 0);
 	lvgpio4 = 0;
 	} else {
 	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio4 = 0;
-//	if ((bgpio4 > 127) && ((bgpio4 & 0x3f) < 34)) gpio_set_pull_mode((bgpio4 & 0x3f), GPIO_PULLUP_ONLY);
 	if ((bgpio4 & 0x3f) < 34) gpio_set_pull_mode((bgpio4 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 	if (bgpio5 > 63) {
-	if (bgpio5 < 98) {
+	if (bgpio5 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_OUTPUT);
 	gpio_set_level((bgpio5 & 0x3f), 0);
 	lvgpio5 = 0;
 	} else {
 	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio5 = 0;
-//	if ((bgpio5 > 127) && ((bgpio5 & 0x3f) < 34)) gpio_set_pull_mode((bgpio5 & 0x3f), GPIO_PULLUP_ONLY);
 	if ((bgpio5 & 0x3f) < 34) gpio_set_pull_mode((bgpio5 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
@@ -22090,7 +22874,7 @@ void app_main(void)
 //
 	if ((bgpio6 > 63) && (bgpio6 < 128)) {
 	bStatG6 = 0;
-	if (bgpio6 < 98) {
+	if (bgpio6 < (MxPOutP + 64)) {
     ledc_channel_config_t ledc_channel = {
             .channel    = LEDC_CHANNEL_1,
             .duty       = 0,
@@ -22103,8 +22887,10 @@ void app_main(void)
 	}
 	} else if ((bgpio6 > 127) && (bgpio6 < 192)) {
 	bStatG6 = 0xffff; //-0 if error
-	if (bgpio6 < 162) {
-	if (rmt1w_init (0, (bgpio6 & 0x3f), &RmtRgHd0)) {
+	if (bgpio6 < (MxPOutP + 128)) {
+        if (bgpio5 > 191) {
+	rmthx_init (0, (bgpio6 & 0x3f));
+	} else if (rmt1w_init (0, (bgpio6 & 0x3f), &RmtRgHd0)) {
 	f_rmds = (f_rmds & 0xef) | 0x01;
 	rmt1w_readds(0, &f_rmds, &bStatG6, RmtRgHd0);    //44 start conversion
 	}
@@ -22112,7 +22898,7 @@ void app_main(void)
 	} else if (bgpio6 > 191) {
         bStatG6 = 0xffff; //-0
         bStatG6h = 0;
-	if (bgpio6 < 226) {
+	if (bgpio6 < (MxPOutP + 192)) {
 #ifdef USE_IRTX
         bStatG6 = 0;
         bStatG6h = 0;
@@ -22125,7 +22911,7 @@ void app_main(void)
 
 	if ((bgpio7 > 63) && (bgpio7 < 128)) {
 	bStatG7 = 0;
-	if (bgpio7 < 98) {
+	if (bgpio7 < (MxPOutP + 64)) {
     ledc_channel_config_t ledc_channel = {
             .channel    = LEDC_CHANNEL_2,
             .duty       = 0,
@@ -22138,7 +22924,7 @@ void app_main(void)
 	}
 	} else if ((bgpio7 > 127) && (bgpio7 < 192)) {
 	bStatG7 = 0xffff; //-0 if error
-	if (bgpio7 < 162) {
+	if (bgpio7 < (MxPOutP + 128)) {
 	if (rmt1w_init (1, (bgpio7 & 0x3f), &RmtRgHd1)) {
 	f_rmds = (f_rmds & 0xdf) | 0x02;
 	rmt1w_readds(1, &f_rmds, &bStatG7, RmtRgHd1);    //44 start conversion
@@ -22147,14 +22933,14 @@ void app_main(void)
 	} else if (bgpio7 > 191) {
         bStatG7 = 0xffff; //-0
         bStatG7h = 0;
-	if (bgpio7 < 226) {
+	if (bgpio7 < (MxPOutP + 192)) {
 	if (rmt1w_init (1, (bgpio7 & 0x3f), &RmtRgHd1)) rmt1w_readdht(1, &f_rmds, &bStatG7, &bStatG7h, RmtRgHd1);
 	}
 	}
 
 	if ((bgpio8 > 63) && (bgpio8 < 128)) {
 	bStatG8 = 0;
-	if (bgpio8 < 98) {
+	if (bgpio8 < (MxPOutP + 64)) {
     ledc_channel_config_t ledc_channel = {
             .channel    = LEDC_CHANNEL_3,
             .duty       = 0,
@@ -22170,7 +22956,7 @@ void app_main(void)
 #else
 	} else if ((bgpio8 > 127) && (bgpio8 < 192)) {
 	bStatG8 = 0xffff; //-0 if error
-	if (bgpio8 < 162) {
+	if (bgpio8 < (MxPOutP + 128)) {
 	if (rmt1w_init (2, (bgpio8 & 0x3f), &RmtRgHd2)) {
 	f_rmds = (f_rmds & 0xbf) | 0x04;
 	rmt1w_readds(2, &f_rmds, &bStatG8, RmtRgHd2);    //44 start conversion
@@ -22179,24 +22965,25 @@ void app_main(void)
 	} else if (bgpio8 > 191) {
         bStatG8 = 0xffff; //-0
         bStatG8h = 0;
-	if (bgpio8 < 226) {
+	if (bgpio8 < (MxPOutP + 192)) {
 	if (rmt1w_init (2, (bgpio8 & 0x3f), &RmtRgHd2)) rmt1w_readdht(2, &f_rmds, &bStatG8, &bStatG8h, RmtRgHd2);
 	}
 	}
 #endif
-	if ((bgpio9 > 191) && (bgpio10 > 191) && (bgpio9 < 226) && (bgpio10 < 226)) { // if i2c
+	if ((bgpio9 > 191) && (bgpio10 > 191) && (bgpio9 < (MxPOutP + 192)) && (bgpio10 < (MxPOutP + 192))) { // if i2c
 	if (!i2c_init_bus ()) {                            //if i2c init
         f_i2cdev = f_i2cdev | 0x80000000;
 	i2c_devnum(&f_i2cdev, &s_i2cdev, &i2cdevnum);
-	i2c_init_ip5306(&f_i2cdev);
-	i2c_init_ds3231(0, &f_i2cdev);
+	i2c_init_pwr(&f_i2cdev);
+	i2c_init_rtc(0, &f_i2cdev);
+	i2c_init_rtc(1, &f_i2cdev);
 	i2c_init_bme280(0, &f_i2cdev);
 	i2c_init_bme280(1, &f_i2cdev);
 	i2c_init_sht3x(0, &f_i2cdev);
 	i2c_init_sht3x(1, &f_i2cdev);
 	i2c_init_aht2x(0, &f_i2cdev);
 	i2c_init_htu21(0, &f_i2cdev);
-	if (f_i2cdev & 0x40000000) i2c_read_ip5306(&f_i2cdev, &ip5306_batmode, &ip5306_batlev);
+	if (f_i2cdev & 0x60000000) i2c_read_pwr(&f_i2cdev, &pwr_batmode, &pwr_batlevp, &pwr_batlevv, &pwr_batlevc);
 	} //if i2c init
 	} //if i2c
 
@@ -22328,15 +23115,18 @@ to get MSK (GMT + 3) I need to write GMT-3
 	tzset();
 // read ds & bme & dht sensors before mqtt init
 	if (f_rmds & 0x01) rmt1w_readds(0, &f_rmds, &bStatG6, RmtRgHd0);
+	else if ((bgpio5 > 191) && (bgpio6 > 127) && (bgpio6 < (MxPOutP + 128))) {
+	readHx(0, &bStatHx6);
+	}
 	if (f_rmds & 0x02) rmt1w_readds(1, &f_rmds, &bStatG7, RmtRgHd1);
 	if (f_rmds & 0x04) rmt1w_readds(2, &f_rmds, &bStatG8, RmtRgHd2);
 #ifdef USE_IRTX
 
 #else
-	if ((bgpio6 > 191) && (bgpio6 < 226)) rmt1w_readdht(0, &f_rmds, &bStatG6, &bStatG6h, RmtRgHd0);
+	if ((bgpio6 > 191) && (bgpio6 < (MxPOutP + 192))) rmt1w_readdht(0, &f_rmds, &bStatG6, &bStatG6h, RmtRgHd0);
 #endif
-	if ((bgpio7 > 191) && (bgpio7 < 226)) rmt1w_readdht(1, &f_rmds, &bStatG7, &bStatG7h, RmtRgHd1);
-	if ((bgpio8 > 191) && (bgpio8 < 226)) rmt1w_readdht(2, &f_rmds, &bStatG8, &bStatG8h, RmtRgHd2);
+	if ((bgpio7 > 191) && (bgpio7 < (MxPOutP + 192))) rmt1w_readdht(1, &f_rmds, &bStatG7, &bStatG7h, RmtRgHd1);
+	if ((bgpio8 > 191) && (bgpio8 < (MxPOutP + 192))) rmt1w_readdht(2, &f_rmds, &bStatG8, &bStatG8h, RmtRgHd2);
 	if (f_i2cdev & 0x80000000) {
 	if (f_i2cdev & 0x01) {
 	if (i2c_read_bme280(0, &f_i2cdev, &SnPi2c[0].par1, &SnPi2c[0].par2, &SnPi2c[0].par3, &SnPi2c[0].par4)) i2c_init_bme280(0, &f_i2cdev);
@@ -22354,10 +23144,13 @@ to get MSK (GMT + 3) I need to write GMT-3
 	if (i2c_read_aht2x(0, &f_i2cdev, &SnPi2c[4].par1, &SnPi2c[4].par2)) i2c_init_aht2x(0, &f_i2cdev);
 	}
 	if (f_i2cdev & 0x20) {
-	if (i2c_read_ds3231(0, &f_i2cdev, &SnPi2c[5].par1)) i2c_init_ds3231(0, &f_i2cdev);
+	if (i2c_read_htu21(0, &f_i2cdev, &SnPi2c[5].par1, &SnPi2c[5].par2)) i2c_init_htu21(0, &f_i2cdev);
 	}
 	if (f_i2cdev & 0x40) {
-	if (i2c_read_htu21(0, &f_i2cdev, &SnPi2c[6].par1, &SnPi2c[6].par2)) i2c_init_htu21(0, &f_i2cdev);
+	if (i2c_read_rtc(0, &f_i2cdev, &SnPi2c[6].par1)) i2c_init_rtc(0, &f_i2cdev);
+	}
+	if (f_i2cdev & 0x80) {
+	if (i2c_read_rtc(1, &f_i2cdev, &SnPi2c[7].par1)) i2c_init_rtc(1, &f_i2cdev);
 	}
 	}
 //Initialize Mqtt
@@ -22393,6 +23186,7 @@ to get MSK (GMT + 3) I need to write GMT-3
 	t_jpg = jpg_time * 10;	
 	blstnum_inc();
 	t_tinc = 40;	
+	MyHttpMqtt |= 0x40;
 #endif
 
 //r4s state nonitoring and command execution loop
@@ -22404,7 +23198,7 @@ to get MSK (GMT + 3) I need to write GMT-3
 	lpcomstat(3);
 	lpcomstat(4);
 #ifdef USE_IRTX
-	if ((bgpio6 > 191) && (bgpio6 < 226)) {
+	if ((bgpio6 > 191) && (bgpio6 < (MxPOutP + 192))) {
 	rmtir_send(0, &bStatG6, &bprevStatG6, &bStatG6h);
 	if (bStatG6 != bprevStatG6) t_lasts = 0;
 	}
@@ -22420,6 +23214,10 @@ to get MSK (GMT + 3) I need to write GMT-3
 	if (!f_update && tft_conn && jpg_time && !t_jpg) {
 	ret = tftjpg();
 	if (ret) {
+	if (!(f_rmds & 0x01) && (bgpio5 > 191) && (bgpio6 > 127) && (bgpio6 < (MxPOutP + 128))) {
+	readHx(0, &bStatHx6);
+	if (bStatHx6 != bprevStatHx6) t_lasts = 0;
+	}
 	t_tinc = 60;
 	}
 	if (((MyHttpMqtt & 0x03) ^ 3) && !t_ppcons && MyHttpUri[0] && mqttConnected) {
@@ -22432,6 +23230,7 @@ to get MSK (GMT + 3) I need to write GMT-3
 	strcat(ldata,"/jpg_time");
 	itoa(jpg_time,tmpvar,10);
 	esp_mqtt_client_publish (mqttclient, ldata, tmpvar, 0, 1, 1);
+	MyHttpMqtt |= 0x40;
 	}
 	t_jpg = jpg_time * 10;	
 	} else if (!f_update && tft_conn && !jpg_time && ((MyHttpMqtt & 0x80) == 0x80)) {
@@ -22450,10 +23249,14 @@ to get MSK (GMT + 3) I need to write GMT-3
 	if (!f_update) {
 	esp_err_t err = 0;
 	if(RmtDsNum > 2) RmtDsNum = 0;
+	if (!(f_rmds & 0x01) && (bgpio5 > 191) && (bgpio6 > 127) && (bgpio6 < (MxPOutP + 128))) {
+	readHx(0, &bStatHx6);
+	if (bStatHx6 != bprevStatHx6) t_lasts = 0;
+	}
 	switch (RmtDsNum) {
 	case 1:
 	if (f_rmds & 0x02) rmt1w_readds(1, &f_rmds, &bStatG7, RmtRgHd1);
-	if ((bgpio7 > 191) && (bgpio7 < 226)) rmt1w_readdht(1, &f_rmds, &bStatG7, &bStatG7h, RmtRgHd1);
+	if ((bgpio7 > 191) && (bgpio7 < (MxPOutP + 192))) rmt1w_readdht(1, &f_rmds, &bStatG7, &bStatG7h, RmtRgHd1);
 	if ((bStatG7 != bprevStatG7) || (bStatG7h != bprevStatG7h)) t_lasts = 0;
 	if (f_i2cdev & 0x80000000) {
 	if (f_i2cdev & 0x02) {
@@ -22461,6 +23264,10 @@ to get MSK (GMT + 3) I need to write GMT-3
 	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_bme280(1, &f_i2cdev);
 	if ((SnPi2c[1].ppar1 != SnPi2c[1].par1) || (SnPi2c[1].ppar2 != SnPi2c[1].par2) || (SnPi2c[1].ppar3 != SnPi2c[1].par3) || (SnPi2c[1].ppar4 != SnPi2c[1].par4)) t_lasts = 0;
 	} else if (s_i2cdev & 0x02) i2c_init_bme280(1, &f_i2cdev);
+	if (f_i2cdev & 0x40) {
+	if (i2c_read_rtc(0, &f_i2cdev, &SnPi2c[6].par1)) i2c_init_rtc(0, &f_i2cdev);
+	if (SnPi2c[6].ppar1 != SnPi2c[6].par1) t_lasts = 0;
+	}  else if (s_i2cdev & 0x40) i2c_init_rtc(0, &f_i2cdev);
 	}
 	if (f_i2cdev & 0x08) {
 	err = i2c_read_sht3x(1, &f_i2cdev, &SnPi2c[3].par1, &SnPi2c[3].par2);
@@ -22470,45 +23277,55 @@ to get MSK (GMT + 3) I need to write GMT-3
 	break;
 	case 2:
 	if (f_rmds & 0x04) rmt1w_readds(2, &f_rmds, &bStatG8, RmtRgHd2);
-	if ((bgpio8 > 191) && (bgpio8 < 226)) rmt1w_readdht(2, &f_rmds, &bStatG8, &bStatG8h, RmtRgHd2);
+	if ((bgpio8 > 191) && (bgpio8 < (MxPOutP + 192))) rmt1w_readdht(2, &f_rmds, &bStatG8, &bStatG8h, RmtRgHd2);
 	if (f_i2cdev & 0x80000000) {
 	if (f_i2cdev & 0x10) {
 	err = i2c_read_aht2x(0, &f_i2cdev, &SnPi2c[4].par1, &SnPi2c[4].par2);
 	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_aht2x(0, &f_i2cdev);
 	if ((SnPi2c[4].ppar1 != SnPi2c[4].par1) || (SnPi2c[4].ppar2 != SnPi2c[4].par2)) t_lasts = 0;
 	} else if (s_i2cdev & 0x10) i2c_init_aht2x(0, &f_i2cdev);
-	if (f_i2cdev & 0x20) {
-	if (i2c_read_ds3231(0, &f_i2cdev, &SnPi2c[5].par1)) i2c_init_ds3231(0, &f_i2cdev);
-	if (SnPi2c[5].ppar1 != SnPi2c[5].par1) t_lasts = 0;
-	}  else if (s_i2cdev & 0x20) i2c_init_ds3231(0, &f_i2cdev);
-	if (f_i2cdev & 0x40000000) {
-	if (i2c_read_ip5306(&f_i2cdev, &ip5306_batmode, &ip5306_batlev)) i2c_init_ip5306(&f_i2cdev);
-	if (ip5306_batpscrmode != ip5306_batmode) {
+	if (f_i2cdev & 0x80) {
+	if (i2c_read_rtc(1, &f_i2cdev, &SnPi2c[7].par1)) i2c_init_rtc(1, &f_i2cdev);
+	}  else if (s_i2cdev & 0x80) i2c_init_rtc(1, &f_i2cdev);
+	if (f_i2cdev & 0x60000000) {
+	if (i2c_read_pwr(&f_i2cdev, &pwr_batmode, &pwr_batlevp, &pwr_batlevv, &pwr_batlevc)) i2c_init_pwr(&f_i2cdev);
+	if (pwr_batpscrmode != pwr_batmode) {
 #ifdef USE_TFT
-	if (ip5306_batmode & 0x02) {
-	ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, bStateS);
-	} else {
-	ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, (bStateS >> 5));
-	}
-	ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+	if (tft_conn && PIN_NUM_BCKL) {	
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if (PIN_NUM_BCKL < 22) {	
+#else
+	if (PIN_NUM_BCKL < 34) {	
 #endif
-	ip5306_batprevmode = 255;
-	ip5306_batpscrmode = ip5306_batmode;
+	if (pwr_batmode & 0x06) ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, bStateS);
+	else ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, (bStateS >> 5));
+	ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+	} else {
+	if (pwr_batmode & 0x02) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, bStateS); 
+	else {
+	if (bStateS) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, (bStateS >> 5) | 1);
+	else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, 0);
 	}
-	} else if (s_i2cdev & 0x40000000) i2c_init_ip5306(&f_i2cdev);
+	}
+	}
+#endif
+	pwr_batprevmode = 255;
+	pwr_batpscrmode = pwr_batmode;
+	}
+	}
 	i2c_devnum(&f_i2cdev, &s_i2cdev, &i2cdevnum);
 	if (FDHass && (i2cdevnum > i2cdevnumo)) i2cdevnumo =255;
 	else if ((i2cdevnumo == 255) && mqttConnected && HDisci2c(&f_i2cdev)) i2cdevnumo = i2cdevnum;
 	else if (i2cdevnumo > i2cdevnum)  i2cdevnumo = i2cdevnum;
 	}
-	if ((bStatG8 != bprevStatG8) || (bStatG8h != bprevStatG8h) || (ip5306_batlev != ip5306_batprevlev) || (ip5306_batmode != ip5306_batprevmode)) t_lasts = 0;
+	if ((bStatG8 != bprevStatG8) || (bStatG8h != bprevStatG8h) || (pwr_batlevp != pwr_batprevlevp) || (pwr_batmode != pwr_batprevmode)) t_lasts = 0;
 	break;
 	default:
 	if (f_rmds & 0x01) rmt1w_readds(0, &f_rmds, &bStatG6, RmtRgHd0);
 #ifdef USE_IRTX
 
 #else
-	if ((bgpio6 > 191) && (bgpio6 < 226)) rmt1w_readdht(0, &f_rmds, &bStatG6, &bStatG6h, RmtRgHd0);
+	if ((bgpio6 > 191) && (bgpio6 < (MxPOutP + 192))) rmt1w_readdht(0, &f_rmds, &bStatG6, &bStatG6h, RmtRgHd0);
 	if ((bStatG6 != bprevStatG6) || (bStatG6h != bprevStatG6h)) t_lasts = 0;
 #endif
 	if (f_i2cdev & 0x80000000) {
@@ -22522,11 +23339,11 @@ to get MSK (GMT + 3) I need to write GMT-3
 	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_sht3x(0, &f_i2cdev);
 	if ((SnPi2c[2].ppar1 != SnPi2c[2].par1) || (SnPi2c[2].ppar2 != SnPi2c[2].par2))  t_lasts = 0;
 	} else if (s_i2cdev & 0x04) i2c_init_sht3x(0, &f_i2cdev);
-	if (f_i2cdev & 0x40) {
-	err = i2c_read_htu21(0, &f_i2cdev, &SnPi2c[6].par1, &SnPi2c[6].par2);
+	if (f_i2cdev & 0x20) {
+	err = i2c_read_htu21(0, &f_i2cdev, &SnPi2c[5].par1, &SnPi2c[5].par2);
 	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_htu21(0, &f_i2cdev);
-	if ((SnPi2c[6].ppar1 != SnPi2c[6].par1) || (SnPi2c[6].ppar2 != SnPi2c[6].par2))  t_lasts = 0;
-	} else if (s_i2cdev & 0x40) i2c_init_htu21(0, &f_i2cdev);
+	if ((SnPi2c[5].ppar1 != SnPi2c[5].par1) || (SnPi2c[5].ppar2 != SnPi2c[5].par2))  t_lasts = 0;
+	} else if (s_i2cdev & 0x20) i2c_init_htu21(0, &f_i2cdev);
 	}
 	break;
 	}

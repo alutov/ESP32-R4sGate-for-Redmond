@@ -5,7 +5,6 @@
 
 // tft define area
 #define SPI_PORT    SPI2_HOST
-#define DMA_CHAN    1
 
 /*-----------------------------------------------------------------------------------/
 / TFT code is my attempt to port some Bodmer tft procedures from arduino to  esp-idf /
@@ -70,7 +69,7 @@ uint8_t PIN_NUM_CS   = 16;	// Chip select control pin
 uint8_t PIN_NUM_DC   = 17;	// Data Command control pin
 uint8_t PIN_NUM_RST  = 18;	// Reset pin (could connect to RST pin)
 uint8_t PIN_NUM_BCKL = 21;	// TFT_BACKLIGHT
-uint8_t PIN_TOUCH_CS = 33;	// Chip select pin (T_CS) of touch screen not used always high
+uint8_t PIN_NUM_PWR = 33;	// Chip select pin (T_CS) of touch screen not used always high
 
 uint8_t blstnum = 0;
 
@@ -1420,28 +1419,47 @@ uint8_t lcd_init(spi_device_handle_t spi)
     };
 
 //Initialize non-SPI GPIOs
+	if (PIN_NUM_DC > (MxPOutP -1)) return result;
 	gpio_set_direction(PIN_NUM_DC, GPIO_MODE_OUTPUT);
-	gpio_set_direction(PIN_NUM_RST, GPIO_MODE_OUTPUT);
-	if (PIN_TOUCH_CS) {
-	gpio_set_direction(PIN_TOUCH_CS, GPIO_MODE_OUTPUT);
-	gpio_set_level(PIN_TOUCH_CS, 1);
+	gpio_iomux_out(PIN_NUM_DC, PIN_FUNC_GPIO, false);
+	if (PIN_NUM_PWR) {
+	if (PIN_NUM_PWR < MxPOutP) {
+	gpio_set_direction(PIN_NUM_PWR, GPIO_MODE_OUTPUT);
+	gpio_iomux_out(PIN_NUM_PWR, PIN_FUNC_GPIO, false);
+	gpio_set_level(PIN_NUM_PWR, 1);
+	} else i2c_axpin_set (&f_i2cdev, PIN_NUM_PWR, 255);
 	}
-	gpio_set_level(PIN_NUM_RST, 1);
-
+	vTaskDelay(200 / portTICK_RATE_MS);
+	bStateS = 0;
+//Init backlight
+	if (PIN_NUM_BCKL) {	
+	if (PIN_NUM_BCKL < MxPOutP) {	
 	ledc_timer_config(&ledc_timer);
         ledc_channel_config(&ledc_channel);
-
-///Disable backlight
-	bStateS = 0;
 	ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
 	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
-
-    //Reset the display
+	} else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, bStateS);
+	}
+//Reset the display
+	if (PIN_NUM_RST) {
+	if (PIN_NUM_BCKL < MxPOutP) {	
+	gpio_set_direction(PIN_NUM_RST, GPIO_MODE_OUTPUT);
+	gpio_iomux_out(PIN_NUM_RST, PIN_FUNC_GPIO, false);
+	gpio_set_level(PIN_NUM_RST, 1);
 	vTaskDelay(100 / portTICK_RATE_MS);
 	gpio_set_level(PIN_NUM_RST, 0);
 	vTaskDelay(100 / portTICK_RATE_MS);
 	gpio_set_level(PIN_NUM_RST, 1);
-	vTaskDelay(500 / portTICK_RATE_MS);
+	vTaskDelay(200 / portTICK_RATE_MS);
+	} else {
+	i2c_axpin_set (&f_i2cdev, PIN_NUM_RST, 255);
+	vTaskDelay(100 / portTICK_RATE_MS);
+	i2c_axpin_set (&f_i2cdev, PIN_NUM_RST, 0);
+	vTaskDelay(100 / portTICK_RATE_MS);
+	i2c_axpin_set (&f_i2cdev, PIN_NUM_RST, 255);
+	vTaskDelay(200 / portTICK_RATE_MS);
+	}
+	} else vTaskDelay(700 / portTICK_RATE_MS);
     //detect LCD type
 	lcd_id = lcd_get_dd(spi, 0x04, 3);
 	if (fdebug) ESP_LOGI(AP_TAG,"Display identification information (0x04h) = %x", lcd_id);
@@ -1461,16 +1479,25 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	lcd_data(spi, ili9341_init1_cmds[0].data, ili9341_init1_cmds[0].databytes&0x1F);
 	}
 	vTaskDelay(100 / portTICK_RATE_MS);
-	lcd_id = lcd_get_dd(spi, 0x0f, 1);
-	if (fdebug) ESP_LOGI(AP_TAG,"Display Self-Diagnostic Result (0x0Fh) = %x", lcd_id);
-	if ((lcd_id & 0x80) == 0x80) {
+	lcd_id = lcd_get_dd(spi, 0x0a, 1);
+	if (fdebug) ESP_LOGI(AP_TAG,"Display Power Mode (0x0ah) = %x", lcd_id);
+	if ((lcd_id & 0x08) == 0x08) {
 	///Enable backlight
 	fillScreen(0);
         if (fdebug) ESP_LOGI(AP_TAG, "ILI9341 TFT detected.");
 	bStateS = 255;
-	if ((f_i2cdev & 0x40000000) && !(ip5306_batmode & 0x02)) ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS >>= 5);
+	if (PIN_NUM_BCKL) {
+	if (PIN_NUM_BCKL < MxPOutP) {	
+	if ((f_i2cdev & 0x40000000) && !(pwr_batmode & 0x02)) ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS >>= 5);
 	else ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
 	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
+	} else {
+	if ((f_i2cdev & 0x20000000) && !(pwr_batmode & 0x06)) {
+	if (bStateS) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, (bStateS >> 5) | 1);
+	else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, bStateS);
+	} else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, bStateS); 
+	}
+	}
 	result = 1;
 	} else if (fdebug) ESP_LOGI(AP_TAG, "ILI9341 TFT init error.");
 
@@ -1490,16 +1517,25 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	lcd_data(spi, ili9342_init1_cmds[0].data, ili9342_init1_cmds[0].databytes&0x1F);
 	}
 	vTaskDelay(100 / portTICK_RATE_MS);
-	lcd_id = lcd_get_dd(spi, 0x0f, 1);
-	if (fdebug) ESP_LOGI(AP_TAG,"Display Self-Diagnostic Result (0x0Fh) = %x", lcd_id);
-	if ((lcd_id & 0x80) == 0x80) {
+	lcd_id = lcd_get_dd(spi, 0x0a, 1);
+	if (fdebug) ESP_LOGI(AP_TAG,"Display Power Mode (0x0ah) = %x", lcd_id);
+	if ((lcd_id & 0x08) == 0x08) {
 	///Enable backlight
 	fillScreen(0);
         if (fdebug) ESP_LOGI(AP_TAG, "ILI9342 TFT detected.");
 	bStateS = 255;
-	if ((f_i2cdev & 0x40000000) && !(ip5306_batmode & 0x02)) ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS >>= 5);
+	if (PIN_NUM_BCKL) {
+	if (PIN_NUM_BCKL < MxPOutP) {	
+	if ((f_i2cdev & 0x40000000) && !(pwr_batmode & 0x02)) ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS >>= 5);
 	else ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
 	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
+	} else {
+	if ((f_i2cdev & 0x20000000) && !(pwr_batmode & 0x06)) {
+	if (bStateS) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, (bStateS >> 5) | 1);
+	else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, bStateS);
+	} else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, bStateS); 
+	}
+	}
 	result = 2;
 	} else if (fdebug) ESP_LOGI(AP_TAG, "ILI9342 TFT init error.");
 
@@ -1514,6 +1550,11 @@ uint8_t lcd_init(spi_device_handle_t spi)
 uint8_t tftinit()
 {
 	uint8_t result = 0;
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	if ((PIN_NUM_MOSI > 21) || (PIN_NUM_MISO > 21) || (PIN_NUM_CLK > 21) || (PIN_NUM_CS > 21)) return result;
+#else
+	if ((PIN_NUM_MOSI > 33) || (PIN_NUM_MISO > 39) || (PIN_NUM_CLK > 33) || (PIN_NUM_CS > 33)) return result;
+#endif
 	esp_err_t ret;
 	spi_bus_config_t buscfg={
 	.miso_io_num=PIN_NUM_MISO,
@@ -1524,7 +1565,7 @@ uint8_t tftinit()
 	.max_transfer_sz=153608 	//PARALLEL_LINES*320*2+8
 	};
 	spi_device_interface_config_t devcfg={
-	.clock_speed_hz=10*1000*1000,           //Clock out at 10 MHz
+	.clock_speed_hz=20*1000*1000,           //Clock out at 20 MHz
 	.mode=0,                                //SPI mode 0
 	.spics_io_num = PIN_NUM_CS,             //CS pin
 	.queue_size=7,                          //We want to be able to queue 7 transactions at a time
@@ -1547,7 +1588,7 @@ uint8_t tftinit()
 
 //Initialize the SPI bus
 	if (PIN_NUM_MISO == PIN_NUM_MOSI) ret=spi_bus_initialize(SPI_PORT, &buscfg, 0);
-	else ret=spi_bus_initialize(SPI_PORT, &buscfg, DMA_CHAN);
+	else ret=spi_bus_initialize(SPI_PORT, &buscfg, SPI_DMA_CH_AUTO);
 	ESP_ERROR_CHECK(ret);
 //Attach the LCD to the SPI bus
 	ret=spi_bus_add_device(SPI_PORT, &devcfg, &spi);
@@ -1838,14 +1879,14 @@ void tfblestate()
 	else if (iRssiESP < -70) sumx += drawString("\xe6 ", sumx, 224, 2);
 	else if (iRssiESP < -60) sumx += drawString("\xe7 ", sumx, 224, 2);
 	else sumx += drawString("\xe8 ", sumx, 224, 2);
-	if (f_i2cdev & 0x40000000) {
-	if (!(ip5306_batmode & 0x02)) setTextColor(TFT_YELLOW, TFT_BLACK);
-	else if (!(ip5306_batmode & 0x01)) setTextColor(TFT_WHITE, TFT_BLACK);
+	if (f_i2cdev & 0x60000000) {
+	if (!(pwr_batmode & 0x02)) setTextColor(TFT_YELLOW, TFT_BLACK);
+	else if (!(pwr_batmode & 0x01)) setTextColor(TFT_WHITE, TFT_BLACK);
 	else setTextColor(TFT_GREEN, TFT_BLACK);
-	if (ip5306_batlev == 100) sumx += drawString("\xe4 ", sumx, 224, 2);
-	else if (ip5306_batlev == 75) sumx += drawString("\xe3 ", sumx, 224, 2);
-	else if (ip5306_batlev == 50) sumx += drawString("\xe2 ", sumx, 224, 2);
-	else if (ip5306_batlev == 25) sumx += drawString("\xe1 ", sumx, 224, 2);
+	if (pwr_batlevp > 94) sumx += drawString("\xe4 ", sumx, 224, 2);
+	else if (pwr_batlevp > 74) sumx += drawString("\xe3 ", sumx, 224, 2);
+	else if (pwr_batlevp > 49) sumx += drawString("\xe2 ", sumx, 224, 2);
+	else if (pwr_batlevp > 24) sumx += drawString("\xe1 ", sumx, 224, 2);
 	else sumx += drawString("\xe0 ", sumx, 224, 2);
 	}
 	if (ptr->btauthoriz) {
@@ -2177,10 +2218,10 @@ static uint16_t outfunc(JDEC *decoder, void *bitmap, JRECT *rect)
 	t.user=(void*)0;                //D/C needs to be set to 0
 	ret=spi_device_polling_transmit(spi, &t);  //Transmit!
 	assert(ret==ESP_OK);            //Should have had no issues.
-	swdata[0] = (rect->left)>>8 & 0xff;   //Start Col High;
-	swdata[1] = (rect->left) & 0xff;      //Start Col Low;
-	swdata[2] = (rect->right)>>8 & 0xff;   //End Col High;
-	swdata[3] = (rect->right)& 0xff;      //End Col Low;
+	swdata[0] = (rect->left + xoffs)>>8 & 0xff;   //Start Col High;
+	swdata[1] = (rect->left + xoffs) & 0xff;      //Start Col Low;
+	swdata[2] = (rect->right + xoffs)>>8 & 0xff;   //End Col High;
+	swdata[3] = (rect->right + xoffs)& 0xff;      //End Col Low;
 	memset(&t, 0, sizeof(t));       //Zero out the transaction
 	t.length=8*4;                   //Command is 8 bits
 	t.tx_buffer=&swdata;            //The data is the cmd itself
@@ -2252,6 +2293,7 @@ bool tftjpg()
 	char *JpHttpUri = NULL;
 	int  jstat = 0;
 	int  jlen = 0;
+	xoffs = 0;
 	MyJPGbufidx = 0;
 	if (MyHttpUri[0] && jpg_time && (parsoff(MyHttpUri, "http://", 9) || parsoff(MyHttpUri, "https://", 10))) {
 	MyJPGbuf = malloc(MyJPGbuflen);
@@ -2296,9 +2338,17 @@ bool tftjpg()
         MyHttpMqtt = MyHttpMqtt | 0x40;
 	result = true;
 	} else if (MyJPGbufidx == -1) {
+  	uint32_t sumx;
+	char buf[16];
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
-       	drawString("Not enough memory", 8, 60, 4);
+	itoa(jlen,buf,10);
+       	drawString("Not enough memory:", 8, 60, 4);
+	sumx = 40;
+       	sumx += drawString(buf, sumx, 90, 4);
+       	sumx += drawString(" -> ", sumx, 90, 4);
+	itoa(MyJPGbuflen,buf,10);
+       	sumx += drawString(buf, sumx, 90, 4);
         MyHttpMqtt = MyHttpMqtt | 0x40;
 	result = true;
 	} else if ((err == ESP_OK) && jstat && (jstat != 200)) {
@@ -2343,11 +2393,22 @@ bool tftjpg()
         MyHttpMqtt = MyHttpMqtt | 0x40;
 	result = true;
 	} else {
+	uint8_t scale;
+	if (decoder.width > 640) {
+	scale = 2;
+	xoffs = (320 - (decoder.width >> 2)) >> 1;
+	} else if (decoder.width > 320) {
+	scale = 1;
+	xoffs = (320 - (decoder.width >> 1)) >> 1;
+	} else {
+	scale = 0;
+	xoffs = (320 - decoder.width) >> 1;
+	}
 	if (MyHttpMqtt & 0x40) {
 	fillRect(0,52,320,240,TFT_BLACK);
         MyHttpMqtt = MyHttpMqtt & 0xbf;
 	}
-	ret = jd_decomp(&decoder, outfunc, 0);
+	ret = jd_decomp(&decoder, outfunc, scale);
 	if (ret != JDR_OK) {
         if (fdebug) ESP_LOGE(AP_TAG, "Image decoder: jd_decode failed (%d)", ret);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
