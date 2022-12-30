@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2022.12.29"
+#define AP_VER "2022.12.30"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -511,7 +511,12 @@ void uptime_string_exp(char *cout)
 	strcat (cout,buff);
 	strcat (cout," minutes");
 }
+//******************* io_mux ******************
+void mygp_iomux_out (uint8_t gpio)
+{
+	gpio_iomux_out(gpio, PIN_FUNC_GPIO, false);
 
+}
 //******************* xiaomi ******************
 //https://github.com/aprosvetova/xiaomi-kettle
 void mixA(uint8_t  *cin, uint8_t  *cout, int prid)
@@ -578,7 +583,6 @@ void cipherCrypt(uint8_t  *cin, uint8_t  *cout, uint8_t  *ctab, int size)
 	cout[i] = cin[i] ^ ctab[idx];
 	}
 }
-
 //******************* smart tag ***************
 bool vstsign(uint8_t *datin, uint8_t *keyin)
 {
@@ -2123,9 +2127,11 @@ esp_err_t i2c_read_pwr (uint32_t* f_i2cdev, uint8_t* pwr_batmode, uint8_t* pwr_b
 	addr = 0x34;
 	err = i2c_read_data(addr, 0x00, data, 4);
 	if (!err) {  //00
-	if (data[0] & 0x04) pwrbatmode = pwrbatmode | 0x02;
-	if (!(data[1] & 0x40)) pwrbatmode = pwrbatmode | 0x01;
-	if (!(data[1] & 0x20)) pwrbatmode = pwrbatmode | 0x07;
+/*
+	if (data[0] & 0x04) pwrbatmode |= 0x02;
+	if (!(data[1] & 0x40)) pwrbatmode |= 0x01;
+*/
+	if (!(data[1] & 0x20)) pwrbatmode |= 0x07;
 	if (pwrbatmode & 0x04) {
 	*pwr_batmode = pwrbatmode;
 	*pwr_batlevp = 0;
@@ -2141,6 +2147,8 @@ esp_err_t i2c_read_pwr (uint32_t* f_i2cdev, uint8_t* pwr_batmode, uint8_t* pwr_b
 	if (pwrbatlevv < 3248) pwrbatlevp = 0;
 	else pwrbatlevp = (pwrbatlevv - 3120) / 10;
 	if (pwrbatlevp > 100) pwrbatlevp = 100;
+	if (!pwrbatlevc) pwrbatmode |= 0x03;
+	else if (!(pwrbatlevc & 0x8000)) pwrbatmode |= 0x02;
 	err = 0;
 	*pwr_batmode = pwrbatmode;
 	*pwr_batlevp = pwrbatlevp;
@@ -2165,6 +2173,7 @@ esp_err_t i2c_axpin_set (uint32_t* f_i2cdev, uint8_t gpio, uint8_t val)
 	if (!(i2cbits & 0x80000000) || !(i2cbits & 0x20000000) || (gpio < 40) || (gpio > 48)) return err;
 	uint8_t buf[4] = {0};
 	uint8_t addr;
+	uint8_t val1;
 	addr = 0x34;
 	switch (gpio) {
 /*
@@ -2235,11 +2244,12 @@ esp_err_t i2c_axpin_set (uint32_t* f_i2cdev, uint8_t gpio, uint8_t val)
 	}
 	break;
 	case 46:     //ldo2
+	val1 = (val / 28 + 6) << 4;
 	if (!i2c_read_data(addr, 0x12, &buf[0], 1) && !i2c_read_data(addr, 0x28, &buf[1], 1)) {
 	err = 0;
 	if (val) {
-	if ((val & 0xf0) ^ (buf[1] & 0xf0)) {
-	buf[1] = (buf[1] & 0x0f) | (val & 0xf0);
+	if ((val1 & 0xf0) ^ (buf[1] & 0xf0)) {
+	buf[1] = (buf[1] & 0x0f) | (val1 & 0xf0);
 	err = i2c_write_byte(addr, 0x28, buf[1]);
 	}
 	if (!err && !(buf[0] & 0x04)) {
@@ -2255,11 +2265,12 @@ esp_err_t i2c_axpin_set (uint32_t* f_i2cdev, uint8_t gpio, uint8_t val)
 	}
 	break;
 	case 47:     //ldo3
+	val1 = (val / 28 + 6) << 4;
 	if (!i2c_read_data(addr, 0x12, &buf[0], 1) && !i2c_read_data(addr, 0x28, &buf[1], 1)) {
 	err = 0;
 	if (val) {
-	if ((val & 0xf0) ^ ((buf[1] << 4) & 0xf0)) {
-	buf[1] = (buf[1] & 0xf0) | ((val >> 4) & 0x0f);
+	if ((val1 & 0xf0) ^ ((buf[1] << 4) & 0xf0)) {
+	buf[1] = (buf[1] & 0xf0) | ((val1 >> 4) & 0x0f);
 	err = i2c_write_byte(addr, 0x28, buf[1]);
 	}
 	if (!err && !(buf[0] & 0x08)) {
@@ -11868,7 +11879,7 @@ void MqSState() {
 	}
 	}
 
-	for (int i = 0; i < BleMonNum; i++) {
+	if (ble_mon) for (int i = 0; i < BleMonNum; i++) {
 	tgtnum = BleMX[i].gtnum;
 	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].state != BleMX[i].prstate)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
@@ -12171,15 +12182,12 @@ void MqSState() {
 #ifdef USE_TFT
 	uint8_t duty = bStateS;
 	if (tft_conn && PIN_NUM_BCKL) {
-	if ((f_i2cdev & 0x60000000) && !(pwr_batmode & 0x06)) duty >>= 5;
-#ifdef CONFIG_IDF_TARGET_ESP32C3
-	if (PIN_NUM_BCKL < 22) {	
-#else
-	if (PIN_NUM_BCKL < 34) {	
-#endif
+	if (PIN_NUM_BCKL < MxPOutP) {	
+	if ((f_i2cdev & 0x60000000) && !(pwr_batmode & 0x06)) duty >>= 4;
 	ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
 	ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 	} else {
+	if ((f_i2cdev & 0x60000000) && !(pwr_batmode & 0x06)) duty >>= 2;
 	if (bStateS) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, duty | 1);
 	else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, 0);
 	}
@@ -22810,56 +22818,61 @@ void app_main(void)
 	if (bgpio1 > 63) {
 	if (bgpio1 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio1 & 0x3f);
 	gpio_set_level((bgpio1 & 0x3f), 0);
 	lvgpio1 = 0;
 	} else {
 	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio1 = 0;
-	if ((bgpio1 & 0x3f) < 34) gpio_set_pull_mode((bgpio1 & 0x3f), GPIO_PULLUP_ONLY);
+	if ((bgpio1 & 0x3f) < MxPOutP) gpio_set_pull_mode((bgpio1 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 	if (bgpio2 > 63) {
 	if (bgpio2 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio2 & 0x3f);
 	gpio_set_level((bgpio2 & 0x3f), 0);
 	lvgpio2 = 0;
 	} else {
 	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio2 = 0;
-	if ((bgpio2 & 0x3f) < 34) gpio_set_pull_mode((bgpio2 & 0x3f), GPIO_PULLUP_ONLY);
+	if ((bgpio2 & 0x3f) < MxPOutP) gpio_set_pull_mode((bgpio2 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 	if (bgpio3 > 63) {
 	if (bgpio3 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio3 & 0x3f);
 	gpio_set_level((bgpio3 & 0x3f), 0);
 	lvgpio3 = 0;
 	} else {
 	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio3 = 0;
-	if ((bgpio3 & 0x3f) < 34) gpio_set_pull_mode((bgpio3 & 0x3f), GPIO_PULLUP_ONLY);
+	if ((bgpio3 & 0x3f) < MxPOutP) gpio_set_pull_mode((bgpio3 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 	if (bgpio4 > 63) {
 	if (bgpio4 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio4 & 0x3f);
 	gpio_set_level((bgpio4 & 0x3f), 0);
 	lvgpio4 = 0;
 	} else {
 	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio4 = 0;
-	if ((bgpio4 & 0x3f) < 34) gpio_set_pull_mode((bgpio4 & 0x3f), GPIO_PULLUP_ONLY);
+	if ((bgpio4 & 0x3f) < MxPOutP) gpio_set_pull_mode((bgpio4 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 	if (bgpio5 > 63) {
 	if (bgpio5 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio5 & 0x3f);
 	gpio_set_level((bgpio5 & 0x3f), 0);
 	lvgpio5 = 0;
 	} else {
 	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_INPUT);
 	lvgpio5 = 0;
-	if ((bgpio5 & 0x3f) < 34) gpio_set_pull_mode((bgpio5 & 0x3f), GPIO_PULLUP_ONLY);
+	if ((bgpio5 & 0x3f) < MxPOutP) gpio_set_pull_mode((bgpio5 & 0x3f), GPIO_PULLUP_ONLY);
 	}
 	}
 //setup pwm timer
@@ -23292,18 +23305,14 @@ to get MSK (GMT + 3) I need to write GMT-3
 	if (pwr_batpscrmode != pwr_batmode) {
 #ifdef USE_TFT
 	if (tft_conn && PIN_NUM_BCKL) {	
-#ifdef CONFIG_IDF_TARGET_ESP32C3
-	if (PIN_NUM_BCKL < 22) {	
-#else
-	if (PIN_NUM_BCKL < 34) {	
-#endif
+	if (PIN_NUM_BCKL < MxPOutP) {	
 	if (pwr_batmode & 0x06) ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, bStateS);
-	else ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, (bStateS >> 5));
+	else ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, bStateS >> 4);
 	ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 	} else {
-	if (pwr_batmode & 0x02) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, bStateS); 
+	if (pwr_batmode & 0x06) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, bStateS); 
 	else {
-	if (bStateS) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, (bStateS >> 5) | 1);
+	if (bStateS) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, (bStateS >> 2) | 1);
 	else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, 0);
 	}
 	}

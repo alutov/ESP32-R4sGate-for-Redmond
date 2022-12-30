@@ -1421,11 +1421,11 @@ uint8_t lcd_init(spi_device_handle_t spi)
 //Initialize non-SPI GPIOs
 	if (PIN_NUM_DC > (MxPOutP -1)) return result;
 	gpio_set_direction(PIN_NUM_DC, GPIO_MODE_OUTPUT);
-	gpio_iomux_out(PIN_NUM_DC, PIN_FUNC_GPIO, false);
+	mygp_iomux_out(PIN_NUM_DC);
 	if (PIN_NUM_PWR) {
 	if (PIN_NUM_PWR < MxPOutP) {
 	gpio_set_direction(PIN_NUM_PWR, GPIO_MODE_OUTPUT);
-	gpio_iomux_out(PIN_NUM_PWR, PIN_FUNC_GPIO, false);
+	mygp_iomux_out(PIN_NUM_PWR);
 	gpio_set_level(PIN_NUM_PWR, 1);
 	} else i2c_axpin_set (&f_i2cdev, PIN_NUM_PWR, 255);
 	}
@@ -1444,7 +1444,7 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	if (PIN_NUM_RST) {
 	if (PIN_NUM_BCKL < MxPOutP) {	
 	gpio_set_direction(PIN_NUM_RST, GPIO_MODE_OUTPUT);
-	gpio_iomux_out(PIN_NUM_RST, PIN_FUNC_GPIO, false);
+	mygp_iomux_out(PIN_NUM_RST);
 	gpio_set_level(PIN_NUM_RST, 1);
 	vTaskDelay(100 / portTICK_RATE_MS);
 	gpio_set_level(PIN_NUM_RST, 0);
@@ -1488,13 +1488,13 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	bStateS = 255;
 	if (PIN_NUM_BCKL) {
 	if (PIN_NUM_BCKL < MxPOutP) {	
-	if ((f_i2cdev & 0x40000000) && !(pwr_batmode & 0x02)) ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS >>= 5);
+	if ((f_i2cdev & 0x40000000) && !(pwr_batmode & 0x06)) ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS >>= 4);
 	else ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
 	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
 	} else {
 	if ((f_i2cdev & 0x20000000) && !(pwr_batmode & 0x06)) {
-	if (bStateS) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, (bStateS >> 5) | 1);
-	else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, bStateS);
+	if (bStateS) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, (bStateS >> 2) | 1);
+	else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, 0);
 	} else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, bStateS); 
 	}
 	}
@@ -1526,13 +1526,13 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	bStateS = 255;
 	if (PIN_NUM_BCKL) {
 	if (PIN_NUM_BCKL < MxPOutP) {	
-	if ((f_i2cdev & 0x40000000) && !(pwr_batmode & 0x02)) ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS >>= 5);
+	if ((f_i2cdev & 0x40000000) && !(pwr_batmode & 0x06)) ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS >>= 4);
 	else ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
 	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
 	} else {
 	if ((f_i2cdev & 0x20000000) && !(pwr_batmode & 0x06)) {
-	if (bStateS) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, (bStateS >> 5) | 1);
-	else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, bStateS);
+	if (bStateS) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, (bStateS >> 2) | 1);
+	else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, 0);
 	} else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, bStateS); 
 	}
 	}
