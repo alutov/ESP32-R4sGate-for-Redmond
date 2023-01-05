@@ -5,8 +5,8 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 > **[Скрипт на базе PHP сервера в локальной сети с доступом к интернету для показа погоды на экране шлюза](https://github.com/artt652/Weather-for-ESP32-R4S-gate).<br>**
 
 
-#### [Текущая версия 2022.12.30](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin).
-
+#### [Текущая версия 2023.01.05](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin).
+* 2023.01.05. Добавлено получение NTP сервера по DHCP.
 
 ## 1. Возможности
 &emsp; Шлюз ESP32 r4sGate в минимальной конфигурации (только ESP32 или ESP32C3 с источником питания 3.3v) позволяет подключать BLE-совместимые устройства Redmond, чайники Xiaomi MiKettle и некоторые другие устройства к системе умный дом (Home Assistant, OpenHab, ioBroker, MajorDoMo и т.д.) по протоколу MQTT. Изначально проект был только под Redmond, сейчас добавляются и другие устройства. Отсюда и плюс в названии проекта.
