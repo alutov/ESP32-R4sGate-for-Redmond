@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2022.12.30"
+#define AP_VER "2023.01.05"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -23023,6 +23023,29 @@ void app_main(void)
 #else
 	vTaskDelay(700 / portTICK_RATE_MS);     //delay fo ds18b20 conversion
 #endif
+//timezone
+/*
+to get MSK (GMT + 3) I need to write GMT-3
+*/
+	char tzbuf[16];
+	uint8_t TimZn = TimeZone;
+	strcpy(tzbuf,"GMT");
+	if (TimZn > 127 ) {
+	strcat (tzbuf,"+");
+	TimZn = ~TimZn;
+	TimZn++;
+	} else strcat (tzbuf,"-");
+	itoa(TimZn,tzbuff,10);
+	strcat(tzbuf,tzbuff);
+	setenv("TZ", tzbuf, 1);
+	tzset();
+//sntp
+	sntp_servermode_dhcp(1);
+	sntp_setoperatingmode(SNTP_OPMODE_POLL);
+	if(!NTP_SERVER[0]) strcpy (NTP_SERVER, "pool.ntp.org");
+	sntp_setservername(0, NTP_SERVER);
+	sntp_init();
+	if (fdebug) ESP_LOGI(AP_TAG,"NTP server: %s", NTP_SERVER);
 //Initialize Wifi
 	wifi_init_sta();
 //init bt
@@ -23110,22 +23133,6 @@ void app_main(void)
 	if (local_mtu_ret){
 	if (fdebug) ESP_LOGI(AP_TAG,"Set local  MTU failed, error code = 0x%X\n", local_mtu_ret);
 	}
-//timezone
-/*
-to get MSK (GMT + 3) I need to write GMT-3
-*/
-	char tzbuf[16];
-	uint8_t TimZn = TimeZone;
-	strcpy(tzbuf,"GMT");
-	if (TimZn > 127 ) {
-	strcat (tzbuf,"+");
-	TimZn = ~TimZn;
-	TimZn++;
-	} else strcat (tzbuf,"-");
-	itoa(TimZn,tzbuff,10);
-	strcat(tzbuf,tzbuff);
-	setenv("TZ", tzbuf, 1);
-	tzset();
 // read ds & bme & dht sensors before mqtt init
 	if (f_rmds & 0x01) rmt1w_readds(0, &f_rmds, &bStatG6, RmtRgHd0);
 	else if ((bgpio5 > 191) && (bgpio6 > 127) && (bgpio6 < (MxPOutP + 128))) {
@@ -23168,12 +23175,6 @@ to get MSK (GMT + 3) I need to write GMT-3
 	}
 //Initialize Mqtt
 	if (MQTT_SERVER[0]) mqtt_app_start();
-//sntp
-	sntp_setoperatingmode(SNTP_OPMODE_POLL);
-	if(!NTP_SERVER[0]) strcpy (NTP_SERVER, "pool.ntp.org");
-	sntp_setservername(0, NTP_SERVER);
-	sntp_init();
-	if (fdebug) ESP_LOGI(AP_TAG,"NTP server: %s", NTP_SERVER);
 // get esp mac addr 
 	tESP32Addr[0] = 0;
 	tESP32Addr1[0] = 0;
