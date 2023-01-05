@@ -3,7 +3,7 @@
 RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond%2Fblob%2Fmaster%2FREADME.md)
 
 > **[Скрипт на базе PHP сервера в локальной сети с доступом к интернету для показа погоды на экране шлюза](https://github.com/artt652/Weather-for-ESP32-R4S-gate).<br>**
-> **Тереграм каналы, в частности https://t.me/ESP32_R4sGate информации помимо этой страницы не имеют, равно как и разрешения автора проекта.<br>**
+> **Тереграм каналы, в частности https://t.me/ESP32_R4sGate, никакого отношения к проекту не имеют, информации помимо этой страницы не обладают, равно как и разрешения автора проекта.<br>**
 #### [Текущая версия 2023.01.05](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin).
 * 2023.01.05. Добавлено получение NTP сервера по DHCP.
 
