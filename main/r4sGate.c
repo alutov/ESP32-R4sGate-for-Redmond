@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.01.05"
+#define AP_VER "2023.01.17"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -402,6 +402,23 @@ void mystrcpy(char *cout, char *cin, int osize)
 	while (i < osize) {
 	a = cin[i];
 	if  (a > 0x1f) {
+	cout[i] = a;
+	i++;
+	cout[i] = 0;
+	} else {
+	i = osize;
+	}		
+	}
+}
+//my value copy include dest buf limit
+void myvalcpy(char *cout, char *cin, int osize)
+{
+	int i = 0;
+	char a;
+	while (cin[i] == 0x20) i++;
+	while (i < osize) {
+	a = cin[i];
+	if  ((a > 0x2d) && (a < 0x3a)) {
 	cout[i] = a;
 	i++;
 	cout[i] = 0;
@@ -7151,7 +7168,8 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ESP_LOGI(AP_TAG, "Read_auth %d:", blenum1);
 	esp_log_buffer_hex(AP_TAG, p_data->notify.value, p_data->notify.value_len);
 	}
-	if ((p_data->notify.value_len == 5) && (p_data->notify.value[0] = 0x55) && (p_data->notify.value[2] = 0xff) && p_data->notify.value[3] && (p_data->notify.value[4] = 0xaa)) {
+//	if ((p_data->notify.value_len == 5) && (p_data->notify.value[0] = 0x55) && (p_data->notify.value[2] = 0xff) && p_data->notify.value[3] && (p_data->notify.value[4] = 0xaa)) {
+	if ((p_data->notify.value_len == 5) && (p_data->notify.value[0] = 0x55) && (p_data->notify.value[2] = 0xff) && !(p_data->notify.value[3] & 0x80) && (p_data->notify.value[4] = 0xaa)) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Authorize %d Redmond ok", blenum1);
 	ptr->t_rspdel = 0;
 //	ptr->t_rspcnt = 1;
@@ -17265,14 +17283,24 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	int tempsz = event->data_len;
 	if  (tempsz > 15) tempsz = 15;
 	mystrcpy(MQTT_VALP1, event->data, tempsz);
-	} else if ((MQTT_TOPP2[0]) && (!memcmp(event->topic, MQTT_TOPP2, event->topic_len))) {
-	int tempsz = event->data_len;
-	if  (tempsz > 15) tempsz = 15;
-	mystrcpy(MQTT_VALP2, event->data, tempsz);
-	} else if ((MQTT_TOPP3[0]) && (!memcmp(event->topic, MQTT_TOPP3, event->topic_len))) {
-	int tempsz = event->data_len;
-	if  (tempsz > 15) tempsz = 15;
-	mystrcpy(MQTT_VALP3, event->data, tempsz);
+	} else if ((MQTT_TOPP2[0] && !memcmp(event->topic, MQTT_TOPP2, event->topic_len)) ||
+		(MQTT_TOPP3[0] && !memcmp(event->topic, MQTT_TOPP3, event->topic_len))) {
+	if ((MQTT_TOPP2[0]) && (!memcmp(event->topic, MQTT_TOPP2, event->topic_len))) {
+	if  (event->data_len < 10) mystrcpy(MQTT_VALP2, event->data, event->data_len);
+	else {
+	int datoff = 0;
+	datoff = parsoff(event->data,"\"Voltage\":", event->data_len);
+	myvalcpy(MQTT_VALP2, event->data + datoff, 15);
+	}
+	} 
+	if ((MQTT_TOPP3[0]) && (!memcmp(event->topic, MQTT_TOPP3, event->topic_len))) {
+	if  (event->data_len < 10) mystrcpy(MQTT_VALP3, event->data, event->data_len);
+	else {
+	int datoff = 0;
+	datoff = parsoff(event->data,"\"Current\":", event->data_len);
+	myvalcpy(MQTT_VALP3, event->data + datoff, 15);
+	}
+	}
 	} else if ((MQTT_TOPP4[0]) && (!memcmp(event->topic, MQTT_TOPP4, event->topic_len))) {
 	int tempsz = event->data_len;
 	if  (tempsz > 15) tempsz = 15;

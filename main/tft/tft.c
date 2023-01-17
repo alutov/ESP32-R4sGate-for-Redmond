@@ -1828,11 +1828,12 @@ void tfblestate()
   	sumx = 0;
 	if (MQTT_VALP1[0]) {
 	sumx += drawString(MQTT_VALP1, 0, mpos, 4);
-	if (MQTT_VALP2[0] && MQTT_VALP3[0]) {
-  	sumx += drawString("'/", sumx, mpos, 4);
+	if (MQTT_VALP2[0] || MQTT_VALP3[0]) sumx += drawString("'/", sumx, mpos, 4);
+	else sumx += drawString("' ", sumx, mpos, 4);
+	}
 	sumy = sumx;
 	sumz = sumx;
-	sumx = sumx + 54;
+	if (MQTT_VALP2[0] || MQTT_VALP3[0]) sumx = sumx + 54;
 	if (MQTT_VALP2[0]) {
         sumy += drawString(MQTT_VALP2,sumy,mpos,2);
   	sumy += drawString("V", sumy, mpos, 2);
@@ -1843,8 +1844,7 @@ void tfblestate()
   	sumz += drawString("A", sumz, mpos+13, 2);
 	}
 	if (sumx > sumz) fillRect(sumz, mpos+13,sumx-sumz,13,TFT_BLACK);
-	} else sumx += drawString("' ", sumx, mpos, 4);
-	}
+
 	if (MQTT_VALP4[0]) {
 	if (!MQTT_VALP5[0]) setTextColor(TFT_GREEN, TFT_BLACK);
         else if ((!incascmp("0",MQTT_VALP5,1)) || (!incascmp("off",MQTT_VALP5,3))||
