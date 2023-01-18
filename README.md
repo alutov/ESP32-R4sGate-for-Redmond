@@ -4,7 +4,8 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 
 > **[Скрипт на базе PHP сервера в локальной сети с доступом к интернету для показа погоды на экране шлюза](https://github.com/artt652/Weather-for-ESP32-R4S-gate).<br>**
 
-#### [Текущая версия 2023.01.17](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin).
+#### [Текущая версия 2023.01.18](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin).
+* 2023.01.18. Добавлен вывод версии подключенных устройств Redmond и Mikettle в web и Home Assistant.
 * 2023.01.17. Добавлен вывод на экран напряжения и тока из json  строки по метрикам **Voltage** и **Current** (строка энергомониторинга Tasmota).
 * 2023.01.05. Добавлено получение NTP сервера по DHCP.
 
