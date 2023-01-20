@@ -3,6 +3,7 @@
 RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond%2Fblob%2Fmaster%2FREADME.md)
 
 > **[Скрипт на базе PHP сервера в локальной сети с доступом к интернету для показа погоды на экране шлюза](https://github.com/artt652/Weather-for-ESP32-R4S-gate).<br>**
+> **В версии 2022.06.03 изменены топики устройств в шлюзе в номером 0 с "r4s/#" на "r4s0/#". В новых версиях топики в "r4s/#" используются для отслеживания меток несколькими шлюзами. Ппри обновлении со старых версий нужно включить BLE Monitoring в настройках (шлюз удаляет содержимое "r4s/#" только при включенном мониторе), выбрав Passive, Active или Auto, отметить пункты Hass Discovery и Delete Mqtt Topics и сохранить настройки. После перезагрузки шлюз удалит лишние топики и создаст их заново. Затем, при необходимости, BLE Monitoring можно отключить. После чего поправить устройства в автоматизациях, скриптах и т.п.<br>**
 
 #### [Текущая версия 2023.01.18](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin).
 * 2023.01.18. Добавлен вывод версии подключенных устройств Redmond и Mikettle в web и Home Assistant. Поправлена авторизация Redmond.
