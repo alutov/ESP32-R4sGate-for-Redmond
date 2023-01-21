@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.01.18"
+#define AP_VER "2023.01.21"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -3424,8 +3424,15 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	break;
 	}
 	if (!mqtdel && ptr->tBLEAddr[0] && ptr->btauthoriz && mqtttst && ptr->DEV_TYP) {
+	char *bufd = NULL;
+	bufd = malloc(2048);
+	if (bufd == NULL) {
+	if (fdebug) ESP_LOGE(AP_TAG, "MqttPubSub: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	} else {	
+	memset (bufd,0,2048);
 	char buft[64];
-	char bufd[2048];
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
 	strcat(buft,ptr->tBLEAddr);
@@ -6386,6 +6393,8 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	}
 
 
+	}
+	free(bufd);
 	}
 	}
 }
