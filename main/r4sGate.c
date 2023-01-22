@@ -12305,8 +12305,15 @@ void MqSState() {
 	BleMX[i].ppar3 = BleMX[i].par3;
 	BleMX[i].ppar4 = BleMX[i].par4;
 	if (FDHass && ((BleMX[i].ppar5 ^ BleMX[i].par5) & 0x100)) {
+	char *llwtd = NULL;
+	llwtd = malloc(1024);
+	if (llwtd == NULL) {
+	if (fdebug) ESP_LOGE(AP_TAG, "MqSState: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	} else {	
+	memset (llwtd,0,1024);
 	char llwtt[128];
-	char llwtd[1024];
 	strcpy(llwtt,"homeassistant/sensor/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/2x");
@@ -12393,6 +12400,8 @@ void MqSState() {
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 //
+	free(llwtd);
+	}
 	}
 	BleMX[i].ppar5 = BleMX[i].par5;
 	}
@@ -15062,8 +15071,15 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 void HDiscBlemon(bool mqtttst)
 {
 	if (mqtttst && ble_mon) {
+	char *llwtd = NULL;
+	llwtd = malloc(1024);
+	if (llwtd == NULL) {
+	if (fdebug) ESP_LOGE(AP_TAG, "HDiscBlemon: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	} else {	
+	memset (llwtd,0,1024);
 	char llwtt[128];
-	char llwtd[1024];
 	char tmpvar[64];
 	for (int i = 0; i < BleMonNum; i++) {
 	if(BleMR[i].sto) {
@@ -15700,6 +15716,8 @@ void HDiscBlemon(bool mqtttst)
 	}
 	}
 	}
+	free(llwtd);
+	}
 	}
 }
 
@@ -15708,8 +15726,15 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	bool result = 0;
 	uint32_t i2cbits = * f_i2cdev;
 	if (!(i2cbits & 0x80000000)) return result;
+	char *llwtd = NULL;
+	llwtd = malloc(1024);
+	if (llwtd == NULL) {
+	if (fdebug) ESP_LOGE(AP_TAG, "HDisci2c: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	} else {	
+	memset (llwtd,0,1024);
 	char llwtt[128];
-	char llwtd[512];
 	char tbuff[8];
 	tcpip_adapter_ip_info_t ipInfo;
 	char wbuff[256];
@@ -16119,6 +16144,8 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	}
 	result = 1;
 	} //fdhass
+	free(llwtd);
+	}
 	return result;
 }
 
