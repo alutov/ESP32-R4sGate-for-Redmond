@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.01.21"
+#define AP_VER "2023.01.23"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -17824,6 +17824,7 @@ static void mqtt_app_start(void)
 	.port = mqtt_port,
 	.lwt_topic = llwtt,
 	.lwt_msg = "offline",
+	.lwt_retain = 1,
 	.keepalive = 60,
 	.client_id = MQTT_BASE_TOPIC,
 	.buffer_size = 2048,
@@ -22379,6 +22380,21 @@ static const httpd_uri_t pupdating = {
 	.user_ctx  = NULL
 };
 
+/* HTTP GET favicon handler */
+static esp_err_t pfavicon_get_handler(httpd_req_t *req)
+{
+	httpd_resp_set_type(req, "image/x-icon");
+	httpd_resp_send(req, imgfavicon, sizeof(imgfavicon));
+	return ESP_OK;
+}
+
+static const httpd_uri_t pfavicon = {
+	.uri       = "/favicon.ico",
+	.method    = HTTP_GET,
+	.handler   = pfavicon_get_handler,
+	.user_ctx  = NULL
+};
+
 
 
 //*************************************************
@@ -22387,7 +22403,7 @@ static httpd_handle_t start_webserver(void)
 {
 	httpd_handle_t server = NULL;
 	httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-	config.max_uri_handlers = 19;
+	config.max_uri_handlers = 20;
 //	config.max_resp_headers = 16;
 	config.stack_size = 10240;
 	// Start the httpd server
@@ -22423,6 +22439,7 @@ static httpd_handle_t start_webserver(void)
 	httpd_register_uri_handler(server, &prestart);
 	httpd_register_uri_handler(server, &pupdate);
 	httpd_register_uri_handler(server, &pupdating);
+	httpd_register_uri_handler(server, &pfavicon);
 	return server;
 	}
 	if (fdebug) ESP_LOGI(AP_TAG, "Error starting server!");
