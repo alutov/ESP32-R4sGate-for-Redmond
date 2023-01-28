@@ -29,8 +29,8 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 **Электрочайники:**
 * Redmond SkyKettle **RK-M170S**
 * Redmond SkyKettle **RK-M173S** / RK-M171S / RTP-M810S
-* Redmond SkyKettle **RK-G200S** / RK-G204S / RK-G210S / RK-G211S / RK-G212S / RK-G214S / RK-M216S
-* Redmond SkyKettle **RK-G240S** / RK-G204S / RK-G210S / RK-G211S / RK-G212S / RK-G214S / RK-M216S
+* Redmond SkyKettle **RK-G200S** / RK-G204S / RK-G210S / RK-G211S / RK-G212S / RK-G214S / RK-M216S / RK-M139S
+* Redmond SkyKettle **RK-G240S** / RK-G204S / RK-G210S / RK-G211S / RK-G212S / RK-G214S / RK-M216S / RK-M139S
 * Xiaomi MiKettle YM-K1501(Int) - ProductId 275
 * Xiaomi MiKettle YM-K1501(HK) - ProductId 131
 * Xiaomi MiKettle V-SK152(Int) - ProductId 1116
