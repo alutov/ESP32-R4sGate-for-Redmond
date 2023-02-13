@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.01.23"
+#define AP_VER "2023.02.13"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -37,6 +37,7 @@ int bt_compare_UUID128(uint8_t uuid1[ESP_UUID_LEN_128],
 	}
 	return 1;
 }
+/*
 // int32 to hh/mm/ss
 void itoat (uint32_t val, char* cout, size_t len)
 {
@@ -57,6 +58,7 @@ void itoat (uint32_t val, char* cout, size_t len)
 	itoa(seconds,buff,10);
 	strcat (cout,buff);
 }
+*/
 // convert uint32 as decimal point 1 (0.0) & strcat 
 void u32_strcat_p1 (uint32_t val, char* cout)
 {
@@ -160,6 +162,24 @@ void sbme280_strcat (uint16_t val, char* cout)
 	var1 >>= 4;
 	itoa(var1 / 10, tmp, 10);
 	strcat(cout, tmp);
+	var1 = var1 % 10;
+	if (var1) {
+	strcat(cout,".");
+	itoa(var1,tmp,10);
+	strcat(cout,tmp);
+	}
+}
+// convert int16 as decimal point 1 (0.0) & strcat 
+void s16_strcat_p1 (uint16_t val, char* cout)
+{
+	char tmp[32] = {0}; 
+	uint16_t var1 = val;
+	if (var1 & 0x8000) {
+	var1 = (var1 ^ 0x0ffff) + 1;
+	strcat(cout,"-");
+	}
+	itoa(var1 / 10, tmp, 10);
+	strcat(cout,tmp);
 	var1 = var1 % 10;
 	if (var1) {
 	strcat(cout,".");
@@ -527,6 +547,44 @@ void uptime_string_exp(char *cout)
 	itoa(minutes,buff,10);
 	strcat (cout,buff);
 	strcat (cout," minutes");
+}
+void b2slrr(char *slrr, uint8_t blrr)
+{
+	switch (blrr) {
+	case 1:
+	strcat(slrr,"Power_ON(1)");
+	break;
+	case 2:
+	strcat(slrr,"Ext_Pin(2)");
+	break;
+	case 3:
+	strcat(slrr,"Software(3)");
+	break;
+	case 4:
+	strcat(slrr,"Panic(4)");
+	break;
+	case 5:
+	strcat(slrr,"INT_WDT(5)");
+	break;
+	case 6:
+	strcat(slrr,"TASK_WDT(6)");
+	break;
+	case 7:
+	strcat(slrr,"WDT(7)");
+	break;
+	case 8:
+	strcat(slrr,"Deepsleep(8)");
+	break;
+	case 9:
+	strcat(slrr,"Brownout(9)");
+	break;
+	case 10:
+	strcat(slrr,"SDIO(10)");
+	break;
+	default:
+	strcat(slrr,"Unknown");
+	break;
+	}
 }
 //******************* io_mux ******************
 void mygp_iomux_out (uint8_t gpio)
@@ -2899,6 +2957,92 @@ esp_err_t i2c_read_htu21(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_
 	}
 	return err;
 }
+//***************** sgp3x *********************
+uint8_t i2c_sgp3x_crc(uint8_t *data, uint8_t datalen) {
+  uint8_t crc = 0xff;
+  for (uint8_t i = 0; i < datalen; i++) {
+    crc ^= data[i];
+    for (uint8_t b = 0; b < 8; b++) {
+      if (crc & 0x80) crc = (crc << 1) ^ 0x31;
+      else crc <<= 1;
+    }
+  }
+  return crc;
+}
+esp_err_t i2c_init_sgp3x(uint8_t idx,uint32_t* f_i2cdev)
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	if (!(i2cbits & 0x80000000) || idx) return err;
+	uint8_t buf[8] = {0};
+	uint8_t addr;
+	addr = i2c_addr[idx + 9];
+	err = i2c_check(addr);
+	if (err) return err;
+	memset(buf, 0xff, sizeof(buf));
+	err = i2c_read2_data(addr, 0x20, 0x2f, buf, 3); //read feature set version
+	if (err) return err;
+	if ((buf[0] & 0xe1) || !buf[1]) return -1;      // 0x00 sgp30, 0x10 sgpc3
+//esp_log_buffer_hex(AP_TAG, buf, 8);
+	err = i2c_write_byte(addr, 0x20, 0x03);  //Start air quality Init Command
+	vTaskDelay(30 / portTICK_PERIOD_MS);      //10ms sgp3x air quality init duration
+	if (ftvoc) {
+	buf[0] = 0x1e;
+	buf[1] = i2c58bltvoc >> 8;
+	buf[2] = i2c58bltvoc & 0xff;
+	buf[3] = i2c_sgp3x_crc(&buf[1],2);
+	buf[4] = i2c58blco2 >> 8;
+	buf[5] = i2c58blco2 & 0xff;
+	buf[6] = i2c_sgp3x_crc(&buf[4],2);
+	err = i2c_write_data(addr, 0x20, buf, 7);  //set air quality baseline Command
+	if (err) return err;
+	if (fdebug) ESP_LOGI(AP_TAG, "TVOC baseline: 0x%X, CO2 baseline: 0x%X", i2c58bltvoc, i2c58blco2);
+	}
+	i2cbits = i2cbits | (0x0200 << idx);
+	*f_i2cdev = i2cbits;
+	return err;
+}
+esp_err_t i2c_read_sgp3x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* tvoc, uint32_t* co2)
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	uint32_t ttvoc, tco2;
+	if (!(i2cbits & 0x80000000) || idx) return err;
+	uint8_t buf[8] = {0};
+	uint8_t addr;
+	addr = i2c_addr[idx + 9];
+	err = i2c_check(addr);
+	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
+	if (!err) {
+	err = i2c_write_byte(addr, 0x20, 0x08);  //Start air quality Measurement Command
+	vTaskDelay(24 / portTICK_PERIOD_MS);      //12ms sgp3x air quality measurement duration
+	if (!err) {
+	err = i2c_read0_data(addr, buf, 6); //read data
+	if (!err) {
+	tco2 = (buf[0] << 8) + buf[1]; 
+	ttvoc = (buf[3] << 8) + buf[4];
+	*tvoc = ttvoc;
+	*co2 = tco2;
+//esp_log_buffer_hex(AP_TAG, buf, 8);
+	}
+	err = i2c_write_byte(addr, 0x20, 0x15);  //get air quality baseline Command
+	vTaskDelay(20 / portTICK_PERIOD_MS);      //10ms sgp3x get air quality baseline duration
+	if (!err) {
+	err = i2c_read0_data(addr, buf, 6); //read data
+	if (!err) {
+	i2c58blco2 = (buf[0] << 8) + buf[1]; 
+	i2c58bltvoc = (buf[3] << 8) + buf[4];
+	if (fdebug && !ftvoc) ESP_LOGI(AP_TAG, "TVOC baseline: 0x%X, CO2 baseline: 0x%X", i2c58bltvoc, i2c58blco2);
+	}
+	}
+	}
+	}
+	if (err) {
+	*tvoc = 0xffff;
+	*co2 = 0;
+	}
+	return err;
+}
 
 //********* rtc: ds3231(0)/pcf8563(1) *********
 esp_err_t i2c_init_rtc(uint8_t idx,uint32_t* f_i2cdev)
@@ -3070,7 +3214,7 @@ static struct SnPari2c SnPi2c[28];
 
 //******************* timer *********************
 static intr_handle_t s_timer_handle;
-static void hw_timer_callback(void *arg)
+static IRAM_ATTR void hw_timer_callback(void *arg)
 {
 //Reset irq and set for next time
 #ifdef CONFIG_IDF_TARGET_ESP32C3
@@ -3432,7 +3576,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	if (!MemErr) MemErr--;
 	} else {	
 	memset (bufd,0,2048);
-	char buft[64];
+	char buft[96];
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
 	strcat(buft,ptr->tBLEAddr);
@@ -3954,12 +4098,12 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,tESP32Addr);
 	strcat(bufd,"\",\"manufacturer\":\"");
 	strcat(bufd,"Redmond");
-	strcat(bufd,"\"},\"state_class\":\"total_increasing\",\"state_topic\":\"");
+	strcat(bufd,"\"},\"device_class\":\"duration\",\"state_class\":\"total_increasing\",\"state_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
 	if (!fcommtp) strcat(bufd,"/rsp");
-	strcat(bufd,"/working_time\",\"availability_topic\":\"");
+	strcat(bufd,"/working_time\",\"unit_of_meas\":\"s\",\"availability_topic\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -6728,7 +6872,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
     esp_ble_gattc_cb_param_t *p_data = (esp_ble_gattc_cb_param_t *)param;
 	uint8_t  conerr = 0;
 	uint8_t  buff1[16];
-	uint8_t  bufftab[256];
 	uint8_t blenum1 = blenum + 1;
         struct BleDevSt *ptr;
 	switch (blenum) {
@@ -6802,8 +6945,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ptr->btopen = false;
         ptr->btopenreq = false;
 	start_scan();
-	break;
-	}
+	} else {
 	memcpy(gl_profile_tab[blenum].remote_bda, p_data->open.remote_bda, 6);
         gl_profile_tab[blenum].conn_id = p_data->open.conn_id;
 	if (fdebug) {
@@ -6819,14 +6961,14 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	if (ptr->DEV_TYP == 64) ptr->MiKettleID = 275;
 	if (ptr->DEV_TYP == 65) ptr->MiKettleID = 131;
 	if (ptr->DEV_TYP == 66) ptr->MiKettleID = 1116;
+	}
         break;
 
     case ESP_GATTC_DIS_SRVC_CMPL_EVT:
 	if (param->dis_srvc_cmpl.status != ESP_GATT_OK){
 	conerr = 1;
 	if (fdebug) ESP_LOGE(AP_TAG, "Discover service %d failed, status %d", blenum1, param->dis_srvc_cmpl.status);
-	break;
-	}
+	} else {
 	if (fdebug) ESP_LOGI(AP_TAG, "Discover service %d complete conn_id %d", blenum1, param->dis_srvc_cmpl.conn_id);
 	if (ptr->DEV_TYP < 64) esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &remote_filter_service_uuid);
 	else if (ptr->DEV_TYP < 73) {
@@ -6840,6 +6982,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &glremote_filter_service2_uuid);
 	} else if (ptr->DEV_TYP == 74) {
 	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &amremote_filter_service_uuid);
+	}
 	}
         break;
     case ESP_GATTC_CFG_MTU_EVT:
@@ -6915,8 +7058,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	if (p_data->search_cmpl.status != ESP_GATT_OK){
 	conerr = 1;
 	if (fdebug) ESP_LOGE(AP_TAG, "Search service %d failed, error status = 0x%X", blenum1, p_data->search_cmpl.status);
-            break;
-	}
+	} else {
 	if(p_data->search_cmpl.searched_service_source == ESP_GATT_SERVICE_FROM_REMOTE_DEVICE) {
 //	if (fdebug) ESP_LOGI(AP_TAG, "Get service information from remote device");
 	} else if (p_data->search_cmpl.searched_service_source == ESP_GATT_SERVICE_FROM_NVS_FLASH) {
@@ -6924,7 +7066,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	} else {
 //	if (fdebug) ESP_LOGI(AP_TAG, "Unknown service source");
 	}
-	if (ptr->get_server){
+	if (ptr->get_server) {
             uint16_t count = 0;
             uint16_t count1 = 0;
             uint16_t count2 = 0;
@@ -6941,7 +7083,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
     	}
 
 	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 74)) {
-            status = esp_ble_gattc_get_attr_count( gattc_if,
+            if (!conerr) status = esp_ble_gattc_get_attr_count( gattc_if,
                                                                      p_data->search_cmpl.conn_id,
                                                                      ESP_GATT_DB_CHARACTERISTIC,
                                                                      gl_profile_tab[blenum].service1_start_handle,
@@ -6954,7 +7096,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
     	}
 	count = count + count1;
 	count1 = 0;		
-            status = esp_ble_gattc_get_attr_count( gattc_if,
+            if (!conerr) status = esp_ble_gattc_get_attr_count( gattc_if,
                                                                      p_data->search_cmpl.conn_id,
                                                                      ESP_GATT_DB_CHARACTERISTIC,
                                                                      gl_profile_tab[blenum].service2_start_handle,
@@ -6969,7 +7111,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	count1 = 0;		
 	}
 	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73)) {
-            status = esp_ble_gattc_get_attr_count( gattc_if,
+            if (!conerr) status = esp_ble_gattc_get_attr_count( gattc_if,
                                                                      p_data->search_cmpl.conn_id,
                                                                      ESP_GATT_DB_CHARACTERISTIC,
                                                                      gl_profile_tab[blenum].service3_start_handle,
@@ -6982,7 +7124,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
     	}
 	count = count + count1;
 	}
-
+        if (conerr) count = 0;
     	if (count > 0) {
 		char_elem_result = (esp_gattc_char_elem_t *)malloc(sizeof(esp_gattc_char_elem_t) * count);
         	if (!char_elem_result){
@@ -7003,7 +7145,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 		if (fdebug) ESP_LOGE(AP_TAG, "Get_rxchar_by_uuid %d error", blenum1);
             	}
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
                                                              p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -7017,7 +7159,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	}
                     /*  Every service have only one char in our 'ESP_GATTS_DEMO' demo, so we used first 'char_elem_result' */
 		int i = 0; 
-                while (count1 && (i < count1)) {
+                while (!conerr && count1 && (i < count1)) {
 		if (char_elem_result[i].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY) {	
                         gl_profile_tab[blenum].rxchar_handle = char_elem_result[i].char_handle;
                         esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[i].char_handle);
@@ -7028,7 +7170,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		}
 		i = count1;
 		count = count1 + count2;
-                while (count2 && (i < count)) {
+                while (!conerr && count2 && (i < count)) {
 		if (char_elem_result[i].properties & ESP_GATT_CHAR_PROP_BIT_WRITE) {	
                         gl_profile_tab[blenum].txchar_handle = char_elem_result[i].char_handle;
 			i = count;
@@ -7054,7 +7196,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
             		if (fdebug) ESP_LOGE(AP_TAG, "Get_status_by_uuid %d error", blenum1);
             	}
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service1_start_handle,
                                                              gl_profile_tab[blenum].service1_end_handle,
@@ -7065,7 +7207,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_authinit_by_uuid %d error", blenum1);
             	}
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service1_start_handle,
                                                              gl_profile_tab[blenum].service1_end_handle,
@@ -7076,7 +7218,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_auth_by_uuid %d error", blenum1);
             	}
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service1_start_handle,
                                                              gl_profile_tab[blenum].service1_end_handle,
@@ -7087,7 +7229,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_ver_by_uuid %d error", blenum1);
             	}
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -7098,7 +7240,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_setup_by_uuid %d error", blenum1);
             	}
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -7109,7 +7251,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_time_by_uuid %d error", blenum1);
             	}
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -7120,7 +7262,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_boil_by_uuid %d error", blenum1);
             	}
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service2_start_handle,
                                                              gl_profile_tab[blenum].service2_end_handle,
@@ -7131,7 +7273,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_mcuver_by_uuid %d error", blenum1);
             	}
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service3_start_handle,
                                                              gl_profile_tab[blenum].service3_end_handle,
@@ -7142,7 +7284,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_update_by_uuid %d error", blenum1);
             	}
-
+                if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
                         gl_profile_tab[blenum].rxchar_handle = char_elem_result[0].char_handle;
                         esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[0].char_handle);
@@ -7172,7 +7314,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_rxchar_by_uuid %d error", blenum1);
             	}
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
                                                              p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -7184,7 +7326,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_txchar_by_uuid %d error", blenum1);
             	}
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
                                                              p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service1_start_handle,
                                                              gl_profile_tab[blenum].service1_end_handle,
@@ -7196,7 +7338,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_auth_by_uuid %d error", blenum1);
             	}
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
                                                              p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service1_start_handle,
                                                              gl_profile_tab[blenum].service1_end_handle,
@@ -7208,7 +7350,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_time_by_uuid %d error", blenum1);
             	}
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
                                                              p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service2_start_handle,
                                                              gl_profile_tab[blenum].service2_end_handle,
@@ -7220,7 +7362,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_setup_by_uuid %d error", blenum1);
             	}
-
+                if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
                         gl_profile_tab[blenum].rxchar_handle = char_elem_result[0].char_handle;
                         esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[0].char_handle);
@@ -7250,6 +7392,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_rxchar_by_uuid %d error", blenum1);
             	}
+		if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
                         gl_profile_tab[blenum].rxchar_handle = char_elem_result[0].char_handle;
                         esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[0].char_handle);
@@ -7269,6 +7412,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		if (fdebug) ESP_LOGE(AP_TAG, "No char %d found", blenum1);
     	}
 	}
+	} //no err
          break;
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
 	if (p_data->reg_for_notify.status != ESP_GATT_OK){
@@ -7289,9 +7433,11 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		conerr = 1;
 		if (fdebug) ESP_LOGE(AP_TAG, "Get_attr_count %d error", blenum1);
     	}
-    	if (count > 0){
+	if (conerr) count = 0;
+    	if (count > 0) {
                 descr_elem_result = malloc(sizeof(esp_gattc_descr_elem_t) * count);
         	if (!descr_elem_result){
+        	        conerr = 1;
         		if (fdebug) ESP_LOGE(AP_TAG, "malloc error, gattc no mem");
         	} else {
                     ret_status = esp_ble_gattc_get_descr_by_char_handle( gattc_if,
@@ -7306,7 +7452,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	}
                     /* Every char has only one descriptor in our 'ESP_GATTS_DEMO' demo, so we used first 'descr_elem_result' */
             	if (count > 0 && descr_elem_result[0].uuid.len == ESP_UUID_LEN_16 && descr_elem_result[0].uuid.uuid.uuid16 == ESP_GATT_UUID_CHAR_CLIENT_CONFIG){
-                        ret_status = esp_ble_gattc_write_char_descr( gattc_if,
+                        if (!conerr) ret_status = esp_ble_gattc_write_char_descr( gattc_if,
                                                                      gl_profile_tab[blenum].conn_id,
                                                                      descr_elem_result[0].handle,
                                                                      sizeof(notify_en),
@@ -7339,7 +7485,8 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		conerr = 1;
 		if (fdebug) ESP_LOGE(AP_TAG, "Get_attr_count1 %d error", blenum1);
     	}
-    	if (count > 0){
+	if (conerr) count = 0;
+    	if (count > 0) {
                 descr_elem_result = malloc(sizeof(esp_gattc_descr_elem_t) * count);
         	if (!descr_elem_result){
 		conerr = 1;
@@ -7357,7 +7504,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	}
                     /* Every char has only one descriptor in our 'ESP_GATTS_DEMO' demo, so we used first 'descr_elem_result' */
             	if (count > 0 && descr_elem_result[0].uuid.len == ESP_UUID_LEN_16 && descr_elem_result[0].uuid.uuid.uuid16 == ESP_GATT_UUID_CHAR_CLIENT_CONFIG){
-                        ret_status = esp_ble_gattc_write_char_descr( gattc_if,
+                        if (!conerr) ret_status = esp_ble_gattc_write_char_descr( gattc_if,
                                                                      gl_profile_tab[blenum].conn_id,
                                                                      descr_elem_result[0].handle,
                                                                      sizeof(notify_en),
@@ -7504,6 +7651,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	esp_log_buffer_hex(AP_TAG, p_data->notify.value, p_data->notify.value_len);
 	}
 	if ((p_data->notify.value_len == 12) && (ptr->xbtauth == 2)) {
+	uint8_t *bufftab = NULL;
+	bufftab = malloc(256);
+	if (bufftab == NULL) {
+	MemErr++;
+	if (!MemErr) MemErr--;
+	conerr = 1;
+	} else {	
 	uint8_t buff2[16];
         uint8_t xiv_char_data[12] = { 0x55,0x00,0xff,0xb6,0x2c,0x27,0xb3,0xb8,0xac,0x5a,0xef,0xaa};  //auth string
 	xiv_char_data[3] = xiv_char_data[3] + blenum;  //for each position number different auth id
@@ -7550,7 +7704,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ESP_LOGI(AP_TAG, "Write_setup_xi %d:", blenum1);
 	esp_log_buffer_hex(AP_TAG, buff2, 2);
 	}
-        ret_status = esp_ble_gattc_write_char( gattc_if,
+        if (!conerr) ret_status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
                                   gl_profile_tab[blenum].setup_handle,
                                   2,
@@ -7558,6 +7712,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
                                   ESP_GATT_WRITE_TYPE_RSP,
                                   ESP_GATT_AUTH_REQ_NONE);
             	if (ret_status != ESP_GATT_OK){
+			conerr = 1;
             		if (fdebug) ESP_LOGE(AP_TAG, "Write_setup_xi %d error", blenum1);
             	}
 	buff2[0] = 0x00;
@@ -7565,7 +7720,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ESP_LOGI(AP_TAG, "Write_boil_xi %d:", blenum1);
 	esp_log_buffer_hex(AP_TAG, buff2, 1);
 	}
-        ret_status = esp_ble_gattc_write_char( gattc_if,
+        if (!conerr) ret_status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
                                   gl_profile_tab[blenum].boil_handle,
                                   1,
@@ -7573,6 +7728,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
                                   ESP_GATT_WRITE_TYPE_RSP,
                                   ESP_GATT_AUTH_REQ_NONE);
             	if (ret_status != ESP_GATT_OK){
+			conerr = 1;
             		if (fdebug) ESP_LOGE(AP_TAG, "Write_boil_xi %d error", blenum1);
             	}
 	buff2[0] = 0x17;
@@ -7580,7 +7736,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ESP_LOGI(AP_TAG, "Write_time_xi %d:", blenum1);
 	esp_log_buffer_hex(AP_TAG, buff2, 1);
 	}
-        ret_status = esp_ble_gattc_write_char( gattc_if,
+        if (!conerr) ret_status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
                                   gl_profile_tab[blenum].time_handle,
                                   1,
@@ -7588,10 +7744,11 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
                                   ESP_GATT_WRITE_TYPE_RSP,
                                   ESP_GATT_AUTH_REQ_NONE);
             	if (ret_status != ESP_GATT_OK){
+			conerr = 1;
             		if (fdebug) ESP_LOGE(AP_TAG, "Write_time_xi %d error", blenum1);
             	}
 
-        ret_status = esp_ble_gattc_read_char( gattc_if,
+        if (!conerr) ret_status = esp_ble_gattc_read_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
                                   gl_profile_tab[blenum].mcuver_handle,
                                   ESP_GATT_AUTH_REQ_NONE);
@@ -7600,6 +7757,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             		if (fdebug) ESP_LOGE(AP_TAG, "Read_ver_req %d error", blenum1);
             	}
 
+	if (!conerr) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Authorize %d Xiaomi ok", blenum1);
 	ptr->t_rspdel = 0;
 //	ptr->t_rspcnt = 1;
@@ -7613,11 +7771,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	strcpy(ptr->DEV_NAME,ptr->RQC_NAME);
 //	MqttPubSub(blenum, mqttConnected);	
 	esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, gl_profile_tab[blenum].rxchar_handle);
-
+	}
 	} else {
 	conerr = 1;
 	if (fdebug) ESP_LOGI(AP_TAG, "Invalid %d Xiaomi product Id", blenum1);
 	if ((ptr->DEV_TYP == 72) && (ptr->MiKettleID < 10000)) ptr->MiKettleID++;
+	}
+	free(bufftab);
 	}
 	}
 	} if (p_data->notify.is_notify) {
@@ -7632,12 +7792,11 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 
 
     case ESP_GATTC_WRITE_DESCR_EVT:
-	if (p_data->write.status != ESP_GATT_OK){
+	if (p_data->write.status != ESP_GATT_OK) {
 	conerr = 1;
 	if (fdebug) ESP_LOGE(AP_TAG, "Write descr %d failed, error status = 0x%X", blenum1, p_data->write.status);
 	conerr = 1;
-            break;
-	}
+	} else {
 	uint8_t  write_char_crypt_data[16];
 	int  write_char_data_len = 12;
         uint8_t write_char_data[12] = { 0x55,0x00,0xff,0xb6,0x2c,0x27,0xb3,0xb8,0xac,0x5a,0xef,0xaa};  //auth string
@@ -7680,6 +7839,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, gl_profile_tab[blenum].auth_handle);
 	}
 	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73) && (ptr->xbtauth == 1)) {
+	uint8_t *bufftab = NULL;
+	bufftab = malloc(256);
+	if (bufftab == NULL) {
+	MemErr++;
+	if (!MemErr) MemErr--;
+	conerr = 1;
+	} else {	
 	ptr->xbtauth = 2;
 	mixA(gl_profile_tab[blenum].remote_bda, buff1, ptr->MiKettleID);
 	cipherInit(buff1, bufftab, 8);
@@ -7695,7 +7861,8 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
     		if (fdebug) ESP_LOGE(AP_TAG, "Write_auth_mi %d error", blenum1);
 			conerr = 1;
             	}  else if (fdebug) ESP_LOGI(AP_TAG, "Write_auth_mi %d Ok", blenum1);
-
+		free(bufftab);
+        	}
 	} else if (ptr->DEV_TYP == 73) {
 	ptr->xbtauth = 1;
 //
@@ -7779,6 +7946,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		conerr = 1;
 		}
 	}
+	} //no err
         break;
     case ESP_GATTC_SRVC_CHG_EVT: {
         esp_bd_addr_t bda;
@@ -8183,9 +8351,12 @@ if (fdebug) {
 	break;
 	case 31:
 // 02 01 06 03 02 1d 18 09 ff 57 01 c8 47 8c ef 9c 4c 0d 16 1d 18 02 20 44 b2 07 01 01 0d 0f 0e
+// 02 01 06 1b 16 cd fd 08 24 58 4d c9 94 c2 7c 01 04 d9 00 fe 00 12 04 08 00 08 00 13 02 c9 01
 //  0        3    5                 11                17          21
 	if (!memcmp(&scan_result->scan_rst.ble_adv[3],"\x03\x02\x1d\x18\x09\xff\x57\x01",8) && 
 		!memcmp(&scan_result->scan_rst.ble_adv[17],"\x0d\x16\x1d\x18",4)) id = 2;
+	else if (!memcmp(&scan_result->scan_rst.ble_adv[3],"\x1b\x16\xcd\xfd",4) && 
+		!memcmp(&scan_result->scan_rst.ble_adv[0],"\x02\x01",2)) id = 5;
 	else if (!memcmp(&scan_result->scan_rst.ble_adv[3],"\x03\x02\x5a\xfd\x17\x16\x5a\xfd",8)) id = 0x44;
 	break;
 	}
@@ -8262,6 +8433,12 @@ if (fdebug) {
 	BleMX[i].par5 = BleMX[i].advdat[17];
 	BleMX[i].par6 = BleMX[i].advdat[18];
 	}
+	} else if (id == 5) {
+	BleMX[i].par1 = BleMX[i].advdat[17] + (BleMX[i].advdat[18] << 8);
+	BleMX[i].par2 = BleMX[i].advdat[19] + (BleMX[i].advdat[20] << 8);
+	BleMX[i].par3 = BleMX[i].advdat[23] + (BleMX[i].advdat[24] << 8);
+	BleMX[i].par4 = BleMX[i].advdat[25] + (BleMX[i].advdat[26] << 8);
+	BleMX[i].par5 = BleMX[i].advdat[29] + (BleMX[i].advdat[30] << 8);
 	} else if (id == 0x44) {
 	BleMX[i].par1 = BleMX[i].advdat[11];
 	BleMX[i].par2 = BleMX[i].advdat[23];
@@ -8327,6 +8504,12 @@ if (fdebug) {
 	BleMX[i].par5 = BleMX[i].advdat[17];
 	BleMX[i].par6 = BleMX[i].advdat[18];
 	}
+	} else if (id == 5) {
+	BleMX[i].par1 = BleMX[i].advdat[17] + (BleMX[i].advdat[18] << 8);
+	BleMX[i].par2 = BleMX[i].advdat[19] + (BleMX[i].advdat[20] << 8);
+	BleMX[i].par3 = BleMX[i].advdat[23] + (BleMX[i].advdat[24] << 8);
+	BleMX[i].par4 = BleMX[i].advdat[25] + (BleMX[i].advdat[26] << 8);
+	BleMX[i].par5 = BleMX[i].advdat[29] + (BleMX[i].advdat[30] << 8);
 	} else if (id == 0x44) {
 	BleMX[i].par1 = BleMX[i].advdat[11];
 	BleMX[i].par2 = BleMX[i].advdat[23];
@@ -11348,7 +11531,7 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,",\"prog\":");
 	itoa(ptr->notifyData[3],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,"]}");    
+	strcat(ptr->cStatus,"}");    
 	} else if ((ptr->notifyData[2] == 6) && (ptr->DEV_TYP > 1) && ( ptr->DEV_TYP < 10 ) && (retc == 20)) {
 	ptr->bState = ptr->notifyData[11];
 	ptr->bProg = ptr->notifyData[3];
@@ -11398,10 +11581,6 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,",\"beep\":");
 	itoa(ptr->bStBp,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"error\":");
-	if (ptr->DEV_TYP > 3) itoa(ptr->notifyData[18],tmpvar,10);
-	else itoa(ptr->notifyData[12],tmpvar,10);
-	strcat(ptr->cStatus,tmpvar);
 	if (ptr->DEV_TYP > 3) {
 	strcat(ptr->cStatus,",\"boil\":");
 	itoa(ptr->bBlTime,tmpvar,10);
@@ -11421,7 +11600,6 @@ void msStatus(uint8_t blenum) {
 	} else if (ptr->bCVol == 253) strcat(ptr->cStatus,"\"???\"");
 	else if (ptr->bC1temp && ptr->bS1Energy) strcat(ptr->cStatus,"\"??\"");
 	else strcat(ptr->cStatus,"\"?\"");
-	}
 	strcat(ptr->cStatus,",");
 	if (!volperc) {
 	itoa(ptr->bCVoll / 10,tmpvar,10);
@@ -11433,7 +11611,9 @@ void msStatus(uint8_t blenum) {
 	itoa(ptr->bCVoll,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	}
-	strcat(ptr->cStatus,"],\"rgb\":[");
+	strcat(ptr->cStatus,"]");
+	}
+	strcat(ptr->cStatus,",\"rgb\":[");
 	itoa(ptr->RgbR,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",");    
@@ -11516,9 +11696,6 @@ void msStatus(uint8_t blenum) {
 	itoa(ptr->notifyData[5],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	}
-	strcat(ptr->cStatus,",\"error\":");
-	itoa(ptr->notifyData[18],tmpvar,10);
-	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,"}");    
 	} else if ((ptr->notifyData[2] == 6) && ( ptr->DEV_TYP > 11 ) && ( ptr->DEV_TYP < 16 ) && (retc == 20)) {
 	ptr->bHeat = 0;
@@ -11555,9 +11732,6 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"prog\":");
 	itoa(ptr->notifyData[3],tmpvar,10);
-	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"error\":");
-	itoa(ptr->notifyData[18],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,"}");    
 	} else if ((ptr->notifyData[2] == 6) && ( ptr->DEV_TYP == 16 ) && (retc == 13)) {
@@ -12460,7 +12634,62 @@ void MqSState() {
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	BleMX[i].ppar4 = BleMX[i].par4;
 	}
-
+	} else if (BleMR[i].id == 5) {
+	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par1 != BleMX[i].ppar1)) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"/temperature");
+	tmpvar[0] = 0;
+	s16_strcat_p1 (BleMX[i].par1, tmpvar);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	BleMX[i].ppar1 = BleMX[i].par1;
+	}
+	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par2 != BleMX[i].ppar2)) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"/humidity");
+	tmpvar[0] = 0;
+	u32_strcat_p1 (BleMX[i].par2, tmpvar);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	BleMX[i].ppar2 = BleMX[i].par2;
+	}
+	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par3 != BleMX[i].ppar3)) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"/pm25");
+	tmpvar[0] = 0;
+	itoa(BleMX[i].par3,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	BleMX[i].ppar3 = BleMX[i].par3;
+	}
+	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par4 != BleMX[i].ppar4)) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"/pm10");
+	tmpvar[0] = 0;
+	itoa(BleMX[i].par4,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	BleMX[i].ppar4 = BleMX[i].par4;
+	}
+	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par5 != BleMX[i].ppar5)) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"/co2");
+	tmpvar[0] = 0;
+	itoa(BleMX[i].par5,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	BleMX[i].ppar5 = BleMX[i].par5;
+	}
 	} else if (BleMR[i].id == 0x44) {
 	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par1 != BleMX[i].ppar1)) {
 	uint8_t tgst = BleMX[i].par1;
@@ -12801,6 +13030,34 @@ void MqSState() {
 	SnPi2c[i].ppar4 = SnPi2c[i].par4;
 	}
 	}
+	if (i2c_bits[i] & 0x40) {
+//i2c tvoc
+	if ((mqttConnected) && (SnPi2c[i].ppar3 != SnPi2c[i].par3)) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/i2c");
+	bin2hex(&i2c_addr[i],tmpvar,1,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"tvoc");
+	if (SnPi2c[i].par3 == 0xffff) strcpy(tmpvar,"-0");
+	else itoa(SnPi2c[i].par3,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	SnPi2c[i].ppar3 = SnPi2c[i].par3;
+	}
+	}
+	if (i2c_bits[i] & 0x80) {
+//i2c co2
+	if ((mqttConnected) && (SnPi2c[i].ppar4 != SnPi2c[i].par4)) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/i2c");
+	bin2hex(&i2c_addr[i],tmpvar,1,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"co2");
+	if (SnPi2c[i].par4 == 0) strcpy(tmpvar,"-0");
+	else itoa(SnPi2c[i].par4,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	SnPi2c[i].ppar4 = SnPi2c[i].par4;
+	}
+	}
 //
 	} //bit i
 	} //for i
@@ -13067,7 +13324,8 @@ void MqState(uint8_t blenum) {
 	strcat(ldata,ptr->tBLEAddr);
 	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/working_time");
-	itoat(ptr->bSTime,tmpvar,10);
+//	itoat(ptr->bSTime,tmpvar,10);
+	itoa(ptr->bSTime,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	ptr->r4sppcom = 30;
 	ptr->bprevSTime = ptr->bSTime;
@@ -15123,12 +15381,14 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,"\",\"model\":\"");
 	if (BleMR[i].id == 2) strcat(llwtd,"Mi Scale");
 	else if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	else if (BleMR[i].id == 5) strcat(llwtd,"Qingping Air Monitor Lite CGDN1");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
 	else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
 	if (BleMR[i].id == 2) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	else if (BleMR[i].id == 5) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Samsung Electronics");
 	else strcat(llwtd,"Unknown");
@@ -15177,12 +15437,14 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,"\",\"model\":\"");
 	if (BleMR[i].id == 2) strcat(llwtd,"Mi Scale");
 	else if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	else if (BleMR[i].id == 5) strcat(llwtd,"Qingping Air Monitor Lite CGDN1");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
 	else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
 	if (BleMR[i].id == 2) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	else if (BleMR[i].id == 5) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Samsung Electronics");
 	else strcat(llwtd,"Unknown");
@@ -15231,12 +15493,14 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,"\",\"model\":\"");
 	if (BleMR[i].id == 2) strcat(llwtd,"Mi Scale");
 	else if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	else if (BleMR[i].id == 5) strcat(llwtd,"Qingping Air Monitor Lite CGDN1");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
 	else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
 	if (BleMR[i].id == 2) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	else if (BleMR[i].id == 5) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Samsung Electronics");
 	else strcat(llwtd,"Unknown");
@@ -15281,12 +15545,14 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,"\",\"model\":\"");
 	if (BleMR[i].id == 2) strcat(llwtd,"Mi Scale");
 	else if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	else if (BleMR[i].id == 5) strcat(llwtd,"Qingping Air Monitor Lite CGDN1");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
 	else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
 	if (BleMR[i].id == 2) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	else if (BleMR[i].id == 5) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Samsung Electronics");
 	else strcat(llwtd,"Unknown");
@@ -15628,6 +15894,208 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 //
+	} else if (BleMR[i].id == 5) {
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/2x");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".temp\",\"icon\":\"mdi:thermometer\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_temp\",\"device\":{\"identifiers\":[\"r4s_");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+	strcat(llwtd,"Qingping Air Monitor Lite CGDN1");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+	strcat(llwtd,"Xiaomi");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"device_class\":\"temperature\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/temperature\",\"unit_of_meas\":\"\xc2\xb0\x43\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/3x");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".humid\",\"icon\":\"mdi:water-percent\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_humid\",\"device\":{\"identifiers\":[\"r4s_");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+	strcat(llwtd,"Qingping Air Monitor Lite CGDN1");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+	strcat(llwtd,"Xiaomi");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"device_class\":\"humidity\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/humidity\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/4x");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".pm2.5\",\"icon\":\"mdi:air-filter\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_pm25\",\"device\":{\"identifiers\":[\"r4s_");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+	strcat(llwtd,"Qingping Air Monitor Lite CGDN1");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+	strcat(llwtd,"Xiaomi");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"device_class\":\"pm25\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/pm25\",\"unit_of_meas\":\"\xef\xbb\xbf\xce\xbc\x67\x2f\x6d\xc2\xb3\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/5x");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".pm10\",\"icon\":\"mdi:air-filter\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_pm10\",\"device\":{\"identifiers\":[\"r4s_");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+	strcat(llwtd,"Qingping Air Monitor Lite CGDN1");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+	strcat(llwtd,"Xiaomi");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"device_class\":\"pm10\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/pm10\",\"unit_of_meas\":\"\xef\xbb\xbf\xce\xbc\x67\x2f\x6d\xc2\xb3\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/6x");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtt,tmpvar);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,".co2\",\"icon\":\"mdi:molecule-co2\",\"uniq_id\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"_");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"_co2\",\"device\":{\"identifiers\":[\"r4s_");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\"],\"name\":\"r4s.");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"\",\"model\":\"");
+	strcat(llwtd,"Qingping Air Monitor Lite CGDN1");
+	strcat(llwtd,"\",\"manufacturer\":\"");
+	strcat(llwtd,"Xiaomi");
+	strcat(llwtd,"\",\"via_device\":\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"},\"device_class\":\"carbon_dioxide\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/");
+	bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(llwtd,tmpvar);
+	strcat(llwtd,"/co2\",\"unit_of_meas\":\"ppm\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+//
+
 	} else 	if (BleMR[i].id == 0x44) {
 	strcpy(llwtt,"homeassistant/sensor/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
@@ -15737,7 +16205,8 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	char llwtt[128];
 	char tbuff[8];
 	tcpip_adapter_ip_info_t ipInfo;
-	char wbuff[256];
+//	char wbuff[256];
+	char wbuff[32];
 	memset(wbuff,0,32);
 	tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ipInfo);
 	sprintf(wbuff, "%d.%d.%d.%d", IP2STR(&ipInfo.ip));
@@ -15981,6 +16450,103 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 	}
+	if (i2c_bits[i] & 0x40) {
+//tvoc
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/i2c");
+	bin2hex(&i2c_addr[i],tbuff,1,0);
+	strcat(llwtt,tbuff);
+	strcat(llwtt,"tvx");
+	strcat(llwtt,tESP32Addr);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate.i2c");
+	bin2hex(&i2c_addr[i],tbuff,1,0);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,".tvoc\",\"icon\":\"mdi:air-filter\",\"uniq_id\":\"i2c");
+	bin2hex(&i2c_addr[i],tbuff,1,0);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"_tvoc_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"],\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate\",\"model\":\"ESP32\",\"sw_version\":\"");
+	strcat(llwtd,AP_VER);
+	if (wbuff[0]) {
+	strcat(llwtd,"\",\"configuration_url\":\"http://");
+	strcat(llwtd,wbuff);
+	}
+	strcat(llwtd,"\",\"connections\":[[\"mac\",\"");
+	strcat(llwtd,tESP32Addr1);
+//	if (wbuff[0]) {
+//	strcat(llwtd,"\"],[\"ip\",\"");
+//	strcat(llwtd,wbuff);
+//	}
+	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/i2c");
+	bin2hex(&i2c_addr[i],tbuff,1,0);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"tvoc\",\"unit_of_meas\":\"ppb\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	}
+	if (i2c_bits[i] & 0x80) {
+//co2
+	strcpy(llwtt,"homeassistant/sensor/");
+	strcat(llwtt,MQTT_BASE_TOPIC);
+	strcat(llwtt,"/i2c");
+	bin2hex(&i2c_addr[i],tbuff,1,0);
+	strcat(llwtt,tbuff);
+	strcat(llwtt,"cox");
+	strcat(llwtt,tESP32Addr);
+	strcat(llwtt,"/config");
+	llwtd[0] = 0;
+//	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	strcpy(llwtd,"{\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate.i2c");
+	bin2hex(&i2c_addr[i],tbuff,1,0);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,".co2\",\"icon\":\"mdi:molecule-co2\",\"uniq_id\":\"i2c");
+	bin2hex(&i2c_addr[i],tbuff,1,0);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"_co2_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
+	strcat(llwtd,tESP32Addr);
+	strcat(llwtd,"\"],\"name\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,".Gate\",\"model\":\"ESP32\",\"sw_version\":\"");
+	strcat(llwtd,AP_VER);
+	if (wbuff[0]) {
+	strcat(llwtd,"\",\"configuration_url\":\"http://");
+	strcat(llwtd,wbuff);
+	}
+	strcat(llwtd,"\",\"connections\":[[\"mac\",\"");
+	strcat(llwtd,tESP32Addr1);
+//	if (wbuff[0]) {
+//	strcat(llwtd,"\"],[\"ip\",\"");
+//	strcat(llwtd,wbuff);
+//	}
+	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"device_class\":\"carbon_dioxide\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/i2c");
+	bin2hex(&i2c_addr[i],tbuff,1,0);
+	strcat(llwtd,tbuff);
+	strcat(llwtd,"co2\",\"unit_of_meas\":\"ppm\",\"availability_topic\":\"");
+	strcat(llwtd,MQTT_BASE_TOPIC);
+	strcat(llwtd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	}
+
 	} //bit i
 	} //for i
 //ip5306 battery level
@@ -16094,7 +16660,7 @@ bool HDisci2c(uint32_t* f_i2cdev)
 //	if (wbuff[0]) {
 //	strcat(llwtd,"\"],[\"ip\",\"");
 //	strcat(llwtd,wbuff);
-	}
+//	}
 	strcat(llwtd,"\"]],\"manufacturer\":\"Espressif\"},\"device_class\":\"voltage\",\"state_class\":\"measurement\",\"state_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/i2c34");
@@ -16140,7 +16706,7 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 //
-//	}
+	}
 	}
 	result = 1;
 	} //fdhass
@@ -16332,7 +16898,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	fgpio4 = 1;
 	fgpio5 = 1;
 	for (int i = 0; i < BleMonNum; i++) {
-	BleMX[i].prstate =255;
+	BleMX[i].prstate = 255;
 	BleMX[i].prrssi = 255;
 	BleMX[i].cmrssi = 0;
 	BleMX[i].gtnum = 255;
@@ -16358,14 +16924,14 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	}
 
 	char llwtt[128];
-	char llwtd[512];
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/status");
 	esp_mqtt_client_publish(client, llwtt, "online", 0, 1, 1);
 //	msg_id = esp_mqtt_client_publish(client, llwtt, "online", 0, 1, 1);
 //	if (fdebug) ESP_LOGI(AP_TAG,"sent publish successful, msg_id=%d", msg_id);
 	tcpip_adapter_ip_info_t ipInfo;
-	char wbuff[256];
+//	char wbuff[256];
+	char wbuff[32];
 	memset(wbuff,0,32);
 	tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ipInfo);
 	sprintf(wbuff, "%d.%d.%d.%d", IP2STR(&ipInfo.ip));
@@ -16391,6 +16957,14 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	}
 #endif
 	if (FDHass && tESP32Addr[0]) {
+	char *llwtd = NULL;
+	llwtd = malloc(1024);
+	if (llwtd == NULL) {
+	if (fdebug) ESP_LOGE(AP_TAG, "MqttConn: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	} else {	
+	memset (llwtd,0,1024);
 	strcpy(llwtt,"homeassistant/sensor/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/1x");
@@ -17112,6 +17686,8 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 //
 	}
 	} //for i6-8
+	free(llwtd);
+	}
 	} //hass
 
 	strcpy(llwtt,MQTT_BASE_TOPIC);
@@ -18118,6 +18694,7 @@ uint8_t ReadNVS(){
 	fmsslbundle = 0;
 	fmsslhost = 0;
 	fmwss = 0;
+	ftvoc = 0;
 	fdebug = 0;
         ble_mon =  nvtemp & 0x03;
 	if (nvtemp & 0x04) FDHass = 1;
@@ -18138,10 +18715,15 @@ uint8_t ReadNVS(){
 	if (nvtemp & 0x2000) fmwss = 1;
 	if (nvtemp & 0x4000) fdebug = 1;
 	if (nvtemp & 0x8000) fkpmd = 1;
+	if (nvtemp & 0x10000) ftvoc = 1;
 	nvtemp = 0;
 	nvs_get_u64(my_handle, "bhx1", &nvtemp);
 	bZeroHx6 = nvtemp & 0xffffffff;
 	bDivHx6 =  nvtemp >> 32;
+	nvtemp = 0;
+	nvs_get_u64(my_handle, "btvc1", &nvtemp);
+        i2c58blco2 = nvtemp & 0xffff;
+	i2c58bltvoc = (nvtemp >> 16) & 0xffff;
 	size_t nvsize = 20;
 	nvs_get_blob(my_handle,"pnpsw", tmpbuf, &nvsize);
 	nvtemp = tmpbuf[3];
@@ -18419,10 +19001,16 @@ void WriteNVS () {
 	if (fmwss) nvtemp = nvtemp | 0x2000;
 	if (fdebug) nvtemp = nvtemp | 0x4000;
 	if (fkpmd) nvtemp = nvtemp | 0x8000;
+	if (ftvoc) nvtemp = nvtemp | 0x10000;
 	nvs_set_u64(my_handle, "cmbits", nvtemp);
 	nvtemp = bDivHx6;
 	nvtemp = (nvtemp << 32) | bZeroHx6;
 	nvs_set_u64(my_handle, "bhx1", nvtemp);
+	if (ftvoc) {
+	nvtemp = i2c58bltvoc;
+	nvtemp = (nvtemp << 16) | i2c58blco2;
+	nvs_set_u64(my_handle, "btvc1", nvtemp);
+	}
 	nvs_set_u8(my_handle,  "timzon", TimeZone);
 	nvs_set_u8(my_handle,  "r4snum", R4SNUM);
 	nvs_set_str(my_handle, "swfid", WIFI_SSID);
@@ -19031,7 +19619,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	}
 	for (int i = 0; i < 28; i++) {
 	if (f_i2cdev & (1 << i)) {
-	if (i2c_bits[i] & 0x0f) {
+	if (i2c_bits[i] & 0xff) {
 	strcat(bsend,"&emsp;I2C.");
 	bin2hex(&i2c_addr[i],buff,1,0);
 	strcat(bsend,buff);
@@ -19040,17 +19628,17 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	if (i2c_bits[i] & 0x01) {
 	sbme280_strcat (SnPi2c[i].par1, bsend);
 	strcat(bsend,"&deg;C");
-	if (i2c_bits[i] & 0x0e) strcat(bsend,", ");
+	if (i2c_bits[i] & 0xce) strcat(bsend,", ");
 	}
 	if (i2c_bits[i] & 0x02) {
 	u32_strcat_p1 (SnPi2c[i].par2, bsend);
 	strcat(bsend,"%");
-	if (i2c_bits[i] & 0x0c) strcat(bsend,", ");
+	if (i2c_bits[i] & 0xcc) strcat(bsend,", ");
 	}
 	if (i2c_bits[i] & 0x04) {
 	u32_strcat_p1 (SnPi2c[i].par3, bsend);
 	strcat(bsend,"hPa");
-	if (i2c_bits[i] & 0x08) strcat(bsend,", ");
+	if (i2c_bits[i] & 0xc8) strcat(bsend,", ");
 	}
 	if (i2c_bits[i] & 0x08) {
 	if (SnPi2c[i].par4 == 0xffffffff) strcat(bsend,"-0");
@@ -19059,7 +19647,26 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,buff);
 	}
 	strcat(bsend,"&#x3A9;");
-	if (i2c_bits[i] & 0x10) strcat(bsend,", ");
+	if (i2c_bits[i] & 0xc0) strcat(bsend,", ");
+	}
+	if (i2c_bits[i] & 0x40) {
+	strcat(bsend,"TVOC: ");
+	if (SnPi2c[i].par3 == 0xffff) strcat(bsend,"-0");
+	else {
+	itoa(SnPi2c[i].par3,buff,10);
+	strcat(bsend,buff);
+	}
+	strcat(bsend,"ppb");
+	if (i2c_bits[i] & 0xc8) strcat(bsend,", ");
+	}
+	if (i2c_bits[i] & 0x80) {
+	strcat(bsend,"CO2: ");
+	if (SnPi2c[i].par4 == 0) strcat(bsend,"-0");
+	else {
+	itoa(SnPi2c[i].par4,buff,10);
+	strcat(bsend,buff);
+	}
+	strcat(bsend,"ppm");
 	}
 
 	} //bits
@@ -19093,8 +19700,10 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	uptime_string_exp(buff);
 	strcat(bsend,"MHz</td></tr><tr><td>Local date / time</td><td>");
 	strcat(bsend,strftime_buf);
-	strcat(bsend,"</td></tr><tr><td>Uptime</td><td>");
+	strcat(bsend,"</td></tr><tr><td>Uptime / Last reset reason</td><td>");
 	strcat(bsend,buff);
+	strcat(bsend," / ");
+	b2slrr(bsend,bResetReason);
 	strcat(bsend,"</td></tr><tr><td>NoMem count / Free memory</td><td>");
 	itoa(MemErr,buff,10);
 	strcat(bsend,buff);
@@ -20670,6 +21279,8 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend,"Mi Scale");	
 	} else if (BleMR[i].id == 3) {
 	strcat(bsend,"LYWSD03MMC");	
+	} else if (BleMR[i].id == 5) {
+	strcat(bsend,"CGDN1");	
 	} else if (BleMR[i].id == 0x42) {
 	strcat(bsend,"HA iBeacon");	
 	} else if (BleMR[i].id == 0x44) {
@@ -21079,12 +21690,12 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 
 	strcat(bsend, "<input name=\"auth\" type=\"text\" value=\"");
 	if (AUTH_BASIC[0]) strcat(bsend, AUTH_BASIC);
-	strcat(bsend, "\" size=\"15\">Basic Auth &emsp;");
+	strcat(bsend, "\" size=\"15\">Basic Auth&emsp;");
 
 	strcat(bsend, "<input name=\"r4snum\" type=\"number\" value=\"");
 	itoa(R4SNUM,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"99\" size=\"3\">Gate Number &emsp;<input name=\"timzon\" type=\"number\" value=\"");
+	strcat(bsend,"\" min=\"0\" max=\"99\" size=\"3\">Gate Number&emsp;<input name=\"timzon\" type=\"number\" value=\"");
 	uint8_t TmZn = TimeZone;
 	if (TmZn >127) {
 	TmZn = ~TmZn;
@@ -21093,8 +21704,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	}
 	itoa(TmZn,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"-12\" max=\"12\" size=\"3\">Timezone &emsp;");
-
+	strcat(bsend,"\" min=\"-12\" max=\"12\" size=\"3\">Timezone&emsp;");
 
 	strcat(bsend,"<select name=\"chk5\"><option ");
 	if (ble_mon == 0) strcat(bsend,"selected ");
@@ -21104,11 +21714,14 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (ble_mon == 2) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"2\">Active</option><option ");
 	if (ble_mon == 3) strcat(bsend,"selected ");
-	strcat(bsend,"value=\"3\">Auto</option></select> BLE Monitoring &emsp;");
+	strcat(bsend,"value=\"3\">Auto</option></select> BLE Monitor&emsp;");
 	strcat(bsend,"<input type=\"checkbox\" name=\"mqtdel\" value=\"1\"");
-	strcat(bsend,"> Delete Mqtt Topics &emsp;");
+	strcat(bsend,"> Delete Mqtt Topics&emsp;");
 	strcat(bsend,"<input type=\"checkbox\" name=\"chk0\" value=\"0\"");
-	strcat(bsend,"> Format NVS &emsp;");
+	strcat(bsend,"> Format NVS&emsp;");
+	strcat(bsend,"<input type=\"checkbox\" name=\"chkt\" value=\"1\"");
+	if (ftvoc) strcat(bsend,"checked");
+	strcat(bsend,"> AQ base&emsp;");
 	strcat(bsend,"<input type=\"checkbox\" name=\"chkd\" value=\"1\"");
 	if (fdebug) strcat(bsend,"checked");
 	strcat(bsend,"> Uart Debug</br>");
@@ -21631,6 +22244,11 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	parsuri(buf1,buf3,buf2,4096,2,0);
 	fdebug = 0;
 	if (buf3[0] == 0x31) fdebug = 1;
+	buf3[0] = 0;
+	strcpy(buf2,"chkt");
+	parsuri(buf1,buf3,buf2,4096,2,0);
+	ftvoc = 0;
+	if (buf3[0] == 0x31) ftvoc = 1;
 	buf3[0] = 0;
 	strcpy(buf2,"skpmd");
 	parsuri(buf1,buf3,buf2,4096,2,0);
@@ -22235,15 +22853,24 @@ static esp_err_t pupdating_get_handler(httpd_req_t *req)
 	if (!test_auth(req)) {
 		return ESP_OK;
 	}
-
+	char *otabuf = NULL;
+	otabuf = malloc(otabufsize);
+	if (otabuf == NULL) {
+	if (fdebug) ESP_LOGE(AP_TAG, "Http update: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	httpd_resp_set_status(req, "303 See Other");
+	httpd_resp_set_hdr(req, "Location", "/");
+	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	} else {	
 	f_update = true;
+	memset (otabuf,0,otabufsize);
 	BleDevStA.t_rspdel = 0;
 	BleDevStB.t_rspdel = 0;
 	BleDevStC.t_rspdel = 0;
 	BleDevStD.t_rspdel = 0;
 	BleDevStE.t_rspdel = 0;
 	t_tinc = 0;	
-	char otabuf[otabufsize] ={0};
 	char filnam[128] ={0};
 	int  otabufoffs = 0;
 	esp_err_t err = 0;
@@ -22368,9 +22995,11 @@ Content-Type: application/octet-stream\r\n\r\n
 	if (fdebug) ESP_LOGE(AP_TAG, "esp_ota_set_boot_partition failed (%s)!", esp_err_to_name(err));
 	ota_running = false;
 	}
+	free(otabuf);
 	if (fdebug) ESP_LOGI(AP_TAG, "Prepare to restart system!");
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
+	}
 	return ESP_OK;
 }
 static const httpd_uri_t pupdating = {
@@ -22982,6 +23611,7 @@ void lpcomstat(uint8_t blenum) {
 void app_main(void)
 {
 //	static httpd_handle_t server = NULL;
+	bResetReason = esp_reset_reason();
 	printf("Starting r4sGate...\n");
 	fdebug = 0;
 	floop = 0;
@@ -23014,6 +23644,12 @@ void app_main(void)
 		(chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 	ESP_LOGI(AP_TAG,"Init start free heap: %d\n", esp_get_free_heap_size());
 	printf("APP IDF version: %s\n", esp_get_idf_version());
+	if (bResetReason) {
+	char buff[16];
+	buff[0] = 0;
+	b2slrr(buff,bResetReason);
+	printf("Last reset reason: %s\n", buff);
+	}
 	esp_err_t ret;
 //Initialize NVS
 	ret = nvs_flash_init();
@@ -23121,6 +23757,7 @@ void app_main(void)
 	fmsslbundle = 0;
 	fmsslhost = 0;
 	fmwss = 0;
+	ftvoc = 0;
 	bcertofs = 0;
 	bcertsz = 0;
 	foffln = 0;
@@ -23164,23 +23801,47 @@ void app_main(void)
 	if ((PIN_NUM_MISO > 39) || (PIN_NUM_MOSI > 33) || (PIN_NUM_CLK > 33) || 
 	(PIN_NUM_CS > 33) || (PIN_NUM_DC > 33)) tft_conf = 0;
 #endif
-
+//if wifi not defined init wifi data used
 	if (!WIFI_SSID[0]) {
 	strcpy(WIFI_SSID, INIT_WIFI_SSID);
 	strcpy(WIFI_PASSWORD, INIT_WIFI_PASSWORD);
 	}
 // fill basic parameters
-	R4SNUMO = R4SNUM;
-	BleDevStA.tBLEAddr[0] = 0;
-	char tzbuff[8];
-	strcpy(MQTT_BASE_TOPIC, "r4s");
-	itoa(R4SNUM,tzbuff,10);
-	strcat(MQTT_BASE_TOPIC, tzbuff);
 	if (FDHass) ftrufal = 0;
 	if (ftrufal) {
 	strcpy(strON,"true");
 	strcpy(strOFF,"false");
 	}
+	if (1) {
+	char tzbuff[8];
+	char tzbuf[16];
+	R4SNUMO = R4SNUM;
+	BleDevStA.tBLEAddr[0] = 0;
+	strcpy(MQTT_BASE_TOPIC, "r4s");
+	itoa(R4SNUM,tzbuff,10);
+	strcat(MQTT_BASE_TOPIC, tzbuff);
+// timezone, to get MSK(GMT + 3) I need to write GMT-3
+	uint8_t TimZn = TimeZone;
+	strcpy(tzbuf,"GMT");
+	if (TimZn > 127 ) {
+	strcat (tzbuf,"+");
+	TimZn = ~TimZn;
+	TimZn++;
+	} else strcat (tzbuf,"-");
+	itoa(TimZn,tzbuff,10);
+	strcat(tzbuf,tzbuff);
+	setenv("TZ", tzbuf, 1);
+	tzset();
+// get esp mac addr 
+	tESP32Addr[0] = 0;
+	tESP32Addr1[0] = 0;
+	esp_read_mac(binwfmac,0);
+	bin2hex(binwfmac, tESP32Addr,6,0);
+	bin2hex(binwfmac, tESP32Addr1,6,0x3a);
+	itoa(R4SNUM,tzbuf,10);
+	strcat (tESP32Addr,tzbuf);
+	}
+// ports
 	cntgpio1 = 0;
 	cntgpio2 = 0;
 	cntgpio3 = 0;
@@ -23367,6 +24028,7 @@ void app_main(void)
 	i2c_init_sht3x(1, &f_i2cdev);
 	i2c_init_aht2x(0, &f_i2cdev);
 	i2c_init_htu21(0, &f_i2cdev);
+	i2c_init_sgp3x(0, &f_i2cdev);
 	if (f_i2cdev & 0x60000000) i2c_read_pwr(&f_i2cdev, &pwr_batmode, &pwr_batlevp, &pwr_batlevv, &pwr_batlevc);
 	} //if i2c init
 	} //if i2c
@@ -23394,22 +24056,6 @@ void app_main(void)
 #else
 	vTaskDelay(700 / portTICK_RATE_MS);     //delay fo ds18b20 conversion
 #endif
-//timezone
-/*
-to get MSK (GMT + 3) I need to write GMT-3
-*/
-	char tzbuf[16];
-	uint8_t TimZn = TimeZone;
-	strcpy(tzbuf,"GMT");
-	if (TimZn > 127 ) {
-	strcat (tzbuf,"+");
-	TimZn = ~TimZn;
-	TimZn++;
-	} else strcat (tzbuf,"-");
-	itoa(TimZn,tzbuff,10);
-	strcat(tzbuf,tzbuff);
-	setenv("TZ", tzbuf, 1);
-	tzset();
 //sntp
 	sntp_servermode_dhcp(1);
 	sntp_setoperatingmode(SNTP_OPMODE_POLL);
@@ -23543,18 +24189,12 @@ to get MSK (GMT + 3) I need to write GMT-3
 	if (f_i2cdev & 0x80) {
 	if (i2c_read_rtc(1, &f_i2cdev, &SnPi2c[7].par1)) i2c_init_rtc(1, &f_i2cdev);
 	}
+	if (f_i2cdev & 0x200) {
+	if (i2c_read_sgp3x(0, &f_i2cdev, &SnPi2c[9].par3, &SnPi2c[9].par4)) i2c_init_sgp3x(0, &f_i2cdev);
+	}
 	}
 //Initialize Mqtt
 	if (MQTT_SERVER[0]) mqtt_app_start();
-// get esp mac addr 
-	tESP32Addr[0] = 0;
-	tESP32Addr1[0] = 0;
-	esp_read_mac(binwfmac,0);
-	bin2hex(binwfmac, tESP32Addr,6,0);
-	bin2hex(binwfmac, tESP32Addr1,6,0x3a);
-	itoa(R4SNUM,tzbuf,10);
-	strcat (tESP32Addr,tzbuf);
-
 //Initialize http server
 //	ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
 //	ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, &server));
@@ -23658,7 +24298,12 @@ to get MSK (GMT + 3) I need to write GMT-3
 	err = i2c_read_sht3x(1, &f_i2cdev, &SnPi2c[3].par1, &SnPi2c[3].par2);
 	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_sht3x(1, &f_i2cdev);
 	if ((SnPi2c[3].ppar1 != SnPi2c[3].par1) || (SnPi2c[3].ppar2 != SnPi2c[3].par2)) t_lasts = 0;
-	} else if (s_i2cdev & 0x08)  i2c_init_sht3x(1, &f_i2cdev);
+	} else if (s_i2cdev & 0x08) i2c_init_sht3x(1, &f_i2cdev);
+	if (f_i2cdev & 0x200) {
+	err = i2c_read_sgp3x(0, &f_i2cdev, &SnPi2c[9].par3, &SnPi2c[9].par4);
+	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_sgp3x(0, &f_i2cdev);
+	if ((SnPi2c[9].ppar3 != SnPi2c[9].par3) || (SnPi2c[9].ppar4 != SnPi2c[9].par4)) t_lasts = 0;
+	} else if (s_i2cdev & 0x200) i2c_init_sgp3x(0, &f_i2cdev);
 	break;
 	case 2:
 	if (f_rmds & 0x04) rmt1w_readds(2, &f_rmds, &bStatG8, RmtRgHd2);
