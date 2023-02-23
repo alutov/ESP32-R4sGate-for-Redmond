@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.02.13"
+#define AP_VER "2023.02.23"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -2777,11 +2777,23 @@ esp_err_t i2c_init_sht3x(uint8_t idx,uint32_t* f_i2cdev)
 	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
 	if (!(i2cbits & 0x80000000) || (idx > 1)) return err;
-	uint8_t buf[4] = {0};
+	uint8_t buf[16] = {0};
 	uint8_t addr;
 	addr = i2c_addr[idx + 2];
 	err = i2c_check(addr);
 	if (err) return err;
+	err = i2c_read0_data(addr, buf, 6); //read data
+	if (err) return err;
+	err = i2c_write_data(addr, 0x89, buf, 0x00);    //Read serial from sht4x
+	if (err) return err;
+	vTaskDelay(10 / portTICK_PERIOD_MS);      //10ms ready time
+	err = i2c_read0_data(addr, &buf[8], 6); //read data
+	if (err) return err;
+	if (memcmp(&buf[0],&buf[8], 5)) {
+	err = i2c_write_data(addr, 0x94, buf, 0x00);    //write reset command
+	if (err) return err;
+	vTaskDelay(10 / portTICK_PERIOD_MS);      //1ms sht4x ready time after reset
+	} else {
 	err = i2c_write_byte(addr, 0x30, 0xa2);  //write reset command
 	if (err) return err; 
 	vTaskDelay(10 / portTICK_PERIOD_MS);      //1ms sht3x ready time after reset
@@ -2795,6 +2807,7 @@ esp_err_t i2c_init_sht3x(uint8_t idx,uint32_t* f_i2cdev)
 	err = i2c_read2_data(addr, 0xf3, 0x2d, buf, 3); //read status
 	if (err) return err;
 	if ((buf[0] & 0x20) || (buf[1] & 0x10)) return -1;
+	}
 	i2cbits = i2cbits | (0x0004 << idx);
 	*f_i2cdev = i2cbits;
 	return err;
@@ -2803,26 +2816,45 @@ esp_err_t i2c_read_sht3x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_
 {
 	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
+	uint8_t fsht4 = 0;
 	uint32_t tmp, hum;
 	if (!(i2cbits & 0x80000000) || (idx > 1)) return err;
-	uint8_t buf[8] = {0};
+	uint8_t buf[16] = {0};
 	uint8_t addr;
 	addr = i2c_addr[idx + 2];
 	err = i2c_check(addr);
 	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
-	if (!err) {
-	err = i2c_write_byte(addr, 0x24, 0x00);  //Start Measurement Command for Single Shot Mode
-	vTaskDelay(30 / portTICK_PERIOD_MS);      //15ms sht3x ready in Single Shot Mode
-	if (!err) {
+	if (!err) { //1
 	err = i2c_read0_data(addr, buf, 6); //read data
-	if (!err) {
+	if (!err) { //2
+	err = i2c_write_data(addr, 0x89, buf, 0x00);    //Read serial from sht4x
+	vTaskDelay(10 / portTICK_PERIOD_MS);      //10ms ready time
+	if (!err) { //3
+	err = i2c_read0_data(addr, &buf[8], 6); //read data
+	if (!err) { //4
+	if (memcmp(&buf[0],&buf[8], 5)) fsht4 = 1;
+	if (!fsht4) err = i2c_write_byte(addr, 0x24, 0x00);  //Start Measurement Command for sht3x Single Shot Mode
+	else err = i2c_write_data(addr, 0xfd, buf, 0x00);    //Start Measurement Command for sht4x Single Shot Mode
+	vTaskDelay(30 / portTICK_PERIOD_MS);                 //15ms sht3x / 10ms sht4x ready in Single Shot Mode
+
+	if (!err) { //5
+	err = i2c_read0_data(addr, buf, 6); //read data
+	if (!err) { //6
 	tmp = ((((buf[0] << 8) + buf[1]) * 1750 ) >> 12) - 7200; 
 	*temp = tmp;
-	hum = (((buf[3] << 8) + buf[4]) * 1000) >> 16;
+	if (!fsht4) hum = (((buf[3] << 8) + buf[4]) * 1000) >> 16;
+	else {
+	hum = ((((buf[3] << 8) + buf[4]) * 1250) >> 16) - 60;
+	if (hum & 0x8000) hum = 0;
+	else if (hum > 1000) hum = 1000;
+	}
 	*humid = hum;
-	}
-	}
-	}
+	} //6
+	} //5
+	} //4
+	} //3
+	} //2
+	} //1
 	if (err) {
 	*temp = 0xffff;
 	*humid = 0;
@@ -2997,6 +3029,9 @@ esp_err_t i2c_init_sgp3x(uint8_t idx,uint32_t* f_i2cdev)
 	err = i2c_write_data(addr, 0x20, buf, 7);  //set air quality baseline Command
 	if (err) return err;
 	if (fdebug) ESP_LOGI(AP_TAG, "TVOC baseline: 0x%X, CO2 baseline: 0x%X", i2c58bltvoc, i2c58blco2);
+	} else {
+	i2c58bltvoc = 0;
+	i2c58blco2 = 0;
 	}
 	i2cbits = i2cbits | (0x0200 << idx);
 	*f_i2cdev = i2cbits;
@@ -3030,15 +3065,74 @@ esp_err_t i2c_read_sgp3x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* tvoc, uint32_
 	if (!err) {
 	err = i2c_read0_data(addr, buf, 6); //read data
 	if (!err) {
+	ttvoc = i2c58bltvoc;
+	tco2 = i2c58blco2;
 	i2c58blco2 = (buf[0] << 8) + buf[1]; 
 	i2c58bltvoc = (buf[3] << 8) + buf[4];
 	if (fdebug && !ftvoc) ESP_LOGI(AP_TAG, "TVOC baseline: 0x%X, CO2 baseline: 0x%X", i2c58bltvoc, i2c58blco2);
+	if ((i2c58bltvoc == 0xfff8) && (i2c58blco2 == 0xfff8)) {
+	i2c58bltvoc = ttvoc;
+	i2c58blco2 = tco2;
+	if (fdebug) ESP_LOGI(AP_TAG, "SGP3x power on or reset detected");
+	err= -1;
+	}
 	}
 	}
 	}
 	}
 	if (err) {
 	*tvoc = 0xffff;
+	*co2 = 0;
+	}
+	return err;
+}
+
+esp_err_t i2c_init_scd4x(uint8_t idx,uint32_t* f_i2cdev)
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	if (!(i2cbits & 0x80000000) || idx) return err;
+	uint8_t addr;
+	addr = i2c_addr[idx + 10];
+	err = i2c_check(addr);
+	if (err) return err;
+	err = i2c_write_byte(addr, 0x21, 0xb1);  //start_periodic_measurement
+	if (err) return err;
+	vTaskDelay(30 / portTICK_PERIOD_MS);
+	i2cbits = i2cbits | (0x0400 << idx);
+	*f_i2cdev = i2cbits;
+	return err;
+}
+esp_err_t i2c_read_scd4x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_t* humid, uint32_t* co2)
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	if (!(i2cbits & 0x80000000) || idx) return err;
+	uint8_t buf[12] = {0};
+	uint8_t addr;
+	addr = i2c_addr[idx + 10];
+	err = i2c_check(addr);
+	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
+	if (!err) { //1
+	err = i2c_write_byte(addr, 0x21, 0xb1);  //start_periodic_measurement
+	if (!err) { //2
+	vTaskDelay(30 / portTICK_PERIOD_MS);
+	err = i2c_write_byte(addr, 0xec, 0x05);  //get_automatic_self_calibration_enabled
+	if (!err) { //3
+	vTaskDelay(5 / portTICK_PERIOD_MS);      //1ms command execution delay
+	err = i2c_read0_data(addr, buf, 9); //read data
+	if (!err) { //4
+esp_log_buffer_hex(AP_TAG, buf, 9);
+	*co2 = (buf[0] << 8) + buf[1]; 
+	*temp = ((((buf[3] << 8) + buf[4]) * 1750 ) >> 12) - 7200; 
+	*humid = (((buf[6] << 8) + buf[7]) * 1000) >> 16;
+	} //4
+	} //3
+	} //2
+	} //1
+	if (err) {
+	*temp = 0xffff;
+	*humid = 0;
 	*co2 = 0;
 	}
 	return err;
@@ -23842,6 +23936,7 @@ void app_main(void)
 	strcat (tESP32Addr,tzbuf);
 	}
 // ports
+	if (bResetReason == 1) vTaskDelay(500 / portTICK_RATE_MS);     //if power on delay for sensors ready
 	cntgpio1 = 0;
 	cntgpio2 = 0;
 	cntgpio3 = 0;
@@ -24029,6 +24124,7 @@ void app_main(void)
 	i2c_init_aht2x(0, &f_i2cdev);
 	i2c_init_htu21(0, &f_i2cdev);
 	i2c_init_sgp3x(0, &f_i2cdev);
+	i2c_init_scd4x(0, &f_i2cdev);
 	if (f_i2cdev & 0x60000000) i2c_read_pwr(&f_i2cdev, &pwr_batmode, &pwr_batlevp, &pwr_batlevv, &pwr_batlevc);
 	} //if i2c init
 	} //if i2c
@@ -24054,7 +24150,7 @@ void app_main(void)
 #ifdef USE_TFT
 	if (tft_conf) tft_conn = tftinit();
 #else
-	vTaskDelay(700 / portTICK_RATE_MS);     //delay fo ds18b20 conversion
+	vTaskDelay(700 / portTICK_RATE_MS);     //delay for ds18b20 conversion
 #endif
 //sntp
 	sntp_servermode_dhcp(1);
@@ -24191,6 +24287,9 @@ void app_main(void)
 	}
 	if (f_i2cdev & 0x200) {
 	if (i2c_read_sgp3x(0, &f_i2cdev, &SnPi2c[9].par3, &SnPi2c[9].par4)) i2c_init_sgp3x(0, &f_i2cdev);
+	}
+	if (f_i2cdev & 0x400) {
+	if (i2c_read_scd4x(0, &f_i2cdev, &SnPi2c[10].par1, &SnPi2c[10].par2, &SnPi2c[10].par4)) i2c_init_scd4x(0, &f_i2cdev);
 	}
 	}
 //Initialize Mqtt
@@ -24370,6 +24469,11 @@ void app_main(void)
 	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_htu21(0, &f_i2cdev);
 	if ((SnPi2c[5].ppar1 != SnPi2c[5].par1) || (SnPi2c[5].ppar2 != SnPi2c[5].par2))  t_lasts = 0;
 	} else if (s_i2cdev & 0x20) i2c_init_htu21(0, &f_i2cdev);
+	if (f_i2cdev & 0x400) {
+	err = i2c_read_scd4x(0, &f_i2cdev, &SnPi2c[10].par1, &SnPi2c[10].par2, &SnPi2c[10].par4);
+	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_scd4x(0, &f_i2cdev);
+	if ((SnPi2c[10].ppar1 != SnPi2c[10].par1) || (SnPi2c[10].ppar2 != SnPi2c[10].par2) || (SnPi2c[10].ppar4 != SnPi2c[10].par4)) t_lasts = 0;
+	} else if (s_i2cdev & 0x400) i2c_init_scd4x(0, &f_i2cdev); 
 	}
 	break;
 	}
