@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.02.23"
+#define AP_VER "2023.04.01"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -1528,10 +1528,10 @@ bool readHx(uint8_t idx,  uint32_t* data)
 	in = 0xffffffff;
 	} else {
 	for(int i = 0; i < 24; ++i) {
-	if (rmthx_ssck(idx, 20)) in |= gpio_get_level(bgpio5 & 0x3f) << (31 - i);
+	if (rmthx_ssck(idx, 10)) in |= gpio_get_level(bgpio5 & 0x3f) << (31 - i);
 	else return result;
 	}
-        if (!rmthx_ssck(idx, 20)) return result;
+        if (!rmthx_ssck(idx, 10)) return result;
 	result = gpio_get_level(bgpio5 & 0x3f);
 	}
 	if (result) *data = in;
@@ -6855,8 +6855,9 @@ static struct gattc_profile_inst gl_profile_tab[PROFILE_NUM] = {
 
 static void start_scan(void)
 {
+	if(StartScanBusy) return;
+	StartScanBusy = true;
 	esp_err_t scan_ret = 0;
-
 //step 1: set scan only if not update, if not already starting scan or if no connections is opening   
 	if (!f_update && !StartStopScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen) && (!BleDevStD.btopenreq || BleDevStD.btopen) && (!BleDevStE.btopenreq || BleDevStE.btopen)) {
 	if (!ble_mon || (ble_mon == 3)) {
@@ -6898,6 +6899,7 @@ static void start_scan(void)
 	if (fdebug) ESP_LOGE(AP_TAG, "Set scan params error, error code = 0x%X", scan_ret);
 		}
 	}
+	StartScanBusy = false;
 }
 
 static char *esp_key_type_to_str(esp_ble_key_type_t key_type)
@@ -8265,6 +8267,7 @@ if (fdebug) {
 	if (scan_ret){
 	if (fdebug) ESP_LOGE(AP_TAG, "Set scan params error, error code = 0x%X", scan_ret);
 	}
+	StartScanBusy = false;
         break;
 
 
@@ -11857,7 +11860,7 @@ void msStatus(uint8_t blenum) {
 	ptr->bCMin = ptr->notifyData[9];
 	ptr->bAwarm = ptr->notifyData[10];
 	ptr->bState = ptr->notifyData[11];
-	if (!ptr->bState || (ptr->bState > 10)) ptr->bProg = 255; 
+	if (!ptr->bState || (ptr->bState == 4) || (ptr->bState > 10)) ptr->bProg = 255; 
 	strcpy(ptr->cStatus,"{\"prog\":");
 	itoa(ptr->bProg,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
@@ -11897,7 +11900,7 @@ void msStatus(uint8_t blenum) {
 	ptr->bCMin = ptr->notifyData[9];
 	ptr->bAwarm = ptr->notifyData[10];
 	ptr->bState = ptr->notifyData[11];
-	if (!ptr->bState || (ptr->bState > 10)) ptr->bProg = 255; 
+	if (!ptr->bState || (ptr->bState == 6) || (ptr->bState > 10)) ptr->bProg = 255; 
 	strcpy(ptr->cStatus,"{\"prog\":");
 	itoa(ptr->bProg,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
@@ -12917,6 +12920,7 @@ void MqSState() {
 	strcpy (tmpvar,"-");
 	}
 	if (bDivHx6 & 0x7fffffff) var = var / (bDivHx6 & 0x7fffffff);
+	else var = bStatHx6 >> 8;
 //ESP_LOGI(AP_TAG, "Hx pub: st: %d, zr: %d, diff: %d, div: %d, var: %d", bStatHx6, bZeroHx6, (bStatHx6 - bZeroHx6),bDivHx6, var);
 	if(!var) tmpvar[0] = 0;
 	if (bDivHx6 & 0x80000000) u32_strcat_p1(var,tmpvar);
@@ -13714,9 +13718,9 @@ void MqState(uint8_t blenum) {
 	strcat(ldata,ptr->tBLEAddr);
 	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/hstate");
-	if (ptr->bState < 2) esp_mqtt_client_publish(mqttclient, ldata, strOFF, 0, 1, 1);
+	if ((ptr->bState > 1) && (ptr->bState < 7)) esp_mqtt_client_publish(mqttclient, ldata, strON, 0, 1, 1);
 	else if (ptr->bState == 254) esp_mqtt_client_publish(mqttclient, ldata, "offline", 0, 1, 1);
-	else esp_mqtt_client_publish(mqttclient, ldata, strON, 0, 1, 1);
+	else esp_mqtt_client_publish(mqttclient, ldata, strOFF, 0, 1, 1);
 	ptr->r4sppcom = 30;
 	ptr->bprevState = ptr->bState;
 	}
@@ -13729,9 +13733,6 @@ void MqState(uint8_t blenum) {
 	if ( ptr->DEV_TYP == 16 ) {
 // for RMC-800s
 	switch (ptr->bProg) {
-	case 255:
-	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
-	break;
 	case 0:
 	esp_mqtt_client_publish(mqttclient, ldata, "Multicooker", 0, 1, 1);
 	break;
@@ -13780,13 +13781,13 @@ void MqState(uint8_t blenum) {
 	case 12:
 	esp_mqtt_client_publish(mqttclient, ldata, "Hot", 0, 1, 1);
 	break;
+	default:
+	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
+	break;
 	}
 	} else if ( ptr->DEV_TYP == 17 ) {
 // for RMC-903s
 	switch (ptr->bProg) {
-	case 255:
-	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
-	break;
 	case 0:
 	esp_mqtt_client_publish(mqttclient, ldata, "Multicooker", 0, 1, 1);
 	break;
@@ -13838,13 +13839,13 @@ void MqState(uint8_t blenum) {
 	case 16:
 	esp_mqtt_client_publish(mqttclient, ldata, "Express", 0, 1, 1);
 	break;
+	default:
+	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
+	break;
 	}
 	} else if ( ptr->DEV_TYP == 18 ) {
 // for RMC-224s
 	switch (ptr->bProg) {
-	case 255:
-	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
-	break;
 	case 0:
 	esp_mqtt_client_publish(mqttclient, ldata, "Frying", 0, 1, 1);
 	break;
@@ -13878,13 +13879,13 @@ void MqState(uint8_t blenum) {
 	case 10:
 	esp_mqtt_client_publish(mqttclient, ldata, "Express", 0, 1, 1);
 	break;
+	default:
+	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
+	break;
 	}
 	} else if ( ptr->DEV_TYP == 19 ) {
 // for RMC-961s
 	switch (BleDevStC.bProg) {
-	case 255:
-	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
-	break;
 	case 0:
 	esp_mqtt_client_publish(mqttclient, ldata, "Groats", 0, 1, 1);
 	break;
@@ -13915,13 +13916,13 @@ void MqState(uint8_t blenum) {
 	case 9:
 	esp_mqtt_client_publish(mqttclient, ldata, "Yogurt", 0, 1, 1);
 	break;
+	default:
+	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
+	break;
 	}
 	} else if ( ptr->DEV_TYP == 20 ) {
 // for RMC-92s
 	switch (ptr->bProg) {
-	case 255:
-	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
-	break;
 	case 0:
 	esp_mqtt_client_publish(mqttclient, ldata, "Multicooker", 0, 1, 1);
 	break;
@@ -13976,13 +13977,13 @@ void MqState(uint8_t blenum) {
 	case 17:
 	esp_mqtt_client_publish(mqttclient, ldata, "Warming", 0, 1, 1);
 	break;
+	default:
+	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
+	break;
 	}
 	} else if ( ptr->DEV_TYP == 24 ) {
 // for RO-5707
 	switch (ptr->bProg) {
-	case 255:
-	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
-	break;
 	case 0:
 	esp_mqtt_client_publish(mqttclient, ldata, "Multicooker", 0, 1, 1);
 	break;
@@ -14046,13 +14047,13 @@ void MqState(uint8_t blenum) {
 	case 20:
 	esp_mqtt_client_publish(mqttclient, ldata, "Warming", 0, 1, 1);
 	break;
+	default:
+	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
+	break;
 	}
 	} else if ( ptr->DEV_TYP == 48 ) {
 // for RMB-658
 	switch (ptr->bProg) {
-	case 255:
-	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
-	break;
 	case 0:
 	esp_mqtt_client_publish(mqttclient, ldata, "Manual", 0, 1, 1);
 	break;
@@ -14061,6 +14062,9 @@ void MqState(uint8_t blenum) {
 	break;
 	case 2:
 	esp_mqtt_client_publish(mqttclient, ldata, "Heating", 0, 1, 1);
+	break;
+	default:
+	esp_mqtt_client_publish(mqttclient, ldata, "OFF", 0, 1, 1);
 	break;
 	}
 	}
@@ -14990,7 +14994,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 	} else if (!memcmp(topic+topoff, "prname", topic_len-topoff)) {
 	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
-	ptr->r4slppar1 = 0;
+	ptr->r4slppar1 = 255;
 	ptr->r4slppar2 = 0;
 	ptr->r4slppar3 = 0;
 	ptr->r4slppar4 = 0;
@@ -15001,25 +15005,25 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	if ( ptr->DEV_TYP == 16 ) {
 // for RMC-800s
 	if (!incascmp("off",data,data_len)) ptr->r4slppar1 = 255; 
-	else if (!incascmp("multicooker",data,data_len)) ptr->r4slppar1 = 0; 
-	else if (!incascmp("rice",data,data_len)) ptr->r4slppar1 = 1; 
-	else if (!incascmp("slow_cooking",data,data_len)) ptr->r4slppar1 = 2; 
-	else if (!incascmp("pilaf",data,data_len)) ptr->r4slppar1 = 3; 
-	else if (!incascmp("frying_vegetables",data,data_len)) { ptr->r4slppar1 = 4 ; ptr->r4slppar2 = 1; }
-	else if (!incascmp("frying_fish",data,data_len)) { ptr->r4slppar1 = 4 ; ptr->r4slppar2 = 2; }
-	else if (!incascmp("frying_meat",data,data_len)) { ptr->r4slppar1 = 4 ; ptr->r4slppar2 = 3; }
-	else if (!incascmp("stewing_vegetables",data,data_len)) { ptr->r4slppar1 = 5 ; ptr->r4slppar2 = 1; }
-	else if (!incascmp("stewing_fish",data,data_len)) { ptr->r4slppar1 = 5 ; ptr->r4slppar2 = 2; }
-	else if (!incascmp("stewing_meat",data,data_len)) { ptr->r4slppar1 = 5 ; ptr->r4slppar2 = 3; }
-	else if (!incascmp("pasta",data,data_len)) ptr->r4slppar1 = 6; 
-	else if (!incascmp("milk_porridge",data,data_len)) ptr->r4slppar1 = 7; 
-	else if (!incascmp("soup",data,data_len)) ptr->r4slppar1 = 8; 
-	else if (!incascmp("yogurt",data,data_len)) ptr->r4slppar1 = 9; 
-	else if (!incascmp("baking",data,data_len)) ptr->r4slppar1 = 10; 
-	else if (!incascmp("steam_vegetables",data,data_len)) { ptr->r4slppar1 = 11 ; ptr->r4slppar2 = 1; }
-	else if (!incascmp("steam_fish",data,data_len)) { ptr->r4slppar1 = 11 ; ptr->r4slppar2 = 2; }
-	else if (!incascmp("steam_meat",data,data_len)) { ptr->r4slppar1 = 11 ; ptr->r4slppar2 = 3; }
-	else if (!incascmp("hot",data,data_len)) ptr->r4slppar1 = 12; 
+	else if (!incascmp("Multicooker",data,data_len)) ptr->r4slppar1 = 0; 
+	else if (!incascmp("Rice",data,data_len)) ptr->r4slppar1 = 1; 
+	else if (!incascmp("Slow_cooking",data,data_len)) ptr->r4slppar1 = 2; 
+	else if (!incascmp("Pilaf",data,data_len)) ptr->r4slppar1 = 3; 
+	else if (!incascmp("Frying_vegetables",data,data_len)) { ptr->r4slppar1 = 4 ; ptr->r4slppar2 = 1; }
+	else if (!incascmp("Frying_fish",data,data_len)) { ptr->r4slppar1 = 4 ; ptr->r4slppar2 = 2; }
+	else if (!incascmp("Frying_meat",data,data_len)) { ptr->r4slppar1 = 4 ; ptr->r4slppar2 = 3; }
+	else if (!incascmp("Stewing_vegetables",data,data_len)) { ptr->r4slppar1 = 5 ; ptr->r4slppar2 = 1; }
+	else if (!incascmp("Stewing_fish",data,data_len)) { ptr->r4slppar1 = 5 ; ptr->r4slppar2 = 2; }
+	else if (!incascmp("Stewing_meat",data,data_len)) { ptr->r4slppar1 = 5 ; ptr->r4slppar2 = 3; }
+	else if (!incascmp("Pasta",data,data_len)) ptr->r4slppar1 = 6; 
+	else if (!incascmp("Milk_porridge",data,data_len)) ptr->r4slppar1 = 7; 
+	else if (!incascmp("Soup",data,data_len)) ptr->r4slppar1 = 8; 
+	else if (!incascmp("Yogurt",data,data_len)) ptr->r4slppar1 = 9; 
+	else if (!incascmp("Baking",data,data_len)) ptr->r4slppar1 = 10; 
+	else if (!incascmp("Steam_vegetables",data,data_len)) { ptr->r4slppar1 = 11 ; ptr->r4slppar2 = 1; }
+	else if (!incascmp("Steam_fish",data,data_len)) { ptr->r4slppar1 = 11 ; ptr->r4slppar2 = 2; }
+	else if (!incascmp("Steam_meat",data,data_len)) { ptr->r4slppar1 = 11 ; ptr->r4slppar2 = 3; }
+	else if (!incascmp("Hot",data,data_len)) ptr->r4slppar1 = 12; 
 	} else if ( ptr->DEV_TYP == 17 ) {
 // for RMC-903s
 	if (!incascmp("off",data,data_len)) ptr->r4slppar1 = 255; 
@@ -16827,6 +16831,59 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	return result;
 }
 
+void MqBlPrevSt(uint8_t blenum) {
+	if (blenum > 4) return;
+        struct BleDevSt *ptr;
+	switch (blenum) {
+	case 1:
+	ptr = &BleDevStB;
+	break;
+	case 2:
+	ptr = &BleDevStC;
+	break;
+	case 3:
+	ptr = &BleDevStD;
+	break;
+	case 4:
+	ptr = &BleDevStE;
+	break;
+	default:
+	ptr = &BleDevStA;
+	break;
+	}
+	ptr->t_ppcon = 40;
+	ptr->cprevStatus[0] = 0;
+	ptr->iprevRssi = 0;
+	ptr->bprevState = 255;
+	ptr->bprevHeat = 255;
+	ptr->bprevLock = 255;
+	ptr->bprevProg = 253;
+	ptr->bprevModProg = 255;
+	ptr->bprevPHour = 255;
+	ptr->bprevPMin = 255;
+	ptr->bprevCHour = 255;
+	ptr->bprevCMin = 255;
+	ptr->bprevDHour = 255;
+	ptr->bprevDMin = 255;
+	ptr->bprevStNl = 255;
+	ptr->bprevStBl = 255;
+	ptr->bprevStBp = 255;
+	ptr->bprevCtemp = 255;
+	ptr->bprevHtemp = 255;
+	ptr->bprevAwarm = 255;
+	ptr->bprevBlTime = ~ptr->bBlTime;
+	ptr->PRgbR = ~ptr->RgbR;
+	ptr->PRgbG = ~ptr->RgbG;
+	ptr->PRgbB = ~ptr->RgbB;
+	ptr->bprevSEnergy = ~ptr->bSEnergy;
+	ptr->bprevSTime = ~ptr->bSTime;
+	ptr->bprevSCount = ~ptr->bSCount;
+	ptr->bprevSHum = ~ptr->bSHum;
+	ptr->bprevCVol = 255;
+	ptr->bprevCVoll = 255;
+}
+
+
 //******************* Mqtt **********************
 static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 {
@@ -16837,160 +16894,9 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
     switch (event->event_id) {
         case MQTT_EVENT_CONNECTED:
 	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_EVENT_CONNECTED");
-	BleDevStA.t_ppcon = 40;
-	BleDevStB.t_ppcon = 40;
-	BleDevStC.t_ppcon = 40;
-	BleDevStD.t_ppcon = 40;
-	BleDevStE.t_ppcon = 40;
 	t_ppcons = 30;
 	iprevRssiESP = 0;
-
-	BleDevStA.iprevRssi = 0;
-	BleDevStB.iprevRssi = 0;
-	BleDevStC.iprevRssi = 0;
-	BleDevStD.iprevRssi = 0;
-	BleDevStE.iprevRssi = 0;
-	BleDevStA.cprevStatus[0] = 0;
-	BleDevStB.cprevStatus[0] = 0;
-	BleDevStC.cprevStatus[0] = 0;
-	BleDevStD.cprevStatus[0] = 0;
-	BleDevStE.cprevStatus[0] = 0;
-	BleDevStA.bprevSEnergy = ~BleDevStA.bSEnergy;
-	BleDevStB.bprevSEnergy = ~BleDevStB.bSEnergy;
-	BleDevStC.bprevSEnergy = ~BleDevStC.bSEnergy;
-	BleDevStD.bprevSEnergy = ~BleDevStD.bSEnergy;
-	BleDevStE.bprevSEnergy = ~BleDevStE.bSEnergy;
-	BleDevStA.bprevSTime = ~BleDevStA.bSTime;
-	BleDevStB.bprevSTime = ~BleDevStB.bSTime;
-	BleDevStC.bprevSTime = ~BleDevStC.bSTime;
-	BleDevStD.bprevSTime = ~BleDevStD.bSTime;
-	BleDevStE.bprevSTime = ~BleDevStE.bSTime;
-	BleDevStA.bprevSHum = ~BleDevStA.bSHum;
-	BleDevStB.bprevSHum = ~BleDevStB.bSHum;
-	BleDevStC.bprevSHum = ~BleDevStC.bSHum;
-	BleDevStD.bprevSHum = ~BleDevStD.bSHum;
-	BleDevStE.bprevSHum = ~BleDevStE.bSHum;
-	BleDevStA.bprevSCount = ~BleDevStA.bSCount;
-	BleDevStB.bprevSCount = ~BleDevStB.bSCount;
-	BleDevStC.bprevSCount = ~BleDevStC.bSCount;
-	BleDevStD.bprevSCount = ~BleDevStD.bSCount;
-	BleDevStE.bprevSCount = ~BleDevStE.bSCount;
-	BleDevStA.bprevBlTime = 128;
-	BleDevStB.bprevBlTime = 128;
-	BleDevStC.bprevBlTime = 128;
-	BleDevStD.bprevBlTime = 128;
-	BleDevStE.bprevBlTime = 128;
-	BleDevStA.bprevLock = 255;
-	BleDevStA.bprevState = 255;
-	BleDevStA.bprevHeat = 255;
-	BleDevStA.bprevStNl = 255;
-	BleDevStA.bprevCtemp = 255;
-	BleDevStA.bprevHtemp = 255;
-	BleDevStA.bprevProg = 254;
-	BleDevStA.bprevModProg = 255;
-	BleDevStA.bprevPHour = 255;
-	BleDevStA.bprevPMin = 255;
-	BleDevStA.bprevCHour = 255;
-	BleDevStA.bprevCMin = 255;
-	BleDevStA.bprevDHour = 255;
-	BleDevStA.bprevDMin = 255;
-	BleDevStA.bprevAwarm = 255;
-	BleDevStA.PRgbR = ~BleDevStA.RgbR;
-	BleDevStA.PRgbG = ~BleDevStA.RgbG;
-	BleDevStA.PRgbB = ~BleDevStA.RgbB;
-	BleDevStA.bprevStBl = 255;
-	BleDevStA.bprevStBp = 255;
-	BleDevStA.bprevCVol = 255;
-	BleDevStA.bprevCVoll = 255;
-	BleDevStB.bprevLock = 255;
-	BleDevStB.bprevState = 255;
-	BleDevStB.bprevHeat = 255;
-	BleDevStB.bprevStNl = 255;
-	BleDevStB.bprevCtemp = 255;
-	BleDevStB.bprevHtemp = 255;
-	BleDevStB.bprevProg = 254;
-	BleDevStB.bprevModProg = 255;
-	BleDevStB.bprevPHour = 255;
-	BleDevStB.bprevPMin = 255;
-	BleDevStB.bprevCHour = 255;
-	BleDevStB.bprevCMin = 255;
-	BleDevStB.bprevDHour = 255;
-	BleDevStB.bprevDMin = 255;
-	BleDevStB.bprevAwarm = 255;
-	BleDevStB.PRgbR = ~BleDevStB.RgbR;
-	BleDevStB.PRgbG = ~BleDevStB.RgbG;
-	BleDevStB.PRgbB = ~BleDevStB.RgbB;
-	BleDevStB.bprevStBl = 255;
-	BleDevStB.bprevStBp = 255;
-	BleDevStB.bprevCVol = 255;
-	BleDevStB.bprevCVoll = 255;
-	BleDevStC.bprevLock = 255;
-	BleDevStC.bprevState = 255;
-	BleDevStC.bprevHeat = 255;
-	BleDevStC.bprevStNl = 255;
-	BleDevStC.bprevCtemp = 255;
-	BleDevStC.bprevHtemp = 255;
-	BleDevStC.bprevProg = 254;
-	BleDevStC.bprevModProg = 255;
-	BleDevStC.bprevPHour = 255;
-	BleDevStC.bprevPMin = 255;
-	BleDevStC.bprevCHour = 255;
-	BleDevStC.bprevCMin = 255;
-	BleDevStC.bprevDHour = 255;
-	BleDevStC.bprevDMin = 255;
-	BleDevStC.bprevAwarm = 255;
-	BleDevStC.PRgbR = ~BleDevStC.RgbR;
-	BleDevStC.PRgbG = ~BleDevStC.RgbG;
-	BleDevStC.PRgbB = ~BleDevStC.RgbB;
-	BleDevStC.bprevStBl = 255;
-	BleDevStC.bprevStBp = 255;
-	BleDevStC.bprevCVol = 255;
-	BleDevStC.bprevCVoll = 255;
-	BleDevStD.bprevLock = 255;
-	BleDevStD.bprevState = 255;
-	BleDevStD.bprevHeat = 255;
-	BleDevStD.bprevStNl = 255;
-	BleDevStD.bprevCtemp = 255;
-	BleDevStD.bprevHtemp = 255;
-	BleDevStD.bprevProg = 254;
-	BleDevStD.bprevModProg = 255;
-	BleDevStD.bprevPHour = 255;
-	BleDevStD.bprevPMin = 255;
-	BleDevStD.bprevCHour = 255;
-	BleDevStD.bprevCMin = 255;
-	BleDevStD.bprevDHour = 255;
-	BleDevStD.bprevDMin = 255;
-	BleDevStD.bprevAwarm = 255;
-	BleDevStD.PRgbR = ~BleDevStD.RgbR;
-	BleDevStD.PRgbG = ~BleDevStD.RgbG;
-	BleDevStD.PRgbB = ~BleDevStD.RgbB;
-	BleDevStD.bprevStBl = 255;
-	BleDevStD.bprevStBp = 255;
-	BleDevStD.bprevCVol = 255;
-	BleDevStD.bprevCVoll = 255;
-	BleDevStE.bprevLock = 255;
-	BleDevStE.bprevState = 255;
-	BleDevStE.bprevHeat = 255;
-	BleDevStE.bprevStNl = 255;
-	BleDevStE.bprevCtemp = 255;
-	BleDevStE.bprevHtemp = 255;
-	BleDevStE.bprevProg = 254;
-	BleDevStE.bprevModProg = 255;
-	BleDevStE.bprevPHour = 255;
-	BleDevStE.bprevPMin = 255;
-	BleDevStE.bprevCHour = 255;
-	BleDevStE.bprevCMin = 255;
-	BleDevStE.bprevDHour = 255;
-	BleDevStE.bprevDMin = 255;
-	BleDevStE.bprevAwarm = 255;
-	BleDevStE.PRgbR = ~BleDevStE.RgbR;
-	BleDevStE.PRgbG = ~BleDevStE.RgbG;
-	BleDevStE.PRgbB = ~BleDevStE.RgbB;
-	BleDevStE.bprevStBl = 255;
-	BleDevStE.bprevStBp = 255;
-	BleDevStE.bprevCVol = 255;
-	BleDevStE.bprevCVoll = 255;
-
+	for (uint8_t i = 0; i < 5; i++) MqBlPrevSt(i);
 	bprevStateS = ~bStateS;
 	bprevStatHx6 = ~bStatHx6;
 	bprevStatG6 = ~bStatG6;
@@ -17003,7 +16909,6 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	pwr_batprevlevv = ~pwr_batlevv;
 	pwr_batprevlevc = ~pwr_batlevc;
 	pwr_batprevmode = 255;
-
 	fgpio1 = 1;
 	fgpio2 = 1;
 	fgpio3 = 1;
@@ -17874,125 +17779,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 
 	case MQTT_EVENT_DISCONNECTED:
 	mqttConnected = false;
-	BleDevStA.t_ppcon = 40;
-	BleDevStB.t_ppcon = 40;
-	BleDevStC.t_ppcon = 40;
-	BleDevStD.t_ppcon = 40;
-	BleDevStE.t_ppcon = 40;
-
-	BleDevStA.iprevRssi = 0;
-	BleDevStB.iprevRssi = 0;
-	BleDevStC.iprevRssi = 0;
-	BleDevStD.iprevRssi = 0;
-	BleDevStE.iprevRssi = 0;
-
-	BleDevStA.cprevStatus[0] = 0;
-	BleDevStB.cprevStatus[0] = 0;
-	BleDevStC.cprevStatus[0] = 0;
-	BleDevStD.cprevStatus[0] = 0;
-	BleDevStE.cprevStatus[0] = 0;
-
-	BleDevStA.bprevLock = 255;
-	BleDevStA.bprevState = 255;
-	BleDevStA.bprevHeat = 255;
-	BleDevStA.bprevStNl = 255;
-	BleDevStA.bprevCtemp = 255;
-	BleDevStA.bprevHtemp = 255;
-	BleDevStA.bprevProg = 254;
-	BleDevStA.bprevModProg = 255;
-	BleDevStA.bprevPHour = 255;
-	BleDevStA.bprevPMin = 255;
-	BleDevStA.bprevCHour = 255;
-	BleDevStA.bprevCMin = 255;
-	BleDevStA.bprevDHour = 255;
-	BleDevStA.bprevDMin = 255;
-	BleDevStA.bprevAwarm = 255;
-	BleDevStA.PRgbR = ~BleDevStA.RgbR;
-	BleDevStA.PRgbG = ~BleDevStA.RgbG;
-	BleDevStA.PRgbB = ~BleDevStA.RgbB;
-	BleDevStA.bprevStBl = 255;
-	BleDevStA.bprevStBp = 255;
-	BleDevStB.bprevLock = 255;
-	BleDevStB.bprevState = 255;
-	BleDevStB.bprevHeat = 255;
-	BleDevStB.bprevStNl = 255;
-	BleDevStB.bprevCtemp = 255;
-	BleDevStB.bprevHtemp = 255;
-	BleDevStB.bprevProg = 254;
-	BleDevStB.bprevModProg = 255;
-	BleDevStB.bprevPHour = 255;
-	BleDevStB.bprevPMin = 255;
-	BleDevStB.bprevCHour = 255;
-	BleDevStB.bprevCMin = 255;
-	BleDevStB.bprevDHour = 255;
-	BleDevStB.bprevDMin = 255;
-	BleDevStB.bprevAwarm = 255;
-	BleDevStB.PRgbR = ~BleDevStB.RgbR;
-	BleDevStB.PRgbG = ~BleDevStB.RgbG;
-	BleDevStB.PRgbB = ~BleDevStB.RgbB;
-	BleDevStB.bprevStBl = 255;
-	BleDevStB.bprevStBp = 255;
-	BleDevStC.bprevLock = 255;
-	BleDevStC.bprevState = 255;
-	BleDevStC.bprevHeat = 255;
-	BleDevStC.bprevStNl = 255;
-	BleDevStC.bprevCtemp = 255;
-	BleDevStC.bprevHtemp = 255;
-	BleDevStC.bprevProg = 254;
-	BleDevStC.bprevModProg = 255;
-	BleDevStC.bprevPHour = 255;
-	BleDevStC.bprevPMin = 255;
-	BleDevStC.bprevCHour = 255;
-	BleDevStC.bprevCMin = 255;
-	BleDevStC.bprevDHour = 255;
-	BleDevStC.bprevDMin = 255;
-	BleDevStC.bprevAwarm = 255;
-	BleDevStC.PRgbR = ~BleDevStC.RgbR;
-	BleDevStC.PRgbG = ~BleDevStC.RgbG;
-	BleDevStC.PRgbB = ~BleDevStC.RgbB;
-	BleDevStC.bprevStBl = 255;
-	BleDevStC.bprevStBp = 255;
-	BleDevStD.bprevLock = 255;
-	BleDevStD.bprevState = 255;
-	BleDevStD.bprevHeat = 255;
-	BleDevStD.bprevStNl = 255;
-	BleDevStD.bprevCtemp = 255;
-	BleDevStD.bprevHtemp = 255;
-	BleDevStD.bprevProg = 254;
-	BleDevStD.bprevModProg = 255;
-	BleDevStD.bprevPHour = 255;
-	BleDevStD.bprevPMin = 255;
-	BleDevStD.bprevCHour = 255;
-	BleDevStD.bprevCMin = 255;
-	BleDevStD.bprevDHour = 255;
-	BleDevStD.bprevDMin = 255;
-	BleDevStD.bprevAwarm = 255;
-	BleDevStD.PRgbR = ~BleDevStD.RgbR;
-	BleDevStD.PRgbG = ~BleDevStD.RgbG;
-	BleDevStD.PRgbB = ~BleDevStD.RgbB;
-	BleDevStD.bprevStBl = 255;
-	BleDevStD.bprevStBp = 255;
-	BleDevStE.bprevLock = 255;
-	BleDevStE.bprevState = 255;
-	BleDevStE.bprevHeat = 255;
-	BleDevStE.bprevStNl = 255;
-	BleDevStE.bprevCtemp = 255;
-	BleDevStE.bprevHtemp = 255;
-	BleDevStE.bprevProg = 254;
-	BleDevStE.bprevModProg = 255;
-	BleDevStE.bprevPHour = 255;
-	BleDevStE.bprevPMin = 255;
-	BleDevStE.bprevCHour = 255;
-	BleDevStE.bprevCMin = 255;
-	BleDevStE.bprevDHour = 255;
-	BleDevStE.bprevDMin = 255;
-	BleDevStE.bprevAwarm = 255;
-	BleDevStE.PRgbR = ~BleDevStE.RgbR;
-	BleDevStE.PRgbG = ~BleDevStE.RgbG;
-	BleDevStE.PRgbB = ~BleDevStE.RgbB;
-	BleDevStE.bprevStBl = 255;
-	BleDevStE.bprevStBp = 255;
-
+	for (uint8_t i = 0; i < 5; i++) MqBlPrevSt(i);
 	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_EVENT_DISCONNECTED");
 	break;
 
@@ -18549,6 +18336,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 	if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
 	esp_wifi_connect();
 	} else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+//	if (floop && mqttConnected) esp_mqtt_client_disconnect(mqttclient);
 	if (fdebug) ESP_LOGI(AP_TAG,"AP disconnected");
 	if ((!floop && (wf_retry_cnt < WIFI_MAXIMUM_RETRY)) || (floop && (wf_retry_cnt < (WIFI_MAXIMUM_RETRY << 4)))) {
 		esp_wifi_connect();
@@ -19638,12 +19426,22 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcpy (buff,"-");
 	}
 	if (bDivHx6 & 0x7fffffff) var = var / (bDivHx6 & 0x7fffffff);
+	else var = var >> 8;
 	if(!var) buff[0] = 0;
 	if (bDivHx6 & 0x80000000) u32_strcat_p1(var,buff);
 	else u32_strcat_p3(var,buff);
 	}
 	if (bDivHx6 & 0x80000000) strcat(buff,"%");
-	else strcat(buff,"kg");
+	else if (bDivHx6) strcat(buff,"kg");
+	else {
+	uint8_t buf1[4];
+	buf1[0] = bStatHx6 >> 24;
+	buf1[1] = bStatHx6 >> 16;
+	buf1[2] = bStatHx6 >> 8;
+	strcat(bsend,buff);
+	strcat(bsend," / ");
+	bin2hex(buf1, buff,3,0);
+	}
 	strcat(bsend,buff);
 	} else {
 	strcat(bsend,"&emsp;1w6: ");
@@ -19769,7 +19567,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,buff);
 	}
 	strcat(bsend,"ppb");
-	if (i2c_bits[i] & 0xc8) strcat(bsend,", ");
+	if (i2c_bits[i] & 0x80) strcat(bsend,", ");
 	}
 	if (i2c_bits[i] & 0x80) {
 	strcat(bsend,"CO2: ");
@@ -21958,7 +21756,8 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"value=\"8\">\x3e 2.0kg \x3c</option><option ");
 	strcat(bsend,"value=\"9\">\x3e 2.2kg \x3c</option><option ");
 	strcat(bsend,"value=\"10\">\x3e 2.4kg \x3c</option><option ");
-	strcat(bsend,"value=\"11\">\x3e 100% \x3c</option></select>");
+	strcat(bsend,"value=\"11\">\x3e 100% \x3c</option><option ");
+	strcat(bsend,"value=\"12\">\x3e Reset \x3c</option></select>");
 	}
 	strcat(bsend,"<br><input name=\"ppin6\" type=\"number\" value=\"");
 	itoa((bgpio6 & 0x3f),buff,10);
@@ -22618,6 +22417,10 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	break;
 	case 11:
 	bDivHx6 =  ((bStatHx6 - bZeroHx6) / 1000) | 0x80000000;
+	break;
+	case 12:
+	bDivHx6 = 0;
+	bZeroHx6 = 0;
 	break;
 	}
 //ESP_LOGI(AP_TAG, "Hx set: st: %d, zr: %d, diff: %d, div: %d", bStatHx6, bZeroHx6, (bStatHx6 - bZeroHx6),bDivHx6);
@@ -23928,7 +23731,6 @@ void app_main(void)
 	char tzbuff[8];
 	char tzbuf[16];
 	R4SNUMO = R4SNUM;
-	BleDevStA.tBLEAddr[0] = 0;
 	strcpy(MQTT_BASE_TOPIC, "r4s");
 	itoa(R4SNUM,tzbuff,10);
 	strcat(MQTT_BASE_TOPIC, tzbuff);
@@ -24147,7 +23949,7 @@ void app_main(void)
 	} //if i2c init
 	} //if i2c
 
-// 
+//timer 
     timer_config_t config = {
             .alarm_en = true,				//Alarm Enable
             .counter_en = false,			//If the counter is enabled it will start incrementing / decrementing immediately after calling timer_init()
@@ -24410,7 +24212,6 @@ void app_main(void)
 	if (i2c_read_rtc(0, &f_i2cdev, &SnPi2c[6].par1)) i2c_init_rtc(0, &f_i2cdev);
 	if (SnPi2c[6].ppar1 != SnPi2c[6].par1) t_lasts = 0;
 	}  else if (s_i2cdev & 0x40) i2c_init_rtc(0, &f_i2cdev);
-	}
 	if (f_i2cdev & 0x08) {
 	err = i2c_read_sht3x(1, &f_i2cdev, &SnPi2c[3].par1, &SnPi2c[3].par2);
 	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_sht3x(1, &f_i2cdev);
@@ -24421,6 +24222,7 @@ void app_main(void)
 	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_sgp3x(0, &f_i2cdev);
 	if ((SnPi2c[9].ppar3 != SnPi2c[9].par3) || (SnPi2c[9].ppar4 != SnPi2c[9].par4)) t_lasts = 0;
 	} else if (s_i2cdev & 0x200) i2c_init_sgp3x(0, &f_i2cdev);
+	}
 	break;
 	case 2:
 	if (f_rmds & 0x04) rmt1w_readds(2, &f_rmds, &bStatG8, RmtRgHd2);
