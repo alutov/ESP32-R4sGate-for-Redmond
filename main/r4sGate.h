@@ -316,7 +316,6 @@ uint16_t  ppar4;
 static bool Isscanning = false;
 static bool IsPassiveScan = false;
 static bool StartStopScanReq = false;
-static bool StartScanBusy = false;
 static uint8_t hwtdiv = 0;
 
 static esp_gattc_char_elem_t *char_elem_result   = NULL;
