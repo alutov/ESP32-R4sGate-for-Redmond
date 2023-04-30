@@ -5,7 +5,8 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 > **[Скрипт на базе PHP сервера в локальной сети с доступом к интернету для показа погоды на экране шлюза](https://github.com/artt652/Weather-for-ESP32-R4S-gate).<br>**
 > **В версиях, начиная с 2022.06.03, изменены топики устройств в шлюзе в номером 0 с "r4s/#" на "r4s0/#". В новых версиях топики в "r4s/#" используются для отслеживания меток несколькими шлюзами. При обновлении со старых версий нужно включить BLE Monitor в настройках (шлюз удаляет содержимое "r4s/#" только при включенном мониторе), выбрав Passive, Active или Auto, отметить пункты Hass Discovery и Delete Mqtt Topics и сохранить настройки. После перезагрузки шлюз удалит лишние топики и создаст их заново. Затем, при необходимости, BLE Monitor можно отключить. После чего поправить устройства в автоматизациях, скриптах и т.п.<br>**
 
-#### Текущая версия 2023.04.22 для [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) и [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin) .
+#### Текущая версия 2023.04.29 для [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) и [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin) .
+* 2023.04.29. Добавлена поддержка SkyDew RHF-3310S
 * 2023.04.22. Добавлена поддержка BLE монитором шлюза счетчиков [Элехант(Elehant)](https://elehant.ru).
 * 2023.04.01. Мелкие исправления.
 * 2023.02.23. Добавлена поддержка сенсоров SHT4x(0x44, 0x45), SCD4x(0x62). Мелкие исправления.
@@ -66,6 +67,10 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 **Климатические станции**
 
 * Redmond SkyClimate RSC-51S
+
+**Увлажнители воздуха**
+
+* Redmond SkyDew RHF-3310S
 
 **Датчики дыма**
 
