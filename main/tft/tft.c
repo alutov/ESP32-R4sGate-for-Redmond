@@ -1982,7 +1982,8 @@ void tfblestate()
 	sumx += drawString("/", sumx, 224, 2);
 	itoa(ptr->bHtemp,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
-	sumx += drawString("'", sumx, 224, 2);
+	if (ptr->DEV_TYP == 52) sumx += drawString("%", sumx, 224, 2);
+	else sumx += drawString("'", sumx, 224, 2);
 	}
 	sumx += drawString(", T: ", sumx, 224, 2);
 	itoa(ptr->bCHour,buff,10);

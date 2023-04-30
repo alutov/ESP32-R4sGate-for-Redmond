@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.04.22"
+#define AP_VER "2023.04.29"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -4921,7 +4921,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 //
 
 	}
-	} else if ( ptr->DEV_TYP < 61) {
+	} else if ( ptr->DEV_TYP < 52) {
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
 	strcat(buft,ptr->tBLEAddr);
@@ -5092,6 +5092,8 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(bufd,",\"Bread\",\"Pizza\",\"Charlotte\",\"Baking_meat_in_pot\",\"Baking_bird_in_pot\"");
 	strcat(bufd,",\"Baking_fish_in_pot\",\"Baking_vegetables_in_pot\",\"Roast\",\"Cake\",\"Baking_meat\"");
 	strcat(bufd,",\"Baking_bird\",\"Baking_fish\",\"Baking_vegetables\",\"Boiled_pork\",\"Warming\"]}");
+	} else if ( ptr->DEV_TYP == 48 ) {
+	strcat(bufd,"[\"OFF\",\"Manual\",\"Fry\",\"Heating\"]}");
 	}
 	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
 //
@@ -5498,6 +5500,533 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
 //
 	}
+	} else if ( ptr->DEV_TYP < 61) {
+	strcpy(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/");
+	strcat(buft,ptr->tBLEAddr);
+	if (!fcommtp) strcat(buft,"/cmd");
+	strcat(buft,"/state");
+	esp_mqtt_client_subscribe(mqttclient, buft, 0);
+	strcpy(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/");
+	strcat(buft,ptr->tBLEAddr);
+	if (!fcommtp) strcat(buft,"/cmd");
+	strcat(buft,"/prog");
+	esp_mqtt_client_subscribe(mqttclient, buft, 0);
+	strcpy(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/");
+	strcat(buft,ptr->tBLEAddr);
+	if (!fcommtp) strcat(buft,"/cmd");
+	strcat(buft,"/mode");
+	esp_mqtt_client_subscribe(mqttclient, buft, 0);
+	strcpy(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/");
+	strcat(buft,ptr->tBLEAddr);
+	if (!fcommtp) strcat(buft,"/cmd");
+	strcat(buft,"/set_humidity");
+	esp_mqtt_client_subscribe(mqttclient, buft, 0);
+	strcpy(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/");
+	strcat(buft,ptr->tBLEAddr);
+	if (!fcommtp) strcat(buft,"/cmd");
+	strcat(buft,"/set_hour");
+	esp_mqtt_client_subscribe(mqttclient, buft, 0);
+	strcpy(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/");
+	strcat(buft,ptr->tBLEAddr);
+	if (!fcommtp) strcat(buft,"/cmd");
+	strcat(buft,"/set_min");
+	esp_mqtt_client_subscribe(mqttclient, buft, 0);
+	strcpy(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/");
+	strcat(buft,ptr->tBLEAddr);
+	if (!fcommtp) strcat(buft,"/cmd");
+	strcat(buft,"/heat");
+	esp_mqtt_client_subscribe(mqttclient, buft, 0);
+	if (FDHass) {
+	strcpy(buft,"homeassistant/switch/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/1x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier.switch\",\"icon\":\"mdi:clock-start\",\"uniq_id\":\"switch_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Humidifier_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw_version\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"command_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
+	strcat(bufd,"/state\",\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/hstate\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/select/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/1x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier.program\",\"icon\":\"mdi:form-select\",\"uniq_id\":\"program_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Humidifier_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw_version\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"command_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
+	strcat(bufd,"/prog\",\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/prog\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\",\"options\":");
+	strcat(bufd,"[\"Normal\",\"Sleep\",\"Turbo\",\"Auto\"]}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/select/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/2x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier.mode\",\"icon\":\"mdi:form-select\",\"uniq_id\":\"mode_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Humidifier_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw_version\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"command_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
+	strcat(bufd,"/mode\",\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/mode\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\",\"options\":");
+	strcat(bufd,"[\"Default\",\"Low\",\"Middle\",\"High\",\"Turbo\"]}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/select/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/3x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier.heat\",\"icon\":\"mdi:pot-steam-outline\",\"uniq_id\":\"heat_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Humidifier_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw_version\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"command_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
+	strcat(bufd,"/heat\",\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/heat\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\",\"options\":");
+	strcat(bufd,"[\"OFF\",\"ON\"]}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/number/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/1x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier.shumid\",\"icon\":\"mdi:water-percent\",\"uniq_id\":\"shumid_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Humidifier_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw_version\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"command_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
+	strcat(bufd,"/set_humidity\",\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/set_humidity\",\"mode\":\"box\",\"min\":\"0\",\"max\":\"100\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/number/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/2x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier.s.hour\",\"icon\":\"mdi:clock-outline\",\"uniq_id\":\"shour_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Humidifier_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw_version\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"command_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
+	strcat(bufd,"/set_hour\",\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/set_hour\",\"mode\":\"box\",\"min\":\"0\",\"max\":\"23\",\"unit_of_meas\":\"h\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/number/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/3x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier.s.min\",\"icon\":\"mdi:clock-outline\",\"uniq_id\":\"smin_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Humidifier_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw_version\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"command_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
+	strcat(bufd,"/set_min\",\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/set_min\",\"mode\":\"box\",\"min\":\"0\",\"max\":\"59\",\"unit_of_meas\":\"m\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/sensor/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/1x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier.state\",\"icon\":\"mdi:pot-steam-outline\",\"uniq_id\":\"stat_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Humidifier_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw_version\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/state\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/sensor/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/2x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier.hour\",\"icon\":\"mdi:clock-outline\",\"uniq_id\":\"hour_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Humidifier_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw_version\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/hour\",\"unit_of_meas\":\"h\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/sensor/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/3x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier.min\",\"icon\":\"mdi:clock-outline\",\"uniq_id\":\"min_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Humidifier_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw_version\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/min\",\"unit_of_meas\":\"m\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/sensor/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/4x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier.humid\",\"icon\":\"mdi:water-percent\",\"uniq_id\":\"humid_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Humidifier_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw_version\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/humidity\",\"unit_of_meas\":\"\x25\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/sensor/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/5x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier.rssi\",\"icon\":\"mdi:bluetooth\",\"uniq_id\":\"rssi_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"device\":{\"identifiers\":[\"Humidifier_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Humidifier\",\"model\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw_version\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"manufacturer\":\"Redmond\"},\"device_class\":\"signal_strength\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/rssi\",\"unit_of_meas\":\"dBm\",\"availability_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	}
+
 	} else if ( ptr->DEV_TYP == 61) {
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
@@ -10476,6 +11005,10 @@ bool rm800sPall(uint8_t blenum, uint8_t prog, uint8_t mod, uint8_t temp, uint8_t
 	if (r4sCommand(blenum, 0x05, data, sizeof(data)) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
 	return true;
+	} else if ( ptr->DEV_TYP == 52 ) {
+	uint8_t data[] = { prog, mod, temp, phour, pmin, 0,    0, warm};
+	if (r4sCommand(blenum, 0x05, data, sizeof(data)) != 5) return false;
+	if (ptr->notifyData[3] != 1) return false;
 	return true;
 	} else return false;
 }
@@ -11009,7 +11542,7 @@ bool rm800sProg(uint8_t blenum, uint8_t prog) {
 	if (r4sCommand(blenum, 0x05, data, sizeof(data)) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
 	return true;
-	} else if (( ptr->DEV_TYP == 24 ) || ( ptr->DEV_TYP == 48 )) {
+	} else if (( ptr->DEV_TYP == 24 ) || ( ptr->DEV_TYP == 48 ) || ( ptr->DEV_TYP == 52 )) {
 	uint8_t data[] = { prog };
 	if (r4sCommand(blenum, 0x09, data, 1) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
@@ -11037,7 +11570,8 @@ bool rm800sMod(uint8_t blenum, uint8_t mod) {
 	ptr = &BleDevStA;
 	break;
 	}
-	if (mod > 3) return false;
+	if ((ptr->DEV_TYP < 52) && (mod > 3)) return false;
+	if ((ptr->DEV_TYP == 52) && (mod > 4)) return false;
 	uint8_t data[] = { ptr->bProg, mod, ptr->bHtemp, ptr->bPHour, ptr->bPMin, ptr->bDHour, ptr->bDMin, ptr->bAwarm};
 	if ( ptr->DEV_TYP < 24 ) {
 	switch (mod) {
@@ -11094,7 +11628,7 @@ bool rm800sMod(uint8_t blenum, uint8_t mod) {
 	if (r4sCommand(blenum, 0x05, data, sizeof(data)) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
 	return true;
-	} else if ( ptr->DEV_TYP == 24 ) {
+	} else if (( ptr->DEV_TYP == 24 ) || ( ptr->DEV_TYP == 52 )) {
 	data[0] = mod;
 	if (r4sCommand(blenum, 0x0a, data, 1) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
@@ -11133,6 +11667,10 @@ bool rm800sTemp(uint8_t blenum, uint8_t temp) {
 	data[0] = ttemp & 0xff;
 	data[1] = ((ttemp)>>8 & 0xff) | 0xf0;
 	if (r4sCommand(blenum, 0x0b, data, 2) != 5) return false;
+	if (ptr->notifyData[3] != 1) return false;
+	return true;
+	} else if ( ptr->DEV_TYP == 52 ) {
+	if (r4sCommand(blenum, 0x0b, data, 1) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
 	return true;
 	} else if ( ptr->DEV_TYP == 48 ) return true;
@@ -11284,7 +11822,7 @@ bool rm800sAwarm(uint8_t blenum, uint8_t warm) {
 	if (ptr->notifyData[3] != 1)
 	return false;
 	return true;
-	} else if (( ptr->DEV_TYP == 24 ) || ( ptr->DEV_TYP == 48 )) {
+	} else if (( ptr->DEV_TYP == 24 ) || ( ptr->DEV_TYP == 48 ) || ( ptr->DEV_TYP == 52 )) {
 	uint8_t data[] = { warm };
 	if (r4sCommand(blenum, 0x16, data, 1) != 5) return false;
 	if (ptr->notifyData[3] != 1) return false;
@@ -11849,16 +12387,16 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,",\"lock\":");
 	itoa(ptr->notifyData[16],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"sethours\":");
+	strcat(ptr->cStatus,",\"sethour\":");
 	itoa(ptr->notifyData[6],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"setmins\":");
+	strcat(ptr->cStatus,",\"setmin\":");
 	itoa(ptr->notifyData[7],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"hours\":");
+	strcat(ptr->cStatus,",\"hour\":");
 	itoa(ptr->notifyData[8],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"mins\":");
+	strcat(ptr->cStatus,",\"min\":");
 	itoa(ptr->notifyData[9],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"prog\":");
@@ -11886,19 +12424,19 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,",\"temp\":");
 	itoa(ptr->notifyData[5],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"sethours\":");
+	strcat(ptr->cStatus,",\"sethour\":");
 	itoa(ptr->notifyData[6],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"setmins\":");
+	strcat(ptr->cStatus,",\"setmin\":");
 	itoa(ptr->notifyData[7],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"state\":");
 	itoa(ptr->notifyData[11],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"hours\":");
+	strcat(ptr->cStatus,",\"hour\":");
 	itoa(ptr->notifyData[8],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"mins\":");
+	strcat(ptr->cStatus,",\"min\":");
 	itoa(ptr->notifyData[9],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"warm\":");
@@ -11926,19 +12464,19 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,",\"temp\":");
 	itoa(ptr->notifyData[5],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"sethours\":");
+	strcat(ptr->cStatus,",\"sethour\":");
 	itoa(ptr->notifyData[6],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"setmins\":");
+	strcat(ptr->cStatus,",\"setmin\":");
 	itoa(ptr->notifyData[7],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"state\":");
 	itoa(ptr->notifyData[11],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"hours\":");
+	strcat(ptr->cStatus,",\"hour\":");
 	itoa(ptr->notifyData[8],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"mins\":");
+	strcat(ptr->cStatus,",\"min\":");
 	itoa(ptr->notifyData[9],tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"warm\":");
@@ -11979,19 +12517,19 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,",\"temp\":");
 	itoa(ptr->bHtemp,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"sethours\":");
+	strcat(ptr->cStatus,",\"sethour\":");
 	itoa(ptr->bPHour,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"setmins\":");
+	strcat(ptr->cStatus,",\"setmin\":");
 	itoa(ptr->bPMin,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"state\":");
 	itoa(ptr->bState,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"hours\":");
+	strcat(ptr->cStatus,",\"hour\":");
 	itoa(ptr->bCHour,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"mins\":");
+	strcat(ptr->cStatus,",\"min\":");
 	itoa(ptr->bCMin,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"warm\":");
@@ -12026,25 +12564,25 @@ void msStatus(uint8_t blenum) {
 	strcpy(ptr->cStatus,"{\"prog\":");
 	itoa(ptr->bProg,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"sethours\":");
+	strcat(ptr->cStatus,",\"sethour\":");
 	itoa(ptr->bPHour,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"setmins\":");
+	strcat(ptr->cStatus,",\"setmin\":");
 	itoa(ptr->bPMin,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"setsecs\":");
+	strcat(ptr->cStatus,",\"setsec\":");
 	itoa(ptr->bModProg,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"state\":");
 	itoa(ptr->bState,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"hours\":");
+	strcat(ptr->cStatus,",\"hour\":");
 	itoa(ptr->bCHour,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"mins\":");
+	strcat(ptr->cStatus,",\"min\":");
 	itoa(ptr->bCMin,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"secs\":");
+	strcat(ptr->cStatus,",\"sec\":");
 	itoa(ptr->bHtemp,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"warm\":");
@@ -12055,6 +12593,45 @@ void msStatus(uint8_t blenum) {
 	itoa(ptr->bLock,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 */
+	strcat(ptr->cStatus,"}");    
+	} else if ((ptr->notifyData[2] == 6) && ( ptr->DEV_TYP == 52 ) && (retc == 20)) {
+	ptr->bProg = ptr->notifyData[3];
+	ptr->bModProg = ptr->notifyData[4];
+	ptr->bHtemp = ptr->notifyData[5];         //sethum
+	ptr->bPHour = ptr->notifyData[6];
+	ptr->bPMin = ptr->notifyData[7];
+	ptr->bCHour = ptr->notifyData[8];
+	ptr->bCMin = ptr->notifyData[9];
+	ptr->bAwarm = ptr->notifyData[10];
+	ptr->bState = ptr->notifyData[11];
+	ptr->bCtemp = ptr->notifyData[12];         //hum
+	strcpy(ptr->cStatus,"{\"prog\":");
+	itoa(ptr->bProg,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"mode\":");
+	itoa(ptr->notifyData[4],tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"sethum\":");
+	itoa(ptr->notifyData[5],tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"sethour\":");
+	itoa(ptr->notifyData[6],tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"setmin\":");
+	itoa(ptr->notifyData[7],tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"state\":");
+	itoa(ptr->notifyData[11],tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"hour\":");
+	itoa(ptr->notifyData[8],tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"min\":");
+	itoa(ptr->notifyData[9],tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"heat\":");
+	itoa(ptr->notifyData[10],tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,"}");    
 	} else if ((ptr->notifyData[2] == 6) && ( ptr->DEV_TYP == 61 ) && (retc == 20)) {
 	ptr->bState = ptr->notifyData[11];
@@ -13729,7 +14306,7 @@ void MqState(uint8_t blenum) {
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	ptr->bprevCMin = ptr->bCMin;
 	}
-	} else if (ptr->DEV_TYP < 61) {
+	} else if (ptr->DEV_TYP < 52) {
 	if  (ptr->bprevState != ptr->bState) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
@@ -14236,7 +14813,166 @@ void MqState(uint8_t blenum) {
 	ptr->r4sppcom = 30;
 	ptr->bprevAwarm = ptr->bAwarm;
 	}
-
+	} else if (ptr->DEV_TYP == 52) {
+	if  (ptr->bprevState != ptr->bState) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/state");
+	switch (ptr->bState) {
+	case 2:
+	esp_mqtt_client_publish(mqttclient, ldata, strON, 0, 1, 1);
+	break;
+	case 254:
+	esp_mqtt_client_publish(mqttclient, ldata, "Offline", 0, 1, 1);
+	break;
+	case 3:
+	esp_mqtt_client_publish(mqttclient, ldata, "ERROR_WATER", 0, 1, 1);
+	break;
+	case 32:
+	esp_mqtt_client_publish(mqttclient, ldata, "ERROR_CLEAN_FILTER", 0, 1, 1);
+	break;
+	default:
+	esp_mqtt_client_publish(mqttclient, ldata, strOFF, 0, 1, 1);
+	break;
+	}
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/hstate");
+	if (ptr->bState == 2) esp_mqtt_client_publish(mqttclient, ldata, strON, 0, 1, 1);
+	else if (ptr->bState == 254) esp_mqtt_client_publish(mqttclient, ldata, "offline", 0, 1, 1);
+	else esp_mqtt_client_publish(mqttclient, ldata, strOFF, 0, 1, 1);
+	ptr->r4sppcom = 30;
+	ptr->bprevState = ptr->bState;
+	}
+	if  ((ptr->bprevProg != ptr->bProg) || (ptr->bprevModProg != ptr->bModProg)){
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/prog");
+	switch (ptr->bProg) {
+	case 1:
+	esp_mqtt_client_publish(mqttclient, ldata, "Sleep", 0, 1, 1);
+	break;
+	case 2:
+	esp_mqtt_client_publish(mqttclient, ldata, "Turbo", 0, 1, 1);
+	break;
+	case 3:
+	esp_mqtt_client_publish(mqttclient, ldata, "Auto", 0, 1, 1);
+	break;
+	default:
+	esp_mqtt_client_publish(mqttclient, ldata, "Normal", 0, 1, 1);
+	break;
+	}
+	ptr->r4sppcom = 30;
+	ptr->bprevProg = ptr->bProg;
+	}
+	if  (ptr->bprevModProg != ptr->bModProg) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/mode");
+	switch (ptr->bModProg) {
+	case 1:
+	esp_mqtt_client_publish(mqttclient, ldata, "Low", 0, 1, 1);
+	break;
+	case 2:
+	esp_mqtt_client_publish(mqttclient, ldata, "Middle", 0, 1, 1);
+	break;
+	case 3:
+	esp_mqtt_client_publish(mqttclient, ldata, "High", 0, 1, 1);
+	break;
+	case 4:
+	esp_mqtt_client_publish(mqttclient, ldata, "Turbo", 0, 1, 1);
+	break;
+	default:
+	esp_mqtt_client_publish(mqttclient, ldata, "Default", 0, 1, 1);
+	break;
+	}
+	ptr->r4sppcom = 30;
+	ptr->bprevModProg = ptr->bModProg;
+	}
+	if  (ptr->bprevHtemp != ptr->bHtemp) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/set_humidity");
+	itoa(ptr->bHtemp,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	ptr->r4sppcom = 30;
+	ptr->bprevHtemp = ptr->bHtemp;
+	}
+	if  (ptr->bprevCtemp != ptr->bCtemp) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/humidity");
+	itoa(ptr->bCtemp,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	ptr->r4sppcom = 30;
+	ptr->bprevCtemp = ptr->bCtemp;
+	}
+	if  (ptr->bprevPHour != ptr->bPHour) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/set_hour");
+	itoa(ptr->bPHour,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	ptr->r4sppcom = 30;
+	ptr->bprevPHour = ptr->bPHour;
+	}
+	if  (ptr->bprevPMin != ptr->bPMin) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/set_min");
+	itoa(ptr->bPMin,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	ptr->r4sppcom = 30;
+	ptr->bprevPMin = ptr->bPMin;
+	}
+	if  (ptr->bprevCHour != ptr->bCHour) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/hour");
+	itoa(ptr->bCHour,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	ptr->bprevCHour = ptr->bCHour;
+	}
+	if  (ptr->bprevCMin != ptr->bCMin) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/min");
+	itoa(ptr->bCMin,tmpvar,10);
+	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	ptr->bprevCMin = ptr->bCMin;
+	}
+	if  (ptr->bprevAwarm != ptr->bAwarm) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/heat");
+	if (!ptr->bAwarm) esp_mqtt_client_publish(mqttclient, ldata, strOFF, 0, 1, 1);
+	else if (ptr->bAwarm == 254) esp_mqtt_client_publish(mqttclient, ldata, "offline", 0, 1, 1);
+	else esp_mqtt_client_publish(mqttclient, ldata, strON, 0, 1, 1);
+	ptr->r4sppcom = 30;
+	ptr->bprevAwarm = ptr->bAwarm;
+	}
 	} else if (ptr->DEV_TYP == 61) {
 	if  (ptr->bprevState != ptr->bState) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
@@ -15028,7 +15764,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 	}
 
-	} else if (ptr->DEV_TYP < 61) {
+	} else if (ptr->DEV_TYP < 52) {
 	//cooker
 	if (!memcmp(topic+topoff, "state", topic_len-topoff)) {
 	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
@@ -15256,6 +15992,89 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 20;
 	}
 	} else if (!memcmp(topic+topoff, "warm", topic_len-topoff)) {
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
+	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
+		|| (!incascmp("true",data,data_len))) {
+	if ((!ptr->bAwarm) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {	
+	ptr->r4slppar1 = 1;
+	ptr->r4slpcom = 16;
+	}
+	} else if ((!incascmp("0",data,data_len)) || (!incascmp("off",data,data_len))
+		|| (!incascmp("false",data,data_len))) {
+	if ((ptr->bAwarm) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strOFF,data,data_len))) {	
+	ptr->r4slppar1 = 0;
+	ptr->r4slpcom = 16;
+	}
+	}
+	}
+	} else if (ptr->DEV_TYP == 52) {
+	//humidifier
+	if (!memcmp(topic+topoff, "state", topic_len-topoff)) {
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
+	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
+		|| (!incascmp("true",data,data_len))) {
+	if ((ptr->bState != 2) || (!ptr->r4sppcom) || (!fcommtp)) {
+	ptr->r4slppar1 = 1;
+	ptr->r4slpcom = 10;
+	}
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CMD_ON");
+	} else if ((!incascmp("0",data,data_len)) || (!incascmp("off",data,data_len))
+		|| (!incascmp("false",data,data_len))) {
+	if ((ptr->bState == 2) || (!ptr->r4sppcom) || (!fcommtp)) {
+	ptr->r4slppar1 = 0;
+	ptr->r4slpcom = 10;
+	}	
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CMD_OFF");
+	}
+	} else if (!memcmp(topic+topoff, "prog", topic_len-topoff)) {
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
+	ptr->r4slppar1 = 255;
+	if (!incascmp("Normal",data,data_len)) ptr->r4slppar1 = 0; 
+	else if (!incascmp("Sleep",data,data_len)) ptr->r4slppar1 = 1; 
+	else if (!incascmp("Turbo",data,data_len)) ptr->r4slppar1 = 2; 
+	else if (!incascmp("Auto",data,data_len)) ptr->r4slppar1 = 3; 
+	if ((ptr->r4slppar1 < 4) && ((!fcommtp) || (!ptr->r4sppcom) || (ptr->r4slppar1 != ptr->bProg))) ptr->r4slpcom = 11;
+	} else if (!memcmp(topic+topoff, "mode", topic_len-topoff)) {
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
+	ptr->r4slppar1 = 255;
+	if (!incascmp("Default",data,data_len)) ptr->r4slppar1 = 0; 
+	else if (!incascmp("Low",data,data_len)) ptr->r4slppar1 = 1; 
+	else if (!incascmp("Middle",data,data_len)) ptr->r4slppar1 = 2; 
+	else if (!incascmp("High",data,data_len)) ptr->r4slppar1 = 3; 
+	else if (!incascmp("Turbo",data,data_len)) ptr->r4slppar1 = 4; 
+	if ((ptr->r4slppar1 < 5) && ((!fcommtp) || (!ptr->r4sppcom) || (ptr->r4slppar1 != ptr->bModProg))) ptr->r4slpcom = 12;
+	} else if (!memcmp(topic+topoff, "set_humidity", topic_len-topoff)) {
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
+	int tempsz = data_len;
+	if  (tempsz > 60) tempsz = 60;
+	mystrcpy(tbuff, data, tempsz);
+	uint8_t temp = atoi(tbuff);
+	if ((!fcommtp) || (!ptr->r4sppcom) || (temp != ptr->bHtemp)) {
+	ptr->r4slppar1 = temp;
+	ptr->r4slpcom = 13;
+	}
+	} else if (!memcmp(topic+topoff, "set_hour", topic_len-topoff)) {
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
+	int tempsz = data_len;
+	if  (tempsz > 60) tempsz = 60;
+	mystrcpy(tbuff, data, tempsz);
+	uint8_t hour = atoi(tbuff);
+	if ((hour < 24) && ((!fcommtp) || (!ptr->r4sppcom) || (hour != ptr->bPHour))) {
+	ptr->r4slppar1 = hour;
+	ptr->bPHour = hour;
+	ptr->r4slpcom = 14;
+	}
+	} else if (!memcmp(topic+topoff, "set_min", topic_len-topoff)) {
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
+	int tempsz = data_len;
+	if  (tempsz > 60) tempsz = 60;
+	mystrcpy(tbuff, data, tempsz);
+	uint8_t min = atoi(tbuff);
+	if ((min < 60) && ((!fcommtp) || (!ptr->r4sppcom) || (min != ptr->bPMin))) {
+	ptr->r4slppar1 = min;
+	ptr->r4slpcom = 15;
+	}
+	} else if (!memcmp(topic+topoff, "heat", topic_len-topoff)) {
 	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
@@ -19203,7 +20022,8 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	else if (ptr->DEV_TYP < 16) strcat(bsend,"Coffee, ");
 	else if (ptr->DEV_TYP < 24) strcat(bsend,"Cooker, ");
 	else if (ptr->DEV_TYP < 48) strcat(bsend,"Oven, ");
-	else if (ptr->DEV_TYP < 61) strcat(bsend,"Baker, ");
+	else if (ptr->DEV_TYP < 52) strcat(bsend,"Baker, ");
+	else if (ptr->DEV_TYP < 61) strcat(bsend,"Humidifier, ");
 	else if (ptr->DEV_TYP == 61) strcat(bsend,"Iron, ");
 	else if (ptr->DEV_TYP == 62) strcat(bsend,"Smoke, ");
 	else if (ptr->DEV_TYP == 63) strcat(bsend,"Weather, ");
@@ -19306,6 +20126,12 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	else if (ptr->bState == 6) strcat(bsend,"Warming");
  	else if (ptr->bState == 254) strcat(bsend,"Offline");
  	else if (ptr->bState == 255) strcat(bsend,"Error");
+	} else if (ptr->DEV_TYP == 52) {
+	if (ptr->bState == 2) strcat(bsend,"On");
+	else if (ptr->bState == 3) strcat(bsend,"Error water");
+	else if (ptr->bState == 32) strcat(bsend,"Error clean filter");
+ 	else if (ptr->bState == 254) strcat(bsend,"Offline");
+ 	else strcat(bsend,"Off");
  	} else {
 	if (!ptr->bState) strcat(bsend,"Off");
 	else if (ptr->bState == 1) strcat(bsend,"Setting");
@@ -19326,10 +20152,20 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	strcat(bsend,", Mode: ");
 	itoa(ptr->bModProg,buff,10);
 	strcat(bsend,buff);
+	if (ptr->DEV_TYP == 52) {	
+	strcat(bsend,", Humidity: ");
+	itoa(ptr->bCtemp,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend,"&#37;, Target: ");
+	itoa(ptr->bHtemp,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend,"&#37;, ");
+	} else {
 	strcat(bsend,", Temp: ");
 	itoa(ptr->bHtemp,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"&deg;C");
+	}
 	}
 	strcat(bsend,", SetTime: ");
 	if (ptr->bPHour < 10) strcat(bsend,"0");
@@ -19773,9 +20609,9 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,"</h2>");
 	}
 	strcat(bsend,"<h3>System Info</h3><table class='normal'>");
-	strcat(bsend,"<tr><td style='min-width:150px;'>Version App / IDF / CPU Clock");
+	strcat(bsend,"<tr><td style='min-width:150px;'>Version App / IDF / CPU clock");
 #ifdef CONFIG_IDF_TARGET_ESP32
-	if (REG_GET_BIT(EFUSE_BLK0_RDATA3_REG, EFUSE_RD_CHIP_CPU_FREQ_RATED)) strcat(bsend," / CPU Rated");
+	if (REG_GET_BIT(EFUSE_BLK0_RDATA3_REG, EFUSE_RD_CHIP_CPU_FREQ_RATED)) strcat(bsend," / CPU rated");
 #endif
 	strcat(bsend,"</td><td style='width:80%;'>");
 	strcat(bsend,AP_VER);
@@ -20040,7 +20876,8 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	if ((ptr->DEV_TYP > 11) && (ptr->DEV_TYP < 16)) strcat(bsend,"Coffee");
 	if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 24)) strcat(bsend,"Cooker");
 	if ((ptr->DEV_TYP > 23) && (ptr->DEV_TYP < 48)) strcat(bsend,"Oven");
-	if ((ptr->DEV_TYP > 47) && (ptr->DEV_TYP < 61)) strcat(bsend,"Baker");
+	if ((ptr->DEV_TYP > 47) && (ptr->DEV_TYP < 52)) strcat(bsend,"Baker");
+	if ((ptr->DEV_TYP > 51) && (ptr->DEV_TYP < 61)) strcat(bsend,"Humidifier");
 	if (ptr->DEV_TYP == 61) strcat(bsend,"Iron");
 	if (ptr->DEV_TYP == 62) strcat(bsend,"Smoke");
 	if (ptr->DEV_TYP == 63) strcat(bsend,"Weather");
@@ -20056,7 +20893,8 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	if ((ptr->DEV_TYP > 11) && (ptr->DEV_TYP < 16)) strcat(bsend,"Coffee");
 	if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 24)) strcat(bsend,"Cooker");
 	if ((ptr->DEV_TYP > 23) && (ptr->DEV_TYP < 48)) strcat(bsend,"Oven");
-	if ((ptr->DEV_TYP > 47) && (ptr->DEV_TYP < 61)) strcat(bsend,"Baker");
+	if ((ptr->DEV_TYP > 47) && (ptr->DEV_TYP < 52)) strcat(bsend,"Baker");
+	if ((ptr->DEV_TYP > 51) && (ptr->DEV_TYP < 61)) strcat(bsend,"Humidifier");
 	if (ptr->DEV_TYP == 61) strcat(bsend,"Iron");
 	if (ptr->DEV_TYP == 62) strcat(bsend,"Smoke");
 	if (ptr->DEV_TYP == 63) strcat(bsend,"Weather");
@@ -20244,8 +21082,10 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	if (ptr->bProg < 128) strcat(bsend,"<option value=\"14\">Start Program</option></select>Select state</br>");
 	else strcat(bsend,"</select>Select state</br>");
 	strcat(bsend,"<select name=\"sprog\"><option ");
+	if ( ptr->DEV_TYP != 52 ) {
 	if (ptr->bProg > 127) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"255\">Not defined</option><option ");
+	}
 	if ( ptr->DEV_TYP == 16 ) {
 // for RMC-800s
 	if (ptr->bProg == 0) strcat(bsend,"selected ");
@@ -20472,12 +21312,33 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	strcat(bsend,"value=\"1\">Fry</option><option ");
 	if (ptr->bProg == 2) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"2\">Heating</option></select>Select program</br>");
+	} else if ( ptr->DEV_TYP == 52 ) {
+	if (ptr->bProg == 0) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"0\">Normal</option><option ");
+	if (ptr->bProg == 1) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"1\">Sleep</option><option ");
+	if (ptr->bProg == 2) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"2\">Turbo</option><option ");
+	if (ptr->bProg == 3) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"3\">Auto</option></select>Select program</br>");
+	strcat(bsend,"<select name=\"smod\"><option ");
+	if (ptr->bModProg == 0) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"0\">Default</option><option ");
+	if (ptr->bModProg == 1) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"1\">Low<option ");
+	if (ptr->bModProg == 2) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"2\">Middle<option ");
+	if (ptr->bModProg == 3) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"3\">High<option ");
+	if (ptr->bModProg == 4) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"4\">Turbo</option></select>Select mode</br>");
 	}
 	if ( ptr->DEV_TYP != 48 ) {
 	strcat(bsend,"<input name=\"stemp\" type=\"number\" value=\"");
 	itoa(ptr->bHtemp,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"230\" size=\"3\">Set Temp 0-230&deg;C</br>");
+	if ( ptr->DEV_TYP == 52 ) strcat(bsend,"\" min=\"0\" max=\"100\" size=\"3\">Set Humidity 0-100&#x25;</br>");
+	else strcat(bsend,"\" min=\"0\" max=\"230\" size=\"3\">Set Temp 0-230&deg;C</br>");
 	}
 	strcat(bsend,"<input name=\"sphour\" type=\"number\" value=\"");
 	itoa(ptr->bPHour,buff,10);
@@ -20487,6 +21348,7 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	itoa(ptr->bPMin,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"59\" size=\"2\">Set Min</br>");
+	if ( ptr->DEV_TYP != 52 ) {
 	strcat(bsend,"<input name=\"sdhour\" type=\"number\" value=\"");
 	itoa(ptr->bDHour,buff,10);
 	strcat(bsend,buff);
@@ -20495,11 +21357,18 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	itoa(ptr->bDMin,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"59\" size=\"2\">Set Delay Min</br>");
+	}
 	strcat(bsend,"<select name=\"swarm\"><option ");
 	if (!ptr->bAwarm) strcat(bsend,"selected ");
+	if ( ptr->DEV_TYP == 52 ) {
+	strcat(bsend,"value=\"0\">Heat Off</option><option ");
+	if (ptr->bAwarm) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"1\">Heat On</option></select>Set heat</br>");
+	} else {
 	strcat(bsend,"value=\"0\">Auto Warming Off</option><option ");
 	if (ptr->bAwarm) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"1\">Auto Warming On</option></select>Set auto warming</br>");
+	}
 	}
 	strcat(bsend,"<h3> Store values then press Ok. </h3><br/>");
 	strcat(bsend,"<input type=SUBMIT value=\"Ok\">");
@@ -21623,6 +22492,8 @@ void HtpDeVSett(uint8_t blenum, char* bsend) {
 	strcat(bsend,"value=\"24\">RO-5707S</option><option ");
 	if (ptr->DEV_TYP == 48) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"48\">RMB-M658S</option><option ");
+	if (ptr->DEV_TYP == 52) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"52\">RHF-3310S</option><option ");
 	if (ptr->DEV_TYP == 61) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"61\">RI-C273S</option><option ");
 	if (ptr->DEV_TYP == 62) strcat(bsend,"selected ");
