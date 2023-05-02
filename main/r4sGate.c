@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.04.29"
+#define AP_VER "2023.04.30"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -2067,7 +2067,7 @@ esp_err_t i2c_init_pwr (uint32_t* f_i2cdev)
 	memset(buf, 0xff, sizeof(buf));
 	err = i2c_read_data(addr, 0x00, buf, 8);
 	if (err) return err;
-	if (!(buf[0] & 0xfb) || buf[2] || buf[4] || buf[5]) return err;
+	if (buf[2] || buf[4] || buf[5]) return err;
 //https://github.com/m5stack/M5Tough
 	err =  i2c_read_data(addr, 0x30, &var, 1);
 	if (err) return err;
@@ -18888,6 +18888,8 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	if (!memcmp(event->topic, tbuff, event->topic_len)) {
 	if ((!incascmp("restart",event->data,event->data_len)) || (!incascmp("reset",event->data,event->data_len))
 		|| (!incascmp("reboot",event->data,event->data_len))) {
+	if (floop && mqttConnected) esp_mqtt_client_disconnect(mqttclient);
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
 #ifdef USE_TFT
 	} else if (event->data_len && (event->data_len < 5)){
@@ -19482,8 +19484,9 @@ void wifi_init_sta(void)
 	ESP_LOGI(AP_TAG,"Failed to connect to SSID:'%s', password:'%s'", DEFWFSSID, DEFWFPSW);
 	ESP_LOGI(AP_TAG,"Restarting now...");
 	}
-	vTaskDelay(2000 / portTICK_PERIOD_MS);
 	fflush(stdout);
+	if (floop && mqttConnected) esp_mqtt_client_disconnect(mqttclient);
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
 	}
 	} else {
@@ -23739,6 +23742,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	free(buf1);
 
 	if (fdebug) ESP_LOGI(AP_TAG, "Prepare to restart system!");
+	if (floop && mqttConnected) esp_mqtt_client_disconnect(mqttclient);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
 	}
@@ -23791,7 +23795,7 @@ static esp_err_t prestart_get_handler(httpd_req_t *req)
 	strcat(buf1, bufip);
 	strcat(buf1,"\"></head><body>Rebooting...</body></html>");
 	httpd_resp_sendstr(req, buf1);
-
+	if (floop && mqttConnected) esp_mqtt_client_disconnect(mqttclient);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
 	return ESP_OK;
@@ -23972,6 +23976,7 @@ Content-Type: application/octet-stream\r\n\r\n
 	}
 	free(otabuf);
 	if (fdebug) ESP_LOGI(AP_TAG, "Prepare to restart system!");
+	if (floop && mqttConnected) esp_mqtt_client_disconnect(mqttclient);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
 	}
@@ -25374,5 +25379,7 @@ void app_main(void)
 	} //inc
 	} //no command
 } //main loop
+	if (mqttConnected) esp_mqtt_client_disconnect(mqttclient);
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
 }
