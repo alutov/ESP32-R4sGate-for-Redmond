@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.04.30"
+#define AP_VER "2023.05.14"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -18,6 +18,9 @@ https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 // If use IR TX
 #define USE_IRTX
 
+// If use sgp4x sensirion gas index algorithm library
+#define USE_SGP4XLIB
+
 // define max pin + 1
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 #define MxPOutP 22 
@@ -28,6 +31,14 @@ https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 #endif
 
 #include "r4sGate.h"
+
+
+#ifdef USE_SGP4XLIB
+#include "sensirion_gas_index_algorithm.c"
+GasIndexAlgorithmParams SgiaParams;
+#endif
+
+
 //************** my common proc ***************
 //compare uuid 128 bit
 int bt_compare_UUID128(uint8_t uuid1[ESP_UUID_LEN_128],
@@ -1830,6 +1841,8 @@ void rmt1w_readdht (uint8_t idx, uint8_t* f_rmds, uint16_t* temp, uint16_t* humi
 }
 
 //****************** i2c **********************
+static struct SnPari2c SnPi2c[28];
+
 esp_err_t i2c_init_bus() 
 {
 /*
@@ -2990,7 +3003,7 @@ esp_err_t i2c_read_htu21(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_
 	return err;
 }
 //***************** sgp3x *********************
-uint8_t i2c_sgp3x_crc(uint8_t *data, uint8_t datalen) {
+uint8_t i2c_sgpxx_crc(uint8_t *data, uint8_t datalen) {
   uint8_t crc = 0xff;
   for (uint8_t i = 0; i < datalen; i++) {
     crc ^= data[i];
@@ -3022,10 +3035,10 @@ esp_err_t i2c_init_sgp3x(uint8_t idx,uint32_t* f_i2cdev)
 	buf[0] = 0x1e;
 	buf[1] = i2c58bltvoc >> 8;
 	buf[2] = i2c58bltvoc & 0xff;
-	buf[3] = i2c_sgp3x_crc(&buf[1],2);
+	buf[3] = i2c_sgpxx_crc(&buf[1],2);
 	buf[4] = i2c58blco2 >> 8;
 	buf[5] = i2c58blco2 & 0xff;
-	buf[6] = i2c_sgp3x_crc(&buf[4],2);
+	buf[6] = i2c_sgpxx_crc(&buf[4],2);
 	err = i2c_write_data(addr, 0x20, buf, 7);  //set air quality baseline Command
 	if (err) return err;
 	if (fdebug) ESP_LOGI(AP_TAG, "TVOC baseline: 0x%X, CO2 baseline: 0x%X", i2c58bltvoc, i2c58blco2);
@@ -3087,6 +3100,87 @@ esp_err_t i2c_read_sgp3x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* tvoc, uint32_
 	return err;
 }
 
+esp_err_t i2c_init_sgp4x(uint8_t idx,uint32_t* f_i2cdev)
+{
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	if (!(i2cbits & 0x80000000) || idx) return err;
+//	uint8_t buf[8] = {0};
+	uint8_t addr;
+	addr = i2c_addr[idx + 11];
+	err = i2c_check(addr);
+	if (err) return err;
+#ifdef USE_SGP4XLIB
+/*
+	GasIndexAlgorithm_init(&SgiaParams, GasIndexAlgorithm_ALGORITHM_TYPE_VOC);
+	SgiaParams.mSamplingInterval = 12.f;
+*/
+	GasIndexAlgorithm_init_with_sampling_interval(&SgiaParams, GasIndexAlgorithm_ALGORITHM_TYPE_VOC, 12.f);
+#endif
+	i2cbits = i2cbits | (0x0800 << idx);
+	*f_i2cdev = i2cbits;
+	return err;
+}
+esp_err_t i2c_read_sgp4x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* tvoc)
+{
+//https://github.com/Sensirion/gas-index-algorithm/
+	esp_err_t err = -1;
+	uint32_t i2cbits = * f_i2cdev;
+	uint8_t i;
+	int32_t var;
+	int32_t ttvoc;
+	if (!(i2cbits & 0x80000000) || idx) return err;
+	uint8_t buf[8] = {0};
+	uint8_t addr;
+	addr = i2c_addr[idx + 11];
+	err = i2c_check(addr);
+	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
+	if (!err) {
+	buf[0] = 0x0f;
+	buf[1] = 0x80;
+	buf[2] = 0x00;
+	buf[3] = i2c_sgpxx_crc(&buf[1],2);
+	buf[4] = 0x66;
+	buf[5] = 0x66;
+	buf[6] = i2c_sgpxx_crc(&buf[4],2);
+	i = 0;
+	while (i < 28) { //find temp hum data from connected i2c sensors
+	if ((i2cbits & (1 << i)) && ((i2c_bits[i] & 0x03) == 3) && (SnPi2c[i].par1 != 0xffff) && SnPi2c[i].par2) {
+	var = (SnPi2c[i].par2 << 16) / 1000;
+	buf[1] = (var >> 8) & 0xff;	
+	buf[2] = var & 0xff;	
+	buf[3] = i2c_sgpxx_crc(&buf[1],2);
+	var = (((SnPi2c[i].par1 >> 4) + 450) << 16) / 1750;
+	buf[4] = (var >> 8) & 0xff;	
+	buf[5] = var & 0xff;	
+	buf[6] = i2c_sgpxx_crc(&buf[4],2);
+	i = 28;
+	} else i++;
+	}
+	err = i2c_write_data(addr, 0x26, buf, 7);  //sgp40_measure_raw_signal Command
+//esp_log_buffer_hex(AP_TAG, buf, 8);
+	vTaskDelay(50 / portTICK_PERIOD_MS);      //30ms sgp40_measure_raw_signal measurement duration
+	if (!err) {
+	memset(buf, 0xff, sizeof(buf));
+	err = i2c_read0_data(addr, buf, 4); //read data
+	buf[3] = i2c_sgpxx_crc(&buf[0],2);
+	if (!err && (buf[2] != buf[3])) err = -1;
+	if (!err) {
+	ttvoc = (buf[0] << 8) + buf[1];
+#ifdef USE_SGP4XLIB
+	GasIndexAlgorithm_process(&SgiaParams, ttvoc, &ttvoc);
+#endif
+	*tvoc = ttvoc;
+//esp_log_buffer_hex(AP_TAG, buf, 8);
+	}
+	}
+	}
+	if (err) {
+	*tvoc = 0xffff;
+	}
+	return err;
+}
+
 esp_err_t i2c_init_scd4x(uint8_t idx,uint32_t* f_i2cdev)
 {
 	esp_err_t err = -1;
@@ -3111,7 +3205,7 @@ esp_err_t i2c_init_scd4x(uint8_t idx,uint32_t* f_i2cdev)
 	buf[0] = 0x16;
 	buf[1] = 0;
 	buf[2] = 1;
-	buf[3] = i2c_sgp3x_crc(&buf[1],2);
+	buf[3] = i2c_sgpxx_crc(&buf[1],2);
 	err = i2c_write_data(addr, 0x24, buf, 4);  //set_automatic_self_calibration_enabled
 	if (err) return err;
 	}
@@ -3139,7 +3233,10 @@ esp_err_t i2c_read_scd4x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_
 	err = i2c_write_byte(addr, 0xec, 0x05);  //read_measurement
 	if (!err) { //3
 	vTaskDelay(5 / portTICK_PERIOD_MS);      //1ms command execution delay
-	err = i2c_read0_data(addr, buf, 9); //read data
+	memset(buf, 0xff, sizeof(buf));
+	err = i2c_read0_data(addr, buf, 10); //read data
+	buf[9] = i2c_sgpxx_crc(&buf[0],2);
+	if (!err && (buf[2] != buf[9])) err = -1;
 	if (!err) { //4
 	*co2 = (buf[0] << 8) + buf[1]; 
 	*temp = ((((buf[3] << 8) + buf[4]) * 1750 ) >> 12) - 7200; 
@@ -3318,7 +3415,6 @@ static int wf_retry_cnt;
 
 static struct BleMonRec BleMR[BleMonNum];
 static struct BleMonExt BleMX[BleMonNum];
-static struct SnPari2c SnPi2c[28];
 
 #ifdef USE_TFT
 #include "tft/tft.c"
@@ -13785,7 +13881,12 @@ void MqSState() {
 	strcat(ldata,"/i2c");
 	bin2hex(&i2c_addr[i],tmpvar,1,0);
 	strcat(ldata,tmpvar);
+#ifdef USE_SGP4XLIB
+        if (i2c_addr[i] == 0x59) strcat(ldata,"voc");
+	else strcat(ldata,"tvoc");
+#else
 	strcat(ldata,"tvoc");
+#endif
 	if (SnPi2c[i].par3 == 0xffff) strcpy(tmpvar,"-0");
 	else itoa(SnPi2c[i].par3,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
@@ -17588,10 +17689,21 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	strcat(llwtd,".Gate.i2c");
 	bin2hex(&i2c_addr[i],tbuff,1,0);
 	strcat(llwtd,tbuff);
-	strcat(llwtd,".tvoc\",\"icon\":\"mdi:air-filter\",\"uniq_id\":\"i2c");
+#ifdef USE_SGP4XLIB
+        if (i2c_addr[i] == 0x59) strcat(llwtd,".voc");
+	else strcat(llwtd,".tvoc");
+#else
+	strcat(llwtd,".tvoc");
+#endif
+	strcat(llwtd,"\",\"icon\":\"mdi:air-filter\",\"uniq_id\":\"i2c");
 	bin2hex(&i2c_addr[i],tbuff,1,0);
 	strcat(llwtd,tbuff);
+#ifdef USE_SGP4XLIB
+        if (i2c_addr[i] == 0x59) strcat(llwtd,"_voc");
+	else strcat(llwtd,"_tvoc_");
+#else
 	strcat(llwtd,"_tvoc_");
+#endif
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\",\"device\":{\"identifiers\":[\"ESP32_");
 	strcat(llwtd,tESP32Addr);
@@ -17614,7 +17726,13 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	strcat(llwtd,"/i2c");
 	bin2hex(&i2c_addr[i],tbuff,1,0);
 	strcat(llwtd,tbuff);
-	strcat(llwtd,"tvoc\",\"unit_of_meas\":\"ppb\",\"availability_topic\":\"");
+#ifdef USE_SGP4XLIB
+        if (i2c_addr[i] == 0x59) strcat(llwtd,"voc\",\"device_class\":\"aqi");
+	else strcat(llwtd,"tvoc\",\"unit_of_meas\":\"ppb");
+#else
+	strcat(llwtd,"tvoc\",\"unit_of_meas\":\"ppb");
+#endif
+	strcat(llwtd,"\",\"availability_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
@@ -17857,6 +17975,7 @@ void MqBlPrevSt(uint8_t blenum) {
 	break;
 	}
 	ptr->t_ppcon = 40;
+	ptr->t_rspdel = 0;
 	ptr->cprevStatus[0] = 0;
 	ptr->iprevRssi = 0;
 	ptr->bprevState = 255;
@@ -18912,7 +19031,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio1) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio1 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio1 & 0x3f), 1);
+	gpio_set_level((bgpio1 & 0x3f), lvout ^ 1);
 	lvgpio1 = 1;
 			}
 	fgpio1 = 1;
@@ -18922,7 +19041,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio1)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio1 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio1 & 0x3f), 0);
+	gpio_set_level((bgpio1 & 0x3f), lvout);
 	lvgpio1 = 0;
 			}
 	fgpio1 = 1;
@@ -18934,7 +19053,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio2) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio2 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio2 & 0x3f), 1);
+	gpio_set_level((bgpio2 & 0x3f), lvout ^ 1);
 	lvgpio2 = 1;
 			}
 	fgpio2 = 1;
@@ -18944,7 +19063,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio2)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio2 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio2 & 0x3f), 0);
+	gpio_set_level((bgpio2 & 0x3f), lvout);
 	lvgpio2 = 0;
 			}
 	fgpio2 = 1;
@@ -18956,7 +19075,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio3) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio3 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio3 & 0x3f), 1);
+	gpio_set_level((bgpio3 & 0x3f), lvout ^ 1);
 	lvgpio3 = 1;
 			}
 	fgpio3 = 1;
@@ -18966,7 +19085,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio3)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio3 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio3 & 0x3f), 0);
+	gpio_set_level((bgpio3 & 0x3f), lvout);
 	lvgpio3 = 0;
 			}
 	fgpio3 = 1;
@@ -18978,7 +19097,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio4) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio4 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio4 & 0x3f), 1);
+	gpio_set_level((bgpio4 & 0x3f), lvout ^ 1);
 	lvgpio4 = 1;
 			}
 	fgpio4 = 1;
@@ -18988,7 +19107,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio4)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio4 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio4 & 0x3f), 0);
+	gpio_set_level((bgpio4 & 0x3f), lvout);
 	lvgpio4 = 0;
 			}
 	fgpio4 = 1;
@@ -19000,7 +19119,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio5) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio5 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio5 & 0x3f), 1);
+	gpio_set_level((bgpio5 & 0x3f), lvout ^ 1);
 	lvgpio5 = 1;
 			}
 	fgpio5 = 1;
@@ -19010,7 +19129,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio5)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio5 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio5 & 0x3f), 0);
+	gpio_set_level((bgpio5 & 0x3f), lvout);
 	lvgpio5 = 0;
 			}
 	fgpio5 = 1;
@@ -19309,8 +19428,8 @@ static void mqtt_app_start(void)
 	.lwt_retain = 1,
 	.keepalive = 60,
 	.client_id = MQTT_BASE_TOPIC,
-	.buffer_size = 2048,
-	.task_stack = 8192,
+	.buffer_size = 1536,
+	.task_stack = 7168,
 	};
 	if (fdebug) ESP_LOGI(AP_TAG,"Mqtt url: %s, port: %d, login: %s, password: %s", luri, mqtt_port, MQTT_USER, MQTT_PASSWORD);
 	if (fmssl && (bufcert[0] || fmsslbundle)) {
@@ -19604,6 +19723,7 @@ uint8_t ReadNVS(){
 	fmsslhost = 0;
 	fmwss = 0;
 	ftvoc = 0;
+	lvout = 0;
 	fdebug = 0;
         ble_mon =  nvtemp & 0x03;
 	if (nvtemp & 0x04) FDHass = 1;
@@ -19625,6 +19745,7 @@ uint8_t ReadNVS(){
 	if (nvtemp & 0x4000) fdebug = 1;
 	if (nvtemp & 0x8000) fkpmd = 1;
 	if (nvtemp & 0x10000) ftvoc = 1;
+	if (nvtemp & 0x20000) lvout = 1;
 	nvtemp = 0;
 	nvs_get_u64(my_handle, "bhx1", &nvtemp);
 	bZeroHx6 = nvtemp & 0xffffffff;
@@ -19911,6 +20032,7 @@ void WriteNVS () {
 	if (fdebug) nvtemp = nvtemp | 0x4000;
 	if (fkpmd) nvtemp = nvtemp | 0x8000;
 	if (ftvoc) nvtemp = nvtemp | 0x10000;
+	if (lvout) nvtemp = nvtemp | 0x20000;
 	nvs_set_u64(my_handle, "cmbits", nvtemp);
 	nvtemp = bDivHx6;
 	nvtemp = (nvtemp << 32) | bZeroHx6;
@@ -20586,13 +20708,22 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	if (i2c_bits[i] & 0xc0) strcat(bsend,", ");
 	}
 	if (i2c_bits[i] & 0x40) {
+#ifdef USE_SGP4XLIB
+        if (i2c_addr[i] == 0x59) strcat(bsend,"VOC: ");
+	else strcat(bsend,"TVOC: ");
+#else
 	strcat(bsend,"TVOC: ");
+#endif
 	if (SnPi2c[i].par3 == 0xffff) strcat(bsend,"-0");
 	else {
 	itoa(SnPi2c[i].par3,buff,10);
 	strcat(bsend,buff);
 	}
+#ifdef USE_SGP4XLIB
+        if (i2c_addr[i] != 0x59) strcat(bsend,"ppb");
+#else
 	strcat(bsend,"ppb");
+#endif
 	if (i2c_bits[i] & 0x80) strcat(bsend,", ");
 	}
 	if (i2c_bits[i] & 0x80) {
@@ -22806,6 +22937,9 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"value=\"128\">In</option><option ");
 	if ((bgpio5 & 0xc0) == 0xc0) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"192\">Hx D</option></select>");
+	strcat(bsend,"<input type=\"checkbox\" name=\"chio\" value=\"1\"");
+	if (lvout) strcat(bsend,"checked");
+	strcat(bsend,"> Inv Out");
 	if ((bgpio5 > 192) && (bgpio6 > 128) && (bgpio6 < 192)) {
 	strcat(bsend,"&emsp;<select name=\"bhx1\"><option ");
 	strcat(bsend,"value=\"0\">Hx setting</option><option ");
@@ -23193,6 +23327,11 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	parsuri(buf1,buf3,buf2,4096,2,0);
 	volperc = 0;
 	if (buf3[0] == 0x39) volperc = 1;
+	buf3[0] = 0;
+	strcpy(buf2,"chio");
+	parsuri(buf1,buf3,buf2,4096,2,0);
+	lvout = 0;
+	if (buf3[0] == 0x31) lvout = 1;
 	buf3[0] = 0;
 	strcpy(buf2,"smssl");
 	parsuri(buf1,buf3,buf2,4096,2,0);
@@ -24751,6 +24890,7 @@ void app_main(void)
 	bgpio8 = 0;
 	bgpio9 = 0;
 	bgpio10 = 0;
+	lvout = 0;
 	f_rmds = 0;
 	f_i2cdev = 0;
 	i2c_errcnt = 0;
@@ -24831,7 +24971,7 @@ void app_main(void)
 	if (bgpio1 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_OUTPUT);
 	mygp_iomux_out(bgpio1 & 0x3f);
-	gpio_set_level((bgpio1 & 0x3f), 0);
+	gpio_set_level((bgpio1 & 0x3f), lvout);
 	lvgpio1 = 0;
 	} else {
 	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_INPUT);
@@ -24843,7 +24983,7 @@ void app_main(void)
 	if (bgpio2 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_OUTPUT);
 	mygp_iomux_out(bgpio2 & 0x3f);
-	gpio_set_level((bgpio2 & 0x3f), 0);
+	gpio_set_level((bgpio2 & 0x3f), lvout);
 	lvgpio2 = 0;
 	} else {
 	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_INPUT);
@@ -24855,7 +24995,7 @@ void app_main(void)
 	if (bgpio3 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_OUTPUT);
 	mygp_iomux_out(bgpio3 & 0x3f);
-	gpio_set_level((bgpio3 & 0x3f), 0);
+	gpio_set_level((bgpio3 & 0x3f), lvout);
 	lvgpio3 = 0;
 	} else {
 	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_INPUT);
@@ -24867,7 +25007,7 @@ void app_main(void)
 	if (bgpio4 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_OUTPUT);
 	mygp_iomux_out(bgpio4 & 0x3f);
-	gpio_set_level((bgpio4 & 0x3f), 0);
+	gpio_set_level((bgpio4 & 0x3f), lvout);
 	lvgpio4 = 0;
 	} else {
 	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_INPUT);
@@ -24879,7 +25019,7 @@ void app_main(void)
 	if (bgpio5 < (MxPOutP + 64)) {
 	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_OUTPUT);
 	mygp_iomux_out(bgpio5 & 0x3f);
-	gpio_set_level((bgpio5 & 0x3f), 0);
+	gpio_set_level((bgpio5 & 0x3f), lvout);
 	lvgpio5 = 0;
 	} else {
 	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_INPUT);
@@ -25010,6 +25150,7 @@ void app_main(void)
 	i2c_init_htu21(0, &f_i2cdev);
 	i2c_init_sgp3x(0, &f_i2cdev);
 	i2c_init_scd4x(0, &f_i2cdev);
+	i2c_init_sgp4x(0, &f_i2cdev);
 	if (f_i2cdev & 0x60000000) i2c_read_pwr(&f_i2cdev, &pwr_batmode, &pwr_batlevp, &pwr_batlevv, &pwr_batlevc);
 	} //if i2c init
 	} //if i2c
@@ -25176,6 +25317,9 @@ void app_main(void)
 	if (f_i2cdev & 0x400) {
 	if (i2c_read_scd4x(0, &f_i2cdev, &SnPi2c[10].par1, &SnPi2c[10].par2, &SnPi2c[10].par4)) i2c_init_scd4x(0, &f_i2cdev);
 	}
+	if (f_i2cdev & 0x800) {
+	if (i2c_read_sgp4x(0, &f_i2cdev, &SnPi2c[11].par3)) i2c_init_sgp4x(0, &f_i2cdev);
+	}
 	}
 //Initialize Mqtt
 	if (MQTT_SERVER[0]) mqtt_app_start();
@@ -25301,6 +25445,11 @@ void app_main(void)
 	if (f_i2cdev & 0x80) {
 	if (i2c_read_rtc(1, &f_i2cdev, &SnPi2c[7].par1)) i2c_init_rtc(1, &f_i2cdev);
 	}  else if (s_i2cdev & 0x80) i2c_init_rtc(1, &f_i2cdev);
+	if (f_i2cdev & 0x800) {
+	err = i2c_read_sgp4x(0, &f_i2cdev, &SnPi2c[11].par3);
+	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_sgp4x(0, &f_i2cdev);
+	if (SnPi2c[11].ppar3 != SnPi2c[11].par3) t_lasts = 0;
+	} else if (s_i2cdev & 0x800) i2c_init_sgp4x(0, &f_i2cdev);
 	if (f_i2cdev & 0x60000000) {
 	if (i2c_read_pwr(&f_i2cdev, &pwr_batmode, &pwr_batlevp, &pwr_batlevv, &pwr_batlevc)) i2c_init_pwr(&f_i2cdev);
 	if (pwr_batpscrmode != pwr_batmode) {
