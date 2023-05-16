@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.05.14"
+#define AP_VER "2023.05.15"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -2785,6 +2785,17 @@ esp_err_t i2c_read_bme280 (uint8_t idx, uint32_t* f_i2cdev, uint16_t* temp, uint
 }
 
 //***************** sht3x *********************
+uint8_t i2c_sgpxx_crc(uint8_t *data, uint8_t datalen) {
+  uint8_t crc = 0xff;
+  for (uint8_t i = 0; i < datalen; i++) {
+    crc ^= data[i];
+    for (uint8_t b = 0; b < 8; b++) {
+      if (crc & 0x80) crc = (crc << 1) ^ 0x31;
+      else crc <<= 1;
+    }
+  }
+  return crc;
+}
 esp_err_t i2c_init_sht3x(uint8_t idx,uint32_t* f_i2cdev)
 {
 	esp_err_t err = -1;
@@ -2851,7 +2862,10 @@ esp_err_t i2c_read_sht3x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_
 	vTaskDelay(30 / portTICK_PERIOD_MS);                 //15ms sht3x / 10ms sht4x ready in Single Shot Mode
 
 	if (!err) { //5
+	memset(buf, 0xff, sizeof(buf));
 	err = i2c_read0_data(addr, buf, 6); //read data
+	buf[7] = i2c_sgpxx_crc(&buf[0],2);
+	if (!err && (buf[2] != buf[7])) err = -1;
 	if (!err) { //6
 	tmp = ((((buf[0] << 8) + buf[1]) * 1750 ) >> 12) - 7200; 
 	*temp = tmp;
@@ -3003,17 +3017,6 @@ esp_err_t i2c_read_htu21(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_
 	return err;
 }
 //***************** sgp3x *********************
-uint8_t i2c_sgpxx_crc(uint8_t *data, uint8_t datalen) {
-  uint8_t crc = 0xff;
-  for (uint8_t i = 0; i < datalen; i++) {
-    crc ^= data[i];
-    for (uint8_t b = 0; b < 8; b++) {
-      if (crc & 0x80) crc = (crc << 1) ^ 0x31;
-      else crc <<= 1;
-    }
-  }
-  return crc;
-}
 esp_err_t i2c_init_sgp3x(uint8_t idx,uint32_t* f_i2cdev)
 {
 	esp_err_t err = -1;
@@ -3065,7 +3068,10 @@ esp_err_t i2c_read_sgp3x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* tvoc, uint32_
 	err = i2c_write_byte(addr, 0x20, 0x08);  //Start air quality Measurement Command
 	vTaskDelay(24 / portTICK_PERIOD_MS);      //12ms sgp3x air quality measurement duration
 	if (!err) {
+	memset(buf, 0xff, sizeof(buf));
 	err = i2c_read0_data(addr, buf, 6); //read data
+	buf[7] = i2c_sgpxx_crc(&buf[0],2);
+	if (!err && (buf[2] != buf[7])) err = -1;
 	if (!err) {
 	tco2 = (buf[0] << 8) + buf[1]; 
 	ttvoc = (buf[3] << 8) + buf[4];
@@ -3076,7 +3082,10 @@ esp_err_t i2c_read_sgp3x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* tvoc, uint32_
 	err = i2c_write_byte(addr, 0x20, 0x15);  //get air quality baseline Command
 	vTaskDelay(20 / portTICK_PERIOD_MS);      //10ms sgp3x get air quality baseline duration
 	if (!err) {
+	memset(buf, 0xff, sizeof(buf));
 	err = i2c_read0_data(addr, buf, 6); //read data
+	buf[7] = i2c_sgpxx_crc(&buf[0],2);
+	if (!err && (buf[2] != buf[7])) err = -1;
 	if (!err) {
 	ttvoc = i2c58bltvoc;
 	tco2 = i2c58blco2;
@@ -17268,7 +17277,7 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,"\"},\"device_class\":\"");
 	if (BleMR[i].mac[1] & 0xf0) strcat(llwtd,"gas");
 	else strcat(llwtd,"water");
-	strcat(llwtd,"\",\"state_class\":\"measurement\",\"state_topic\":\"");
+	strcat(llwtd,"\",\"state_class\":\"total_increasing\",\"state_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/");
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
