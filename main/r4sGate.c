@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.05.15"
+#define AP_VER "2023.06.10"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -17,7 +17,8 @@ https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 #define USE_TFT
 // If use IR TX
 #define USE_IRTX
-
+// If use open drain inverted output
+#define USE_ODIO
 // If use sgp4x sensirion gas index algorithm library
 #define USE_SGP4XLIB
 
@@ -8610,8 +8611,27 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		free(bufftab);
         	}
 	} else if (ptr->DEV_TYP == 73) {
+	esp_gatt_status_t ret_status;
 	ptr->xbtauth = 1;
-//
+
+	if (ptr->PassKey && (ptr->PassKey < 10000)) {
+        write_char_data[0] = (ptr->PassKey % 10000) / 1000;
+        write_char_data[1] = (ptr->PassKey % 1000) / 100;
+        write_char_data[2] = (ptr->PassKey % 100) / 10;
+        write_char_data[3] = ptr->PassKey % 10;
+	write_char_data_len = 4;
+	if (fdebug) {
+	ESP_LOGI(AP_TAG, "Write_auth %d:", blenum1);
+	esp_log_buffer_hex(AP_TAG, write_char_data, write_char_data_len);
+	}
+        ret_status = esp_ble_gattc_write_char( gattc_if,
+                                  gl_profile_tab[blenum].conn_id,
+                                  gl_profile_tab[blenum].setup_handle,
+                                  write_char_data_len,
+                                  write_char_data,
+                                  ESP_GATT_WRITE_TYPE_RSP,
+                                  ESP_GATT_AUTH_REQ_NONE);
+	} else {
         write_char_data[0] = 0xff;
         write_char_data[1] = 0xff;
 	write_char_data_len = 2;
@@ -8619,30 +8639,14 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ESP_LOGI(AP_TAG, "Write_auth %d:", blenum1);
 	esp_log_buffer_hex(AP_TAG, write_char_data, write_char_data_len);
 	}
-        esp_gatt_status_t ret_status = esp_ble_gattc_write_char( gattc_if,
+        ret_status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
                                   gl_profile_tab[blenum].auth_handle,
                                   write_char_data_len,
                                   write_char_data,
                                   ESP_GATT_WRITE_TYPE_RSP,
                                   ESP_GATT_AUTH_REQ_NONE);
-//
-/*
-        write_char_data[0] = 0x01;
-        write_char_data[1] = 0x02;
-        write_char_data[2] = 0x03;
-        write_char_data[3] = 0x04;
-	write_char_data_len = 4;
-	if (fdebug) ESP_LOGI(AP_TAG, "Write_auth %d:", blenum1);
-        esp_gatt_status_t ret_status = esp_ble_gattc_write_char( gattc_if,
-                                  gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].setup_handle,
-                                  write_char_data_len,
-                                  write_char_data,
-                                  ESP_GATT_WRITE_TYPE_RSP,
-                                  ESP_GATT_AUTH_REQ_NONE);
-
-*/
+	}
             	if (ret_status != ESP_GATT_OK){
 		if (fdebug) ESP_LOGE(AP_TAG, "Write_auth %d error", blenum1);
 		conerr = 1;
@@ -8947,6 +8951,7 @@ if (fdebug) {
     case ESP_GAP_BLE_SEC_REQ_EVT:
         /* send the positive(true) security response to the peer device to accept the security request.
 	if not accept the security request, should send the security response with negative(false) accept value*/
+	if (fdebug) ESP_LOGI(AP_TAG, "ESP_GAP_BLE_SEC_REQ_EVT");
         esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
         break;
     case ESP_GAP_BLE_NC_REQ_EVT:
@@ -9014,7 +9019,7 @@ if (fdebug) {
 	FND_NAME[0] = 0;
 	FND_ADDR[0] = 0;
 	FND_ADDRx[0] = 0;
-        esp_ble_gap_start_scanning(duration);
+	esp_ble_gap_start_scanning(duration);
 	StartStopScanReq = true;
 	if (fdebug) ESP_LOGI(AP_TAG, "Scan starting");
 //		}
@@ -9042,16 +9047,14 @@ if (fdebug) {
 	bin2hex(scan_result->scan_rst.bda, FND_ADDR,6,0);
 	bin2hex(scan_result->scan_rst.bda, FND_ADDRx,6,0x3a);
 	FND_RSSI = scan_result->scan_rst.rssi;
-//	if (fdebug) ESP_LOGI(AP_TAG, "searched Adv Data Len %d, Scan Response Len %d", scan_result->scan_rst.adv_data_len, scan_result->scan_rst.scan_rsp_len);
 	adv_name = esp_ble_resolve_adv_data(scan_result->scan_rst.ble_adv,
                                                 ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
 	memset(devname,0,32);
 	if (adv_name_len && (adv_name_len < 32)) memcpy(devname,adv_name, adv_name_len);
 
-//	if ((scan_result->scan_rst.adv_data_len > 16) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x02\x01\x04\x03\x02",5)) {
-
 	if (fdebug) {
-	ESP_LOGI(AP_TAG, "Remote BD_ADDR: %s", FND_ADDRx);
+//	ESP_LOGI(AP_TAG, "Adv Data Len %d, Scan Response Len %d", scan_result->scan_rst.adv_data_len, scan_result->scan_rst.scan_rsp_len);
+	ESP_LOGI(AP_TAG, "Remote BD_ADDR: %s, type: %d, flag: 0x%X", FND_ADDRx, scan_result->scan_rst.ble_addr_type,scan_result->scan_rst.flag);
 	ESP_LOGI(AP_TAG, "Rssi %d dBm, Device Name: %s", scan_result->scan_rst.rssi, devname);
 	}
 //#if CONFIG_EXAMPLE_DUMP_ADV_DATA_AND_SCAN_RESP
@@ -9069,8 +9072,6 @@ if (fdebug) {
     	}
 //#endif
 	if (fdebug) ESP_LOGI(AP_TAG, "\n");
-//}
-
 
     	if (adv_name_len)  {
             int fnd_namelen = adv_name_len;
@@ -9219,8 +9220,11 @@ if (fdebug) {
 	BleMX[i].mto = 0;
 	BleMX[i].ttick = BleMonDefTO;
 	BleMX[i].rssi = scan_result->scan_rst.rssi;
-	if (id < 0x40) memcpy(BleMR[i].mac, scan_result->scan_rst.bda, 6);
-	else if (id == 0x42) memcpy(BleMR[i].mac, &scan_result->scan_rst.ble_adv[6], 16);
+	if (id < 0x40) {
+	memcpy(BleMR[i].mac, scan_result->scan_rst.bda, 6);
+	BleMR[i].mac[6] = scan_result->scan_rst.ble_addr_type;
+	BleMR[i].mac[7] = scan_result->scan_rst.flag;
+	} else if (id == 0x42) memcpy(BleMR[i].mac, &scan_result->scan_rst.ble_adv[6], 16);
 	BleMR[i].id = id;
 	if (adv_name_len) mystrcpy(BleMX[i].name, (char *)adv_name,  15);
 	else memset(BleMX[i].name,0,16);
@@ -9375,6 +9379,11 @@ if (fdebug) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Scan stop successfully");
 	if (!BleDevStA.btopen && BleDevStA.btopenreq) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Connect 1 to the remote device");
+/*
+	if (BleDevStA.DEV_TYP == 73) {
+	esp_ble_gap_set_prefer_conn_params(scan_rsta.scan_rst.bda, 24, 40, 0, 500);
+	}
+*/
 	esp_ble_gattc_open(gl_profile_tab[PROFILE_A_APP_ID].gattc_if, scan_rsta.scan_rst.bda, scan_rsta.scan_rst.ble_addr_type, true);
 	} else if (!BleDevStB.btopen && BleDevStB.btopenreq) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Connect 2 to the remote device");
@@ -19040,7 +19049,16 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio1) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio1 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio1 & 0x3f), lvout ^ 1);
+#ifdef USE_ODIO
+	if (!lvout1) gpio_set_level((bgpio1 & 0x3f), 1);
+	else {
+	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio1 & 0x3f);
+	gpio_set_level((bgpio1 & 0x3f), 0);
+	}
+#else
+	gpio_set_level((bgpio1 & 0x3f), lvout1 ^ 1);
+#endif
 	lvgpio1 = 1;
 			}
 	fgpio1 = 1;
@@ -19050,7 +19068,12 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio1)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio1 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio1 & 0x3f), lvout);
+#ifdef USE_ODIO
+	if (!lvout1) gpio_set_level((bgpio1 & 0x3f), 0);
+	else gpio_reset_pin(bgpio1 & 0x3f);
+#else
+	gpio_set_level((bgpio1 & 0x3f), lvout1);
+#endif
 	lvgpio1 = 0;
 			}
 	fgpio1 = 1;
@@ -19062,7 +19085,16 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio2) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio2 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio2 & 0x3f), lvout ^ 1);
+#ifdef USE_ODIO
+	if (!lvout2) gpio_set_level((bgpio2 & 0x3f), 1);
+	else {
+	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio2 & 0x3f);
+	gpio_set_level((bgpio2 & 0x3f), 0);
+	}
+#else
+	gpio_set_level((bgpio2 & 0x3f), lvout2 ^ 1);
+#endif
 	lvgpio2 = 1;
 			}
 	fgpio2 = 1;
@@ -19072,7 +19104,12 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio2)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio2 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio2 & 0x3f), lvout);
+#ifdef USE_ODIO
+	if (!lvout2) gpio_set_level((bgpio2 & 0x3f), 0);
+	else gpio_reset_pin(bgpio2 & 0x3f);
+#else
+	gpio_set_level((bgpio2 & 0x3f), lvout2);
+#endif
 	lvgpio2 = 0;
 			}
 	fgpio2 = 1;
@@ -19084,7 +19121,16 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio3) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio3 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio3 & 0x3f), lvout ^ 1);
+#ifdef USE_ODIO
+	if (!lvout3) gpio_set_level((bgpio3 & 0x3f), 1);
+	else {
+	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio3 & 0x3f);
+	gpio_set_level((bgpio3 & 0x3f), 0);
+	}
+#else
+	gpio_set_level((bgpio3 & 0x3f), lvout3 ^ 1);
+#endif
 	lvgpio3 = 1;
 			}
 	fgpio3 = 1;
@@ -19094,7 +19140,12 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio3)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio3 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio3 & 0x3f), lvout);
+#ifdef USE_ODIO
+	if (!lvout3) gpio_set_level((bgpio3 & 0x3f), 0);
+	else gpio_reset_pin(bgpio3 & 0x3f);
+#else
+	gpio_set_level((bgpio3 & 0x3f), lvout3);
+#endif
 	lvgpio3 = 0;
 			}
 	fgpio3 = 1;
@@ -19106,7 +19157,16 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio4) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio4 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio4 & 0x3f), lvout ^ 1);
+#ifdef USE_ODIO
+	if (!lvout4) gpio_set_level((bgpio4 & 0x3f), 1);
+	else {
+	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio4 & 0x3f);
+	gpio_set_level((bgpio4 & 0x3f), 0);
+	}
+#else
+	gpio_set_level((bgpio4 & 0x3f), lvout4 ^ 1);
+#endif
 	lvgpio4 = 1;
 			}
 	fgpio4 = 1;
@@ -19116,7 +19176,12 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio4)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio4 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio4 & 0x3f), lvout);
+#ifdef USE_ODIO
+	if (!lvout4) gpio_set_level((bgpio4 & 0x3f), 0);
+	else gpio_reset_pin(bgpio4 & 0x3f);
+#else
+	gpio_set_level((bgpio4 & 0x3f), lvout4);
+#endif
 	lvgpio4 = 0;
 			}
 	fgpio4 = 1;
@@ -19128,7 +19193,16 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio5) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio5 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio5 & 0x3f), lvout ^ 1);
+#ifdef USE_ODIO
+	if (!lvout5) gpio_set_level((bgpio5 & 0x3f), 1);
+	else {
+	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio5 & 0x3f);
+	gpio_set_level((bgpio5 & 0x3f), 0);
+	}
+#else
+	gpio_set_level((bgpio5 & 0x3f), lvout5 ^ 1);
+#endif
 	lvgpio5 = 1;
 			}
 	fgpio5 = 1;
@@ -19138,7 +19212,12 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio5)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio5 < (MxPOutP + 64)) {
-	gpio_set_level((bgpio5 & 0x3f), lvout);
+#ifdef USE_ODIO
+	if (!lvout5) gpio_set_level((bgpio5 & 0x3f), 0);
+	else gpio_reset_pin(bgpio5 & 0x3f);
+#else
+	gpio_set_level((bgpio5 & 0x3f), lvout5);
+#endif
 	lvgpio5 = 0;
 			}
 	fgpio5 = 1;
@@ -19732,7 +19811,11 @@ uint8_t ReadNVS(){
 	fmsslhost = 0;
 	fmwss = 0;
 	ftvoc = 0;
-	lvout = 0;
+	lvout1 = 0;
+	lvout2 = 0;
+	lvout3 = 0;
+	lvout4 = 0;
+	lvout5 = 0;
 	fdebug = 0;
         ble_mon =  nvtemp & 0x03;
 	if (nvtemp & 0x04) FDHass = 1;
@@ -19754,7 +19837,11 @@ uint8_t ReadNVS(){
 	if (nvtemp & 0x4000) fdebug = 1;
 	if (nvtemp & 0x8000) fkpmd = 1;
 	if (nvtemp & 0x10000) ftvoc = 1;
-	if (nvtemp & 0x20000) lvout = 1;
+	if (nvtemp & 0x20000) lvout1 = 1;
+	if (nvtemp & 0x40000) lvout2 = 1;
+	if (nvtemp & 0x80000) lvout3 = 1;
+	if (nvtemp & 0x100000) lvout4 = 1;
+	if (nvtemp & 0x200000) lvout5 = 1;
 	nvtemp = 0;
 	nvs_get_u64(my_handle, "bhx1", &nvtemp);
 	bZeroHx6 = nvtemp & 0xffffffff;
@@ -20041,7 +20128,11 @@ void WriteNVS () {
 	if (fdebug) nvtemp = nvtemp | 0x4000;
 	if (fkpmd) nvtemp = nvtemp | 0x8000;
 	if (ftvoc) nvtemp = nvtemp | 0x10000;
-	if (lvout) nvtemp = nvtemp | 0x20000;
+	if (lvout1) nvtemp = nvtemp | 0x20000;
+	if (lvout2) nvtemp = nvtemp | 0x40000;
+	if (lvout3) nvtemp = nvtemp | 0x80000;
+	if (lvout4) nvtemp = nvtemp | 0x100000;
+	if (lvout5) nvtemp = nvtemp | 0x200000;
 	nvs_set_u64(my_handle, "cmbits", nvtemp);
 	nvtemp = bDivHx6;
 	nvtemp = (nvtemp << 32) | bZeroHx6;
@@ -22382,6 +22473,25 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend,"&emsp; ");	
 	bin2hex(&BleMR[i].mac[8],buff,8,0);
 	strcat(bsend,buff);	
+	} else if (BleMR[i].id) {
+	switch (BleMR[i].mac[6]) {
+	case 0:
+	strcat(bsend,"public");	
+	break;
+	case 1:
+	strcat(bsend,"random");	
+	break;
+	case 2:
+	strcat(bsend,"rpa_public");	
+	break;
+	case 3:
+	strcat(bsend,"rpa_random");	
+	break;
+	}
+	strcat(bsend,"(");
+	bin2hex(&BleMR[i].mac[7],buff,1,0);
+	strcat(bsend,buff);	
+	strcat(bsend,")");
 	}
 	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
 	if (BleMR[i].id == 2) {
@@ -22896,8 +23006,14 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"\" min=\"0\" max=\"39\" size=\"2\">Port1<select name=\"popt1\"><option ");
 	if (!(bgpio1 & 0xc0)) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"0\">Off</option><option ");
-	if ((bgpio1 & 0xc0) == 0x40) strcat(bsend,"selected ");
+	if (!lvout1 && ((bgpio1 & 0xc0) == 0x40)) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"64\">Out</option><option ");
+	if (lvout1 && ((bgpio1 & 0xc0) == 0x40)) strcat(bsend,"selected ");
+#ifdef USE_ODIO
+	strcat(bsend,"value=\"320\">Out od</option><option ");
+#else
+	strcat(bsend,"value=\"320\">Out inv</option><option ");
+#endif
 	if ((bgpio1 & 0xc0) == 0x80) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"128\">In</option><option ");
 	if ((bgpio1 & 0xc0) == 0xc0) strcat(bsend,"selected ");
@@ -22907,8 +23023,14 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"\" min=\"0\" max=\"39\" size=\"2\">Port2<select name=\"popt2\"><option ");
 	if (!(bgpio2 & 0xc0)) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"0\">Off</option><option ");
-	if ((bgpio2 & 0xc0) == 0x40) strcat(bsend,"selected ");
+	if (!lvout2 && ((bgpio2 & 0xc0) == 0x40)) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"64\">Out</option><option ");
+	if (lvout2 && ((bgpio2 & 0xc0) == 0x40)) strcat(bsend,"selected ");
+#ifdef USE_ODIO
+	strcat(bsend,"value=\"320\">Out od</option><option ");
+#else
+	strcat(bsend,"value=\"320\">Out inv</option><option ");
+#endif
 	if ((bgpio2 & 0xc0) == 0x80) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"128\">In</option><option ");
 	if ((bgpio2 & 0xc0) == 0xc0) strcat(bsend,"selected ");
@@ -22918,8 +23040,14 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"\" min=\"0\" max=\"39\" size=\"2\">Port3<select name=\"popt3\"><option ");
 	if (!(bgpio3 & 0xc0)) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"0\">Off</option><option ");
-	if ((bgpio3 & 0xc0) == 0x40) strcat(bsend,"selected ");
+	if (!lvout3 && ((bgpio3 & 0xc0) == 0x40)) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"64\">Out</option><option ");
+	if (lvout3 && ((bgpio3 & 0xc0) == 0x40)) strcat(bsend,"selected ");
+#ifdef USE_ODIO
+	strcat(bsend,"value=\"320\">Out od</option><option ");
+#else
+	strcat(bsend,"value=\"320\">Out inv</option><option ");
+#endif
 	if ((bgpio3 & 0xc0) == 0x80) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"128\">In</option><option ");
 	if ((bgpio3 & 0xc0) == 0xc0) strcat(bsend,"selected ");
@@ -22929,8 +23057,14 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"\" min=\"0\" max=\"39\" size=\"2\">Port4<select name=\"popt4\"><option ");
 	if (!(bgpio4 & 0xc0)) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"0\">Off</option><option ");
-	if ((bgpio4 & 0xc0) == 0x40) strcat(bsend,"selected ");
+	if (!lvout4 && ((bgpio4 & 0xc0) == 0x40)) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"64\">Out</option><option ");
+	if (lvout4 && ((bgpio4 & 0xc0) == 0x40)) strcat(bsend,"selected ");
+#ifdef USE_ODIO
+	strcat(bsend,"value=\"320\">Out od</option><option ");
+#else
+	strcat(bsend,"value=\"320\">Out inv</option><option ");
+#endif
 	if ((bgpio4 & 0xc0) == 0x80) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"128\">In</option><option ");
 	if ((bgpio4 & 0xc0) == 0xc0) strcat(bsend,"selected ");
@@ -22940,15 +23074,19 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"\" min=\"0\" max=\"39\" size=\"2\">Port5<select name=\"popt5\"><option ");
 	if (!(bgpio5 & 0xc0)) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"0\">Off</option><option ");
-	if ((bgpio5 & 0xc0) == 0x40) strcat(bsend,"selected ");
+	if (!lvout5 && ((bgpio5 & 0xc0) == 0x40)) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"64\">Out</option><option ");
+	if (lvout5 && ((bgpio5 & 0xc0) == 0x40)) strcat(bsend,"selected ");
+#ifdef USE_ODIO
+	strcat(bsend,"value=\"320\">Out od</option><option ");
+#else
+	strcat(bsend,"value=\"320\">Out inv</option><option ");
+#endif
 	if ((bgpio5 & 0xc0) == 0x80) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"128\">In</option><option ");
 	if ((bgpio5 & 0xc0) == 0xc0) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"192\">Hx D</option></select>");
-	strcat(bsend,"<input type=\"checkbox\" name=\"chio\" value=\"1\"");
-	if (lvout) strcat(bsend,"checked");
-	strcat(bsend,"> Inv Out");
+
 	if ((bgpio5 > 192) && (bgpio6 > 128) && (bgpio6 < 192)) {
 	strcat(bsend,"&emsp;<select name=\"bhx1\"><option ");
 	strcat(bsend,"value=\"0\">Hx setting</option><option ");
@@ -23061,6 +23199,7 @@ static esp_err_t psetsave_get_handler(httpd_req_t *req)
 	char buf2[16] = {0};
 	char buf3[16] = {0};
 	uint8_t pintemp;
+	uint16_t optemp;
 //save ip from header
 	char bufip[32] = {0};
 	int buf_len;
@@ -23337,11 +23476,6 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	volperc = 0;
 	if (buf3[0] == 0x39) volperc = 1;
 	buf3[0] = 0;
-	strcpy(buf2,"chio");
-	parsuri(buf1,buf3,buf2,4096,2,0);
-	lvout = 0;
-	if (buf3[0] == 0x31) lvout = 1;
-	buf3[0] = 0;
 	strcpy(buf2,"smssl");
 	parsuri(buf1,buf3,buf2,4096,2,0);
 	fmssl = 0;
@@ -23461,8 +23595,14 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	buf3[0] = 0;
 	strcpy(buf2,"popt1");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	pintemp = atoi(buf3);
-	bgpio1 = bgpio1 | pintemp;
+	optemp = atoi(buf3);
+	if (optemp & 0x100) {
+	bgpio1 = bgpio1 | 0x40;
+	lvout1 = 1;
+	} else {
+	bgpio1 = bgpio1 | optemp;
+	lvout1 = 0;
+	}
 	} else bgpio1 = 0;
 	}
 	buf3[0] = 0;
@@ -23475,8 +23615,14 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	buf3[0] = 0;
 	strcpy(buf2,"popt2");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	pintemp = atoi(buf3);
-	bgpio2 = bgpio2 | pintemp;
+	optemp = atoi(buf3);
+	if (optemp & 0x100) {
+	bgpio2 = bgpio2 | 0x40;
+	lvout2 = 1;
+	} else {
+	bgpio2 = bgpio2 | optemp;
+	lvout2 = 0;
+	}
 	} else bgpio2 = 0;
 	}
 	buf3[0] = 0;
@@ -23489,8 +23635,14 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	buf3[0] = 0;
 	strcpy(buf2,"popt3");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	pintemp = atoi(buf3);
-	bgpio3 = bgpio3 | pintemp;
+	optemp = atoi(buf3);
+	if (optemp & 0x100) {
+	bgpio3 = bgpio3 | 0x40;
+	lvout3 = 1;
+	} else {
+	bgpio3 = bgpio3 | optemp;
+	lvout3 = 0;
+	}
 	} else bgpio3 = 0;
 	}
 	buf3[0] = 0;
@@ -23503,8 +23655,14 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	buf3[0] = 0;
 	strcpy(buf2,"popt4");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	pintemp = atoi(buf3);
-	bgpio4 = bgpio4 | pintemp;
+	optemp = atoi(buf3);
+	if (optemp & 0x100) {
+	bgpio4 = bgpio4 | 0x40;
+	lvout4 = 1;
+	} else {
+	bgpio4 = bgpio4 | optemp;
+	lvout4 = 0;
+	}
 	} else bgpio4 = 0;
 	}
 	buf3[0] = 0;
@@ -23517,8 +23675,14 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	buf3[0] = 0;
 	strcpy(buf2,"popt5");
 	parsuri(buf1,buf3,buf2,4096,4,0);
-	pintemp = atoi(buf3);
-	bgpio5 = bgpio5 | pintemp;
+	optemp = atoi(buf3);
+	if (optemp & 0x100) {
+	bgpio5 = bgpio5 | 0x40;
+	lvout5 = 1;
+	} else {
+	bgpio5 = bgpio5 | optemp;
+	lvout5 = 0;
+	}
 	} else bgpio5 = 0;
 	}
 	buf3[0] = 0;
@@ -24899,7 +25063,11 @@ void app_main(void)
 	bgpio8 = 0;
 	bgpio9 = 0;
 	bgpio10 = 0;
-	lvout = 0;
+	lvout1 = 0;
+	lvout2 = 0;
+	lvout3 = 0;
+	lvout4 = 0;
+	lvout5 = 0;
 	f_rmds = 0;
 	f_i2cdev = 0;
 	i2c_errcnt = 0;
@@ -24978,9 +25146,18 @@ void app_main(void)
 	cntgpio5 = 0;
 	if (bgpio1 > 63) {
 	if (bgpio1 < (MxPOutP + 64)) {
+#ifdef USE_ODIO
+	if (lvout1) gpio_reset_pin(bgpio1 & 0x3f);
+	else {
 	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_OUTPUT);
 	mygp_iomux_out(bgpio1 & 0x3f);
-	gpio_set_level((bgpio1 & 0x3f), lvout);
+	gpio_set_level((bgpio1 & 0x3f), 0);
+	}
+#else
+	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio1 & 0x3f);
+	gpio_set_level((bgpio1 & 0x3f), lvout1);
+#endif
 	lvgpio1 = 0;
 	} else {
 	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_INPUT);
@@ -24990,9 +25167,18 @@ void app_main(void)
 	}
 	if (bgpio2 > 63) {
 	if (bgpio2 < (MxPOutP + 64)) {
+#ifdef USE_ODIO
+	if (lvout2) gpio_reset_pin(bgpio2 & 0x3f);
+	else {
 	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_OUTPUT);
 	mygp_iomux_out(bgpio2 & 0x3f);
-	gpio_set_level((bgpio2 & 0x3f), lvout);
+	gpio_set_level((bgpio2 & 0x3f), 0);
+	}
+#else
+	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio2 & 0x3f);
+	gpio_set_level((bgpio2 & 0x3f), lvout2);
+#endif
 	lvgpio2 = 0;
 	} else {
 	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_INPUT);
@@ -25002,9 +25188,18 @@ void app_main(void)
 	}
 	if (bgpio3 > 63) {
 	if (bgpio3 < (MxPOutP + 64)) {
+#ifdef USE_ODIO
+	if (lvout3) gpio_reset_pin(bgpio3 & 0x3f);
+	else {
 	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_OUTPUT);
 	mygp_iomux_out(bgpio3 & 0x3f);
-	gpio_set_level((bgpio3 & 0x3f), lvout);
+	gpio_set_level((bgpio3 & 0x3f), 0);
+	}
+#else
+	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio3 & 0x3f);
+	gpio_set_level((bgpio3 & 0x3f), lvout3);
+#endif
 	lvgpio3 = 0;
 	} else {
 	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_INPUT);
@@ -25014,9 +25209,18 @@ void app_main(void)
 	}
 	if (bgpio4 > 63) {
 	if (bgpio4 < (MxPOutP + 64)) {
+#ifdef USE_ODIO
+	if (lvout4) gpio_reset_pin(bgpio4 & 0x3f);
+	else {
 	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_OUTPUT);
 	mygp_iomux_out(bgpio4 & 0x3f);
-	gpio_set_level((bgpio4 & 0x3f), lvout);
+	gpio_set_level((bgpio4 & 0x3f), 0);
+	}
+#else
+	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio4 & 0x3f);
+	gpio_set_level((bgpio4 & 0x3f), lvout4);
+#endif
 	lvgpio4 = 0;
 	} else {
 	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_INPUT);
@@ -25026,9 +25230,18 @@ void app_main(void)
 	}
 	if (bgpio5 > 63) {
 	if (bgpio5 < (MxPOutP + 64)) {
+#ifdef USE_ODIO
+	if (lvout5) gpio_reset_pin(bgpio5 & 0x3f);
+	else {
 	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_OUTPUT);
 	mygp_iomux_out(bgpio5 & 0x3f);
-	gpio_set_level((bgpio5 & 0x3f), lvout);
+	gpio_set_level((bgpio5 & 0x3f), 0);
+	}
+#else
+	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio5 & 0x3f);
+	gpio_set_level((bgpio5 & 0x3f), lvout5);
+#endif
 	lvgpio5 = 0;
 	} else {
 	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_INPUT);

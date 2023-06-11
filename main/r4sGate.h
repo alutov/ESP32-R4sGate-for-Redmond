@@ -459,7 +459,11 @@ int  cntgpio2 = 0;
 int  cntgpio3 = 0;
 int  cntgpio4 = 0;
 int  cntgpio5 = 0;
-uint8_t lvout  = 0;
+uint8_t lvout1 = 0;
+uint8_t lvout2 = 0;
+uint8_t lvout3 = 0;
+uint8_t lvout4 = 0;
+uint8_t lvout5 = 0;
 
 uint32_t bStatHx6 = 0;
 uint32_t bZeroHx6 = 0;
