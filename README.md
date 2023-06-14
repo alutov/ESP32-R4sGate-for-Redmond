@@ -61,7 +61,7 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 
 **Розетки**
 
-* Redmond SkyPort 103S
+* Redmond SkyPort **103S** / 100S
 
 **Конвекторы электрические**
 
