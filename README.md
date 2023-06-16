@@ -57,7 +57,7 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
      
 **Кофеварки**
 
-* Redmond SkyCoffee **RCM-M1519S
+* Redmond SkyCoffee **RCM-M1519S**
 
 **Розетки**
 
