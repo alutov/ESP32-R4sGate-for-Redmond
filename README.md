@@ -78,7 +78,7 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 
 **Датчики дыма**
 
-* Redmond SkySmoke **RSS-61S*
+* Redmond SkySmoke **RSS-61S**
 
 **Контроллеры полива**
      
