@@ -40,24 +40,24 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 * Redmond SkyKettle **RK-M173S** / RK-M171S / RTP-M810S
 * Redmond SkyKettle **RK-G200S** / RK-G204S / RK-G210S / RK-G211S / RK-G212S / RK-G214S / RK-M216S / RK-M139S
 * Redmond SkyKettle **RK-G240S** / RK-G204S / RK-G210S / RK-G211S / RK-G212S / RK-G214S / RK-M216S / RK-M139S
-* Xiaomi MiKettle YM-K1501(Int) - ProductId 275
-* Xiaomi MiKettle YM-K1501(HK) - ProductId 131
-* Xiaomi MiKettle V-SK152(Int) - ProductId 1116
+* Xiaomi MiKettle **YM-K1501(Int)** - ProductId 275
+* Xiaomi MiKettle **YM-K1501(HK)** - ProductId 131
+* Xiaomi MiKettle **V-SK152(Int)** - ProductId 1116
 <details>
 <summary>Подробнее о Xiaomi MiKettle...</summary>
 &emsp;Управление Xiaomi MiKettle возможно только из режима **keep warm**. В этом режиме чайник поддерживает заданную шлюзом минимальную температуру 40&deg;C с гистерезисом примерно 4&deg;C, то есть при 36&deg;C подогрев включается, а при 44&deg;C отключается. Доступно включение и выключение кипячения (state = ON/OFF), установка температуры подогрева (heat_temp = 40...95). Можно перевести чайник в режим Idle (heat_temp = 0). Последняя команда выполняется с задержкой. После выполнения команды дальнейшее управление чайником недоступно. В отличие от выключения сенсором **warm** на чайнике при дальнейшем выключении и включении чайник возвращается в режим **keep warm**. Возможно, это особенность конкретной версии MCU 6.2.1.9. Пока оставил так и включил чайник через редмондовскую розетку. Если ее выключить и опять включить, чайник переходит в режим подогрева. Все необходимые параметры чайника шлюз устанавливает самостоятельно, а родное приложение пригодится для обновления прошивки. Время подогрева установлено на 12 часов (720 минут), после 256 минут шлюз сбрасывает счетчик кратковременно включая и выключая кипячение. И все равно управление ограниченное. Главная проблема в том, что при включении кипячения сенсором **boil** на чайнике выключается режим **keep warm** и вернуть его можно только кнопкой **warm** на чайнике. По этой же причине пока отложил работы по Mikettle Pro.</details>
 
 **Мультиварки**
 
-* Redmond SkyCooker RMC-M224S
-* Redmond SkyCooker RMC-M800S
-* Redmond SkyCooker RMC-M903S
-* Redmond SkyCooker RMC-M92S
-* Redmond SkyCooker RMC-M961S
+* Redmond SkyCooker **RMC-M224S**
+* Redmond SkyCooker **RMC-M800S**
+* Redmond SkyCooker **RMC-M903S**
+* Redmond SkyCooker **RMC-M92S**
+* Redmond SkyCooker **RMC-M961S**
      
 **Кофеварки**
 
-* Redmond SkyCoffee M1519S
+* Redmond SkyCoffee **RCM-M1519S
 
 **Розетки**
 
@@ -65,20 +65,20 @@ RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%
 
 **Конвекторы электрические**
 
-* Redmond SkyHeat RCH-7001S / RCH-7002S / RCH-7003S
+* Redmond SkyHeat **RCH-7001S** / RCH-7002S / RCH-7003S
 * Redmond SkyHeat RCH-4529S (управляется как SkyPort 103S)
 
 **Климатические станции**
 
-* Redmond SkyClimate RSC-51S
+* Redmond SkyClimate **RSC-51S**
 
 **Увлажнители воздуха**
 
-* Redmond SkyDew RHF-3310S
+* Redmond SkyDew **RHF-3310S**
 
 **Датчики дыма**
 
-* Redmond SkySmoke RSS-61S
+* Redmond SkySmoke **RSS-61S*
 
 **Контроллеры полива**
      
