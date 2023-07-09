@@ -1,6 +1,6 @@
 # ESP32 Ready4Sky (R4S) шлюз для устройств Redmond+
 
-RUS | [ENG](https://translate.google.com/translate?hl=ru&sl=ru&tl=en&u=https%3A%2F%2Fgithub.com%2Falutov%2FESP32-R4sGate-for-Redmond%2Fblob%2Fmaster%2FREADME.md)
+RUS | [ENG](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_x_tr_sl=ru&_x_tr_tl=en&_x_tr_hl=ru&_x_tr_pto=wapp)
 
 > **[Скрипт на базе PHP сервера в локальной сети с доступом к интернету для показа погоды на экране шлюза](https://github.com/artt652/Weather-for-ESP32-R4S-gate).<br>**
 > **В версиях, начиная с 2022.06.03, изменены топики устройств в шлюзе в номером 0 с "r4s/#" на "r4s0/#". В новых версиях топики в "r4s/#" используются для отслеживания меток несколькими шлюзами. При обновлении со старых версий нужно включить BLE Monitor в настройках (шлюз удаляет содержимое "r4s/#" только при включенном мониторе), выбрав Passive, Active или Auto, отметить пункты Hass Discovery и Delete Mqtt Topics и сохранить настройки. После перезагрузки шлюз удалит лишние топики и создаст их заново. Затем, при необходимости, BLE Monitor можно отключить. После чего поправить устройства в автоматизациях, скриптах и т.п.<br>**
