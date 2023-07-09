@@ -1727,7 +1727,7 @@ void tfststr(char* in1, char* in2, char* in3)
 	setTextColor(TFT_GREEN, TFT_BLACK);
 }
 
-void tfblestate()
+void tfblestate(uint8_t tmr)
 {
 	uint8_t blstnum1 = blstnum + 1;
         struct BleDevSt *ptr;
@@ -1822,6 +1822,7 @@ void tfblestate()
 	setTextColor(sym, bkg);
         sumx += drawString("5",sumx,26,4);
 
+	if (tmr < 41) {
 	if (f_update || BleDevStA.REQ_NAME[0] || BleDevStB.REQ_NAME[0] || BleDevStC.REQ_NAME[0] || BleDevStD.REQ_NAME[0] || BleDevStE.REQ_NAME[0]) mpos = 198;
 	if ((MQTT_VALP1[0]) || (MQTT_VALP4[0]) || (MQTT_VALP6[0])) {
 	setTextColor(TFT_GREEN, TFT_BLACK);
@@ -2105,6 +2106,7 @@ void tfblestate()
 	fillRect(sumx,224,320-sumx,16,TFT_BLACK);
 	setTextColor(TFT_GREEN, TFT_BLACK);
 	}
+	} //tmr
 }
 
 esp_err_t _http_event_handle(esp_http_client_event_t *evt)
@@ -2331,12 +2333,14 @@ bool tftjpg()
 	}
 	esp_http_client_cleanup(client);
 	free(JpHttpUri);
+	JpgLoad++;
 	} else MyJPGbufidx = -1;
 	if ((err != ESP_OK) || (jlen == -1)) {
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
        	drawString("HTTP(S) connection error", 8, 60, 4);
         MyHttpMqtt = MyHttpMqtt | 0x40;
+	JpgLoadErr++;
 	result = true;
 	} else if (MyJPGbufidx == -1) {
   	uint32_t sumx;
@@ -2351,6 +2355,7 @@ bool tftjpg()
 	itoa(MyJPGbuflen,buf,10);
        	sumx += drawString(buf, sumx, 90, 4);
         MyHttpMqtt = MyHttpMqtt | 0x40;
+	JpgLoadErr++;
 	result = true;
 	} else if ((err == ESP_OK) && jstat && (jstat != 200)) {
 	pushImage(0, 52, 320, 240, wallpaper);
@@ -2359,6 +2364,7 @@ bool tftjpg()
 	itoa(jstat,MyJPGbuf+8,10);
        	drawString(MyJPGbuf, 8, 60, 4);
         MyHttpMqtt = MyHttpMqtt | 0x40;
+	JpgLoadErr++;
 	result = true;
 	} else if ((err == ESP_OK) && jstat && (MyJPGbufidx > 15) && (MyJPGbufidx < MyJPGbuflen)) {	
 	if ((!memcmp(&MyJPGbuf[0],"\xff\xd8\xff",3)) && (MyJPGbufidx > 128)) {

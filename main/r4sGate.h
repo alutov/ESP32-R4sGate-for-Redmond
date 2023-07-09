@@ -364,6 +364,8 @@ uint8_t tft_conf = 0;
 uint8_t tft_flip = 0; 
 uint8_t  MyHttpMqtt = 0;
 int32_t MyJPGbufidx = 0;
+uint32_t JpgLoad = 0;
+uint32_t JpgLoadErr = 0;
 char MyHttpUri[390];
 char *MyJPGbuf;
 
