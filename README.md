@@ -83,7 +83,7 @@ RUS | [ENG](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 
 **Контроллеры полива**
      
-* Galcon GL9001A
+* Galcon **GL9001A** / Green Apple GATB010-03
 
 **Драйверы штор/жалюзи**
      
