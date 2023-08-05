@@ -1972,7 +1972,7 @@ void tfblestate(uint8_t tmr)
         setTextColor(TFT_RED, TFT_BLACK);
 	sumx += drawString("On", sumx, 224, 2);
 	} else sumx += drawString("Off", sumx, 224, 2);
-	} else if (ptr->DEV_TYP < 61) {
+	} else if (ptr->DEV_TYP < 60) {
 	sumx += drawString(" P: ", sumx, 224, 2);
 	itoa(ptr->bProg,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
@@ -1994,7 +1994,7 @@ void tfblestate(uint8_t tmr)
 	itoa(ptr->bCMin,buff,10);
 	if (ptr->bCMin < 10) sumx += drawString("0", sumx, 224, 2);
 	sumx += drawString(buff, sumx, 224, 2);
-	} else if (ptr->DEV_TYP == 61) {
+	} else if (ptr->DEV_TYP == 60) {
 	sumx += drawString(" Lock: ", sumx, 224, 2);
 	if (ptr->bLock) {
         setTextColor(TFT_RED, TFT_BLACK);
@@ -2019,16 +2019,20 @@ void tfblestate(uint8_t tmr)
 	sumx += drawString("Offl", sumx, 224, 2);
 	break;
 	}
-	} else if (ptr->DEV_TYP == 62) {
+	} else if ((ptr->DEV_TYP > 60) && (ptr->DEV_TYP < 63)) {
 	sumx += drawString(" T: ", sumx, 224, 2);
 	if (ptr->bSEnergy & 0x80000000) sumx += drawString("-", sumx, 224, 2);
 	itoa((ptr->bSEnergy & 0x7fffffff) / 10,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
-	sumx += drawString("'", sumx, 224, 2);
+	sumx += drawString("', B: ", sumx, 224, 2);
+	itoa(ptr->bCtemp,buff,10);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("%", sumx, 224, 2);
 	if (ptr->bProg) {
-	sumx += drawString(",", sumx, 224, 2);
+	sumx += drawString(", ", sumx, 224, 2);
 	setTextColor(TFT_RED, TFT_BLACK);
-	sumx += drawString("SMOKE", sumx, 224, 2);
+	if (ptr->DEV_TYP == 61) sumx += drawString("Open", sumx, 224, 2);
+	else sumx += drawString("Smoke", sumx, 224, 2);
         setTextColor(TFT_GREEN, TFT_BLACK);
 	}
 	} else if (ptr->DEV_TYP == 63) {
@@ -2052,7 +2056,11 @@ void tfblestate(uint8_t tmr)
 	itoa(ptr->bCMin,buff,10);
 	if (ptr->bCMin < 10) sumx += drawString("0", sumx, 224, 2);
 	sumx += drawString(buff, sumx, 224, 2);
-	} else if (ptr->DEV_TYP == 74) {
+	sumx += drawString(":", sumx, 224, 2);
+	itoa(ptr->bDMin,buff,10);
+	if (ptr->bDMin < 10) sumx += drawString("0", sumx, 224, 2);
+	sumx += drawString(buff, sumx, 224, 2);
+	} else if ((ptr->DEV_TYP > 73) && (ptr->DEV_TYP < 76)) {
 	sumx += drawString(" P/I/B: ", sumx, 224, 2);
 	if (ptr->bProg > 90) setTextColor(TFT_WHITE, TFT_BLACK);
 	else if (ptr->bProg) setTextColor(TFT_YELLOW, TFT_BLACK);
@@ -2074,6 +2082,16 @@ void tfblestate(uint8_t tmr)
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("%", sumx, 224, 2);
         setTextColor(TFT_GREEN, TFT_BLACK);
+	} else if (ptr->DEV_TYP == 76) {
+	sumx += drawString(" ", sumx, 224, 2);
+	setTextColor(TFT_RED, TFT_BLACK);
+        if (ptr->bLock & 0x01) {
+	setTextColor(TFT_RED, TFT_BLACK);
+	sumx += drawString("Movement", sumx, 224, 2);
+        } else if (ptr->bLock & 0x02) {
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+	sumx += drawString("Presence", sumx, 224, 2);
+	}
 	}
         setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString(", ", sumx, 224, 2);
@@ -2382,6 +2400,8 @@ bool tftjpg()
 	setTextColor(TFT_YELLOW, TFT_BLACK);
        	drawString("JPEG: no memory", 8, 60, 4);
         MyHttpMqtt = MyHttpMqtt | 0x40;
+	MemErr++;
+	if (!MemErr) MemErr--;
 	result = true;
 	} else {	
     //Populate fields of the JpegDev struct.

@@ -131,6 +131,19 @@
 #define AMREMOTE_SERVICE_UUID 0xfe50
 // AMREMOTE_CHAR_UUID  "fe51"
 #define AMREMOTE_CHAR_UUID 0xfe51
+// AMTREMOTE_SERVICE_UUID  "1910"
+#define AMTREMOTE_SERVICE_UUID 0x1910
+// AMTREMOTE_RXCHAR_UUID  "2b10"
+#define AMTREMOTE_RXCHAR_UUID 0x2b10
+// AMTREMOTE_TXCHAR_UUID  "2b11"
+#define AMTREMOTE_TXCHAR_UUID 0x2b11
+//ld2410
+// LDREMOTE_SERVICE_UUID  "fff0"
+#define LDREMOTE_SERVICE_UUID 0xfff0
+// LDREMOTE_RXCHAR_UUID  "fff1"
+#define LDREMOTE_RXCHAR_UUID 0xfff1
+// LDREMOTE_TXCHAR_UUID  "fff2"
+#define LDREMOTE_TXCHAR_UUID 0xfff2
 
 
 #define PROFILE_NUM      5
@@ -147,7 +160,7 @@
 #define BleMonDefTO 3000
 
 struct BleDevSt {
-int      MiKettleID;
+int16_t  MiKettleID;
 bool     btopenreq;
 bool     btopen;
 bool     btauthoriz;
@@ -165,7 +178,7 @@ char     REQ_NAME[16];
 char     RQC_NAME[16];
 char     DEV_NAME[16];
 char     tBLEAddr[16];
-char     sVer[12];
+char     sVer[16];
 uint32_t NumConn;
 uint32_t PassKey;
 uint8_t  LstCmd;
