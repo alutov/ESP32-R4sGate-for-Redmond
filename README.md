@@ -78,9 +78,11 @@ RUS | [ENG](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 
 * Redmond SkyDew **RHF-3310S**
 
-**Датчики дыма**
+**Датчики**
 
-* Redmond SkySmoke **RSS-61S**
+* Redmond SkySmoke **RSS-61S** - датчик дыма
+* Redmond SkyOpen **RSO-31**  - датчик дверей
+* Hilink **HLK-LD2410B** - датчик движения и присутствия
 
 **Контроллеры полива**
      
