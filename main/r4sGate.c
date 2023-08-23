@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.08.04"
+#define AP_VER "2023.08.22"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -41,14 +41,6 @@ GasIndexAlgorithmParams SgiaParams;
 
 
 //************** my common proc ***************
-//compare uuid 128 bit
-int bt_compare_UUID128(uint8_t uuid1[ESP_UUID_LEN_128],
-		uint8_t uuid2[ESP_UUID_LEN_128]) {
-	for (int i = 0; i < ESP_UUID_LEN_128; i++) {
-		if (uuid1[i] != uuid2[i]) return 0;
-	}
-	return 1;
-}
 /*
 // int32 to hh/mm/ss
 void itoat (uint32_t val, char* cout, size_t len)
@@ -7500,140 +7492,6 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 static void esp_gattc_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
 static void gattc_profile_cm_event_handler(uint8_t blenum,esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
 
-//redmond
-static esp_bt_uuid_t remote_filter_service_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = REMOTE_SERVICE_UUID,},
-};
-static esp_bt_uuid_t remote_filter_txchar_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = REMOTE_TXCHAR_UUID,},
-};
-static esp_bt_uuid_t remote_filter_rxchar_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = REMOTE_RXCHAR_UUID,},
-};
-
-static esp_bt_uuid_t notify_descr_uuid = {
-    .len = ESP_UUID_LEN_16,
-    .uuid = {.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG,},
-};
-
-//xiaomi
-static esp_bt_uuid_t xremote_filter_service_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = XREMOTE_SERVICE_UUID,},
-};
-static esp_bt_uuid_t xremote_filter_service1_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = XREMOTE_SERVICE1_UUID,},
-};
-static esp_bt_uuid_t xremote_filter_service2_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = XREMOTE_SERVICE2_UUID,},
-};
-static esp_bt_uuid_t xremote_filter_service3_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = XREMOTE_SERVICE3_UUID,},
-};
-
-static esp_bt_uuid_t xremote_filter_status_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = XREMOTE_STATUS_UUID,},
-};
-static esp_bt_uuid_t xremote_filter_authinit_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = XREMOTE_AUTHINIT_UUID,},
-};
-static esp_bt_uuid_t xremote_filter_auth_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = XREMOTE_AUTH_UUID,},
-};
-static esp_bt_uuid_t xremote_filter_ver_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = XREMOTE_VER_UUID,},
-};
-static esp_bt_uuid_t xremote_filter_setup_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = XREMOTE_SETUP_UUID,},
-};
-static esp_bt_uuid_t xremote_filter_time_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = XREMOTE_TIME_UUID,},
-};
-static esp_bt_uuid_t xremote_filter_boil_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = XREMOTE_BOIL_UUID,},
-};
-static esp_bt_uuid_t xremote_filter_mcuver_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = XREMOTE_MCUVER_UUID,},
-};
-static esp_bt_uuid_t xremote_filter_update_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = XREMOTE_UPDATE_UUID,},
-};
-
-//galcon
-static esp_bt_uuid_t glremote_filter_service_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = GLREMOTE_SERVICE_UUID,},
-};
-static esp_bt_uuid_t glremote_filter_service1_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = GLREMOTE_SERVICE1_UUID,},
-};
-static esp_bt_uuid_t glremote_filter_service2_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = GLREMOTE_SERVICE2_UUID,},
-};
-static esp_bt_uuid_t glremote_filter_txchar_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = GLREMOTE_TXCHAR_UUID,},
-};
-static esp_bt_uuid_t glremote_filter_rxchar_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = GLREMOTE_RXCHAR_UUID,},
-};
-static esp_bt_uuid_t glremote_filter_auth_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = GLREMOTE_AUTH_UUID,},
-};
-static esp_bt_uuid_t glremote_filter_time_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = GLREMOTE_TIME_UUID,},
-};
-static esp_bt_uuid_t glremote_filter_setup_uuid = {
-    .len = ESP_UUID_LEN_128,
-    .uuid = {.uuid128 = GLREMOTE_SETUP_UUID,},
-};
-
-//am43 A-OK
-static esp_bt_uuid_t amremote_filter_service_uuid = {
-    .len = ESP_UUID_LEN_16,
-    .uuid = {.uuid16 = AMREMOTE_SERVICE_UUID,},
-};
-static esp_bt_uuid_t amremote_filter_char_uuid = {
-    .len = ESP_UUID_LEN_16,
-    .uuid = {.uuid16 = AMREMOTE_CHAR_UUID,},
-};
-
-
-//ld2410
-static esp_bt_uuid_t ldremote_filter_service_uuid = {
-    .len = ESP_UUID_LEN_16,
-    .uuid = {.uuid16 = LDREMOTE_SERVICE_UUID,},
-};
-static esp_bt_uuid_t ldremote_filter_txchar_uuid = {
-    .len = ESP_UUID_LEN_16,
-    .uuid = {.uuid16 = LDREMOTE_TXCHAR_UUID,},
-};
-static esp_bt_uuid_t ldremote_filter_rxchar_uuid = {
-    .len = ESP_UUID_LEN_16,
-    .uuid = {.uuid16 = LDREMOTE_RXCHAR_UUID,},
-};
-
-
 static esp_ble_scan_params_t ble_scan_params = {
     .scan_type              = BLE_SCAN_TYPE_ACTIVE,
     .own_addr_type          = BLE_ADDR_TYPE_PUBLIC,
@@ -7926,20 +7784,67 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	if (fdebug) ESP_LOGE(AP_TAG, "Discover service %d failed, status %d", blenum1, param->dis_srvc_cmpl.status);
 	} else {
 	if (fdebug) ESP_LOGI(AP_TAG, "Discover service %d complete conn_id %d", blenum1, param->dis_srvc_cmpl.conn_id);
-	if (ptr->DEV_TYP < 64) esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &remote_filter_service_uuid);
-	else if (ptr->DEV_TYP < 73) {
-	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &xremote_filter_service_uuid);
-	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &xremote_filter_service1_uuid);
-	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &xremote_filter_service2_uuid);
-	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &xremote_filter_service3_uuid);
+	if (ptr->DEV_TYP < 64) {
+	esp_bt_uuid_t filter_service_uuid = {
+	    .len = ESP_UUID_LEN_128,
+	    .uuid = {.uuid128 = REMOTE_SERVICE_UUID,},
+	};
+	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service_uuid);
+	} else if (ptr->DEV_TYP < 73) {
+	esp_bt_uuid_t filter_service_uuid = {
+	    .len = ESP_UUID_LEN_128,
+	    .uuid = {.uuid128 = XREMOTE_SERVICE_UUID,},
+	};
+	esp_bt_uuid_t filter_service1_uuid = {
+	    .len = ESP_UUID_LEN_128,
+	    .uuid = {.uuid128 = XREMOTE_SERVICE1_UUID,},
+	};
+	esp_bt_uuid_t filter_service2_uuid = {
+	    .len = ESP_UUID_LEN_128,
+	    .uuid = {.uuid128 = XREMOTE_SERVICE2_UUID,},
+	};
+	esp_bt_uuid_t filter_service3_uuid = {
+	    .len = ESP_UUID_LEN_128,
+	    .uuid = {.uuid128 = XREMOTE_SERVICE3_UUID,},
+	};
+	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service_uuid);
+	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service1_uuid);
+	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service2_uuid);
+	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service3_uuid);
 	} else if (ptr->DEV_TYP == 73) {
-	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &glremote_filter_service_uuid);
-	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &glremote_filter_service1_uuid);
-	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &glremote_filter_service2_uuid);
+	esp_bt_uuid_t filter_service_uuid = {
+	    .len = ESP_UUID_LEN_128,
+	    .uuid = {.uuid128 = GLREMOTE_SERVICE_UUID,},
+	};
+	esp_bt_uuid_t filter_service1_uuid = {
+	    .len = ESP_UUID_LEN_128,
+	    .uuid = {.uuid128 = GLREMOTE_SERVICE1_UUID,},
+	};
+	esp_bt_uuid_t filter_service2_uuid = {
+	    .len = ESP_UUID_LEN_128,
+	    .uuid = {.uuid128 = GLREMOTE_SERVICE2_UUID,},
+	};
+	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service_uuid);
+	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service1_uuid);
+	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service2_uuid);
 	} else if (ptr->DEV_TYP == 74) {
-	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &amremote_filter_service_uuid);
+	esp_bt_uuid_t filter_service_uuid = {
+	    .len = ESP_UUID_LEN_16,
+	    .uuid = {.uuid16 = AMREMOTE_SERVICE_UUID,},
+	};
+	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service_uuid);
+	} else if (ptr->DEV_TYP == 75) {
+	esp_bt_uuid_t filter_service_uuid = {
+	    .len = ESP_UUID_LEN_16,
+	    .uuid = {.uuid16 = AMTREMOTE_SERVICE_UUID,},
+	};
+	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service_uuid);
 	} else if (ptr->DEV_TYP == 76) {
-	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &ldremote_filter_service_uuid);
+	esp_bt_uuid_t filter_service_uuid = {
+	    .len = ESP_UUID_LEN_16,
+	    .uuid = {.uuid16 = LDREMOTE_SERVICE_UUID,},
+	};
+	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service_uuid);
 	}
 	}
         break;
@@ -7961,59 +7866,66 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	esp_log_buffer_hex(AP_TAG,amremote_filter_service_uuid.uuid.uuid128,16);
 	}
 */
-	if ((ptr->DEV_TYP < 64) && (p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (bt_compare_UUID128(p_data->search_res.srvc_id.uuid.uuid.uuid128, remote_filter_service_uuid.uuid.uuid128))) {
-
+	if (ptr->DEV_TYP < 64) {
+	const uint8_t uid1[16] = REMOTE_SERVICE_UUID;
+	if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (!memcmp(&p_data->search_res.srvc_id.uuid.uuid.uuid128, uid1,16))) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Redmond Service %d found", blenum1);
-            ptr->get_server = true;
-            gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
-            gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
-	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73) && (p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (bt_compare_UUID128(p_data->search_res.srvc_id.uuid.uuid.uuid128, xremote_filter_service_uuid.uuid.uuid128))) {
-
+		ptr->get_server = true;
+		gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
+		gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
+	}
+	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73)) {
+	const uint8_t uid1[16] = XREMOTE_SERVICE_UUID;
+	if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (!memcmp(&p_data->search_res.srvc_id.uuid.uuid.uuid128, uid1,16))) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Xiaomi Service1 %d found", blenum1);
-            gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
-            gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
-	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73) && (p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_16) && (p_data->search_res.srvc_id.uuid.uuid.uuid16 == XREMOTE_SERVICE116_UUID)) {
-
+		gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
+		gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
+	} else if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_16) && (p_data->search_res.srvc_id.uuid.uuid.uuid16 == XREMOTE_SERVICE116_UUID)) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Xiaomi Service2 %d found", blenum1);
-            gl_profile_tab[blenum].service1_start_handle = p_data->search_res.start_handle;
-            gl_profile_tab[blenum].service1_end_handle = p_data->search_res.end_handle;
-	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73) && (p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_16) && (p_data->search_res.srvc_id.uuid.uuid.uuid16 == XREMOTE_SERVICE216_UUID)) {
-
+		gl_profile_tab[blenum].service1_start_handle = p_data->search_res.start_handle;
+		gl_profile_tab[blenum].service1_end_handle = p_data->search_res.end_handle;
+	} else if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_16) && (p_data->search_res.srvc_id.uuid.uuid.uuid16 == XREMOTE_SERVICE216_UUID)) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Xiaomi Service3 %d found", blenum1);
-            gl_profile_tab[blenum].service2_start_handle = p_data->search_res.start_handle;
-            gl_profile_tab[blenum].service2_end_handle = p_data->search_res.end_handle;
-	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73) && (p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_16) && (p_data->search_res.srvc_id.uuid.uuid.uuid16 == XREMOTE_SERVICE316_UUID)) {
-
+		gl_profile_tab[blenum].service2_start_handle = p_data->search_res.start_handle;
+		gl_profile_tab[blenum].service2_end_handle = p_data->search_res.end_handle;
+	} else if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_16) && (p_data->search_res.srvc_id.uuid.uuid.uuid16 == XREMOTE_SERVICE316_UUID)) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Xiaomi Service4 %d found", blenum1);
-            ptr->get_server = true;
-            gl_profile_tab[blenum].service3_start_handle = p_data->search_res.start_handle;
-            gl_profile_tab[blenum].service3_end_handle = p_data->search_res.end_handle;
-	} else if ((ptr->DEV_TYP == 73) && (p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (bt_compare_UUID128(p_data->search_res.srvc_id.uuid.uuid.uuid128, glremote_filter_service_uuid.uuid.uuid128))) {
-
+		ptr->get_server = true;
+		gl_profile_tab[blenum].service3_start_handle = p_data->search_res.start_handle;
+		gl_profile_tab[blenum].service3_end_handle = p_data->search_res.end_handle;
+	}
+	} else if (ptr->DEV_TYP == 73) {
+	const uint8_t uid1[16] = GLREMOTE_SERVICE_UUID;
+	const uint8_t uid2[16] = GLREMOTE_SERVICE1_UUID;
+	const uint8_t uid3[16] = GLREMOTE_SERVICE2_UUID;
+	if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (!memcmp(&p_data->search_res.srvc_id.uuid.uuid.uuid128, uid1,16))) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Galcon Service1 %d found", blenum1);
-            gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
-            gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
-	} else if ((ptr->DEV_TYP == 73) && (p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (bt_compare_UUID128(p_data->search_res.srvc_id.uuid.uuid.uuid128, glremote_filter_service1_uuid.uuid.uuid128))) {
-
+		gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
+		gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
+	} else if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (!memcmp(&p_data->search_res.srvc_id.uuid.uuid.uuid128, uid2,16))) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Galcon Service2 %d found", blenum1);
-            gl_profile_tab[blenum].service1_start_handle = p_data->search_res.start_handle;
-            gl_profile_tab[blenum].service1_end_handle = p_data->search_res.end_handle;
-	} else if ((ptr->DEV_TYP == 73) && (p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (bt_compare_UUID128(p_data->search_res.srvc_id.uuid.uuid.uuid128, glremote_filter_service2_uuid.uuid.uuid128))) {
-
+		gl_profile_tab[blenum].service1_start_handle = p_data->search_res.start_handle;
+		gl_profile_tab[blenum].service1_end_handle = p_data->search_res.end_handle;
+	} else if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (!memcmp(&p_data->search_res.srvc_id.uuid.uuid.uuid128, uid3,16))) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Galcon Service3 %d found", blenum1);
-            ptr->get_server = true;
-            gl_profile_tab[blenum].service2_start_handle = p_data->search_res.start_handle;
-            gl_profile_tab[blenum].service2_end_handle = p_data->search_res.end_handle;
-	} else if ((ptr->DEV_TYP == 74) && (p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_16) && (p_data->search_res.srvc_id.uuid.uuid.uuid16 == amremote_filter_service_uuid.uuid.uuid16)) {
-	if (fdebug) ESP_LOGI(AP_TAG, "AM43 Service %d found", blenum1);
-            ptr->get_server = true;
-            gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
-            gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
-	} else if ((ptr->DEV_TYP == 76) && (p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_16) && (p_data->search_res.srvc_id.uuid.uuid.uuid16 == ldremote_filter_service_uuid.uuid.uuid16)) {
+		ptr->get_server = true;
+		gl_profile_tab[blenum].service2_start_handle = p_data->search_res.start_handle;
+		gl_profile_tab[blenum].service2_end_handle = p_data->search_res.end_handle;
+	}
+	} else if (ptr->DEV_TYP == 74) {
+	if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_16) && (p_data->search_res.srvc_id.uuid.uuid.uuid16 == AMREMOTE_SERVICE_UUID)) {
+	if (fdebug) ESP_LOGI(AP_TAG, "AM43 A-OK Service %d found", blenum1);
+		ptr->get_server = true;
+		gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
+		gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
+	}
+	} else if (ptr->DEV_TYP == 76) {
+	if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_16) && (p_data->search_res.srvc_id.uuid.uuid.uuid16 == LDREMOTE_SERVICE_UUID)) {
 	if (fdebug) ESP_LOGI(AP_TAG, "LD2410 Service %d found", blenum1);
-            ptr->get_server = true;
-            gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
-            gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
+		ptr->get_server = true;
+		gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
+		gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
+	}
 	}
         break;
     }
@@ -8097,7 +8009,12 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		if ((ptr->DEV_TYP < 64) && (count > 1)) {    //if dev_type
 		count1 = count;
 		count2 = count;
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		if (!conerr) {
+		esp_bt_uuid_t remote_filter_rxchar_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = REMOTE_RXCHAR_UUID,},
+		};
+                status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -8108,24 +8025,30 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 		if (fdebug) ESP_LOGE(AP_TAG, "Get_rxchar_by_uuid %d error", blenum1);
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		}
+		if (!conerr) {
+		esp_bt_uuid_t remote_filter_txchar_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = REMOTE_TXCHAR_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
                                                              p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
                                                              remote_filter_txchar_uuid,
                                                              (char_elem_result+count1),
                                                              &count2);
-
             	if (status != ESP_GATT_OK){
 			conerr = 1;
 		if (fdebug) ESP_LOGE(AP_TAG, "Get_txchar_by_uuid %d error", blenum1);
             	}
+		}
                     /*  Every service have only one char in our 'ESP_GATTS_DEMO' demo, so we used first 'char_elem_result' */
 		int i = 0; 
                 while (!conerr && count1 && (i < count1)) {
 		if (char_elem_result[i].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY) {	
-                        gl_profile_tab[blenum].rxchar_handle = char_elem_result[i].char_handle;
-                        esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[i].char_handle);
+			gl_profile_tab[blenum].rxchar_handle = char_elem_result[i].char_handle;
+			esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[i].char_handle);
 			if (fdebug) ESP_LOGI(AP_TAG, "Register_for_notify %d", blenum1);
 			i = count1;
 		}
@@ -8148,7 +8071,12 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ESP_LOGI(AP_TAG, "Tx char count = %d, handle = 0x%X", count2, gl_profile_tab[blenum].txchar_handle);
 		}
 		} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73) && (count > 8)) {
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		if (!conerr) {
+		esp_bt_uuid_t xremote_filter_status_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = XREMOTE_STATUS_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -8159,7 +8087,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
             		if (fdebug) ESP_LOGE(AP_TAG, "Get_status_by_uuid %d error", blenum1);
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		}
+		if (!conerr) {
+		esp_bt_uuid_t xremote_filter_authinit_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = XREMOTE_AUTHINIT_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service1_start_handle,
                                                              gl_profile_tab[blenum].service1_end_handle,
@@ -8170,7 +8104,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_authinit_by_uuid %d error", blenum1);
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		}
+		if (!conerr) {
+		esp_bt_uuid_t xremote_filter_auth_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = XREMOTE_AUTH_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service1_start_handle,
                                                              gl_profile_tab[blenum].service1_end_handle,
@@ -8181,7 +8121,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_auth_by_uuid %d error", blenum1);
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		}
+		if (!conerr) {
+		esp_bt_uuid_t xremote_filter_ver_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = XREMOTE_VER_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service1_start_handle,
                                                              gl_profile_tab[blenum].service1_end_handle,
@@ -8192,7 +8138,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_ver_by_uuid %d error", blenum1);
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		}
+		if (!conerr) {
+		esp_bt_uuid_t xremote_filter_setup_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = XREMOTE_SETUP_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -8202,8 +8154,14 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	if (status != ESP_GATT_OK){
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_setup_by_uuid %d error", blenum1);
+		}
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		if (!conerr) {
+		esp_bt_uuid_t xremote_filter_time_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = XREMOTE_TIME_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -8214,7 +8172,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_time_by_uuid %d error", blenum1);
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t xremote_filter_boil_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = XREMOTE_BOIL_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -8225,7 +8189,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_boil_by_uuid %d error", blenum1);
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t xremote_filter_mcuver_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = XREMOTE_MCUVER_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service2_start_handle,
                                                              gl_profile_tab[blenum].service2_end_handle,
@@ -8236,7 +8206,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_mcuver_by_uuid %d error", blenum1);
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t xremote_filter_update_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = XREMOTE_UPDATE_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service3_start_handle,
                                                              gl_profile_tab[blenum].service3_end_handle,
@@ -8246,6 +8222,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	if (status != ESP_GATT_OK){
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_update_by_uuid %d error", blenum1);
+            	}
             	}
                 if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
@@ -8266,7 +8243,12 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	}
 
 		} else if ((ptr->DEV_TYP == 73) && (count > 4)) {
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		if (!conerr) {
+		esp_bt_uuid_t glremote_filter_rxchar_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = GLREMOTE_RXCHAR_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -8277,7 +8259,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_rxchar_by_uuid %d error", blenum1);
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t glremote_filter_txchar_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = GLREMOTE_TXCHAR_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
                                                              p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -8289,7 +8277,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_txchar_by_uuid %d error", blenum1);
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t glremote_filter_auth_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = GLREMOTE_AUTH_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
                                                              p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service1_start_handle,
                                                              gl_profile_tab[blenum].service1_end_handle,
@@ -8301,7 +8295,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_auth_by_uuid %d error", blenum1);
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t glremote_filter_time_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = GLREMOTE_TIME_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
                                                              p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service1_start_handle,
                                                              gl_profile_tab[blenum].service1_end_handle,
@@ -8313,7 +8313,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_time_by_uuid %d error", blenum1);
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t glremote_filter_setup_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = GLREMOTE_SETUP_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
                                                              p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service2_start_handle,
                                                              gl_profile_tab[blenum].service2_end_handle,
@@ -8324,6 +8330,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	if (status != ESP_GATT_OK) {
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_setup_by_uuid %d error", blenum1);
+            	}
             	}
                 if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
@@ -8344,7 +8351,12 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		}
 
 		} else if ((ptr->DEV_TYP == 74) && (count > 0)) {
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+		if (!conerr) {
+		esp_bt_uuid_t amremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_16,
+		    .uuid = {.uuid16 = AMREMOTE_CHAR_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -8354,6 +8366,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	if (status != ESP_GATT_OK) {
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_rxchar_by_uuid %d error", blenum1);
+            	}
             	}
 		if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
@@ -8365,8 +8378,62 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		}
 		}
 
+		} else if ((ptr->DEV_TYP == 75) && (count > 1)) {
+		if (!conerr) {
+		esp_bt_uuid_t amtremote_filter_rxchar_uuid = {
+		    .len = ESP_UUID_LEN_16,
+		    .uuid = {.uuid16 = AMTREMOTE_RXCHAR_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             amtremote_filter_rxchar_uuid,
+                                                             (char_elem_result),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+			if (fdebug) ESP_LOGE(AP_TAG, "Get_rxchar_by_uuid %d error", blenum1);
+            	}
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t amtremote_filter_txchar_uuid = {
+		    .len = ESP_UUID_LEN_16,
+		    .uuid = {.uuid16 = AMTREMOTE_TXCHAR_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+                                                             p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             amtremote_filter_txchar_uuid,
+                                                             (char_elem_result+1),
+                                                             &count);
+
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+			if (fdebug) ESP_LOGE(AP_TAG, "Get_txchar_by_uuid %d error", blenum1);
+            	}
+            	}
+                if (conerr) count = 0;
+            	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
+                        gl_profile_tab[blenum].rxchar_handle = char_elem_result[0].char_handle;
+                        esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[0].char_handle);
+                        gl_profile_tab[blenum].txchar_handle = char_elem_result[1].char_handle;
+		if (fdebug) {
+		ESP_LOGI(AP_TAG, "Rx char handle = 0x%X", gl_profile_tab[blenum].rxchar_handle);
+		ESP_LOGI(AP_TAG, "Tx char handle = 0x%X",  gl_profile_tab[blenum].txchar_handle);
+		ESP_LOGI(AP_TAG, "Register_for_notify %d", blenum1);
+		}
+		}
+
 		} else if ((ptr->DEV_TYP == 76) && (count > 1)) {
-		    status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+
+		if (!conerr) {
+		esp_bt_uuid_t ldremote_filter_rxchar_uuid = {
+		    .len = ESP_UUID_LEN_16,
+		    .uuid = {.uuid16 = LDREMOTE_RXCHAR_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
 							     p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -8377,7 +8444,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_rxchar_by_uuid %d error", blenum1);
             	}
-		    if (!conerr) status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t ldremote_filter_txchar_uuid = {
+		    .len = ESP_UUID_LEN_16,
+		    .uuid = {.uuid16 = LDREMOTE_TXCHAR_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
                                                              p_data->search_cmpl.conn_id,
                                                              gl_profile_tab[blenum].service_start_handle,
                                                              gl_profile_tab[blenum].service_end_handle,
@@ -8388,6 +8461,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	if (status != ESP_GATT_OK) {
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Get_txchar_by_uuid %d error", blenum1);
+            	}
             	}
                 if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
@@ -8439,7 +8513,11 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
         	        conerr = 1;
         		if (fdebug) ESP_LOGE(AP_TAG, "malloc error, gattc no mem");
         	} else {
-                    ret_status = esp_ble_gattc_get_descr_by_char_handle( gattc_if,
+		esp_bt_uuid_t notify_descr_uuid = {
+		    .len = ESP_UUID_LEN_16,
+		    .uuid = {.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG,},
+		};
+		ret_status = esp_ble_gattc_get_descr_by_char_handle( gattc_if,
                                                                          gl_profile_tab[blenum].conn_id,
                                                                          p_data->reg_for_notify.handle,
                                                                          notify_descr_uuid,
@@ -8491,7 +8569,11 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		conerr = 1;
 		if (fdebug) ESP_LOGE(AP_TAG, "malloc error, gattc no mem");
         	} else {
-                    ret_status = esp_ble_gattc_get_descr_by_char_handle( gattc_if,
+		esp_bt_uuid_t notify_descr_uuid = {
+		    .len = ESP_UUID_LEN_16,
+		    .uuid = {.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG,},
+		};
+		ret_status = esp_ble_gattc_get_descr_by_char_handle( gattc_if,
                                                                          gl_profile_tab[blenum].conn_id,
                                                                          p_data->reg_for_notify.handle,
                                                                          notify_descr_uuid,
@@ -8574,6 +8656,17 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ptr->t_rspdel = 0;
 	} else if (ptr->t_rspdel > 40) ptr->t_rspdel = 40;
 //???
+	} else if (ptr->DEV_TYP == 75) {
+	if (ptr->LstCmd && (p_data->notify.value[1] == ptr->LstCmd)) {
+	memcpy(ptr->readData, p_data->notify.value, length);
+	ptr->readDataLen = length;
+	ptr->t_rspdel = 0;
+	} else if (p_data->notify.value[1] == 0xa1) {
+	memcpy(ptr->notifyData, p_data->notify.value, length);
+	ptr->notifyDataLen = length;
+	ptr->t_rspdel = 0;
+	} else if (ptr->t_rspdel > 40) ptr->t_rspdel = 40;
+//
 	} else if (ptr->DEV_TYP == 76) {
 	if (ptr->LstCmd && (p_data->notify.value[6] == ptr->LstCmd) && (!memcmp(&p_data->notify.value[0],"\xfd\xfc\xfb\xfa",4))) {
 	memcpy(ptr->readData, p_data->notify.value, length);
@@ -8659,7 +8752,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	strcpy(ptr->DEV_NAME,ptr->RQC_NAME);
 	MqttPubSub(blenum, mqttConnected);	
 	} else if ((p_data->notify.value_len == 5) && (!memcmp(&p_data->notify.value[0],"\x9a\x17\x01\xa5\xce",5))) {
-	if (fdebug) ESP_LOGI(AP_TAG, "Authorize %d AM43 error, Passkey %d invalid", blenum1, ptr->PassKey);
+	if (fdebug) ESP_LOGI(AP_TAG, "Authorize %d AM43 A-OK error, Passkey %d invalid", blenum1, ptr->PassKey);
 	conerr = 1;
 	}
 //???
@@ -9643,10 +9736,10 @@ if (fdebug) {
                 (!BleDevStA.btopenreq && BleDevStA.REQ_NAME[0] &&  strlen(BleDevStA.REQ_NAME) == 12 && !incascmp(BleDevStA.REQ_NAME,FND_ADDR,12))) {
 			if (FND_NAME[0]) strcpy (BleDevStA.RQC_NAME,FND_NAME);
 			else strcpy (BleDevStA.RQC_NAME,BleDevStA.REQ_NAME);
-	if (fdebug) ESP_LOGI(AP_TAG, "Searched 1 device %s\n", BleDevStA.RQC_NAME);
+	if (fdebug) ESP_LOGI(AP_TAG, "Searched %d device %s\n", 1, BleDevStA.RQC_NAME);
 			BleDevStA.btopen = false;
                 	BleDevStA.btopenreq = true;
-                	memcpy(&(scan_rsta), scan_result, sizeof(esp_ble_gap_cb_param_t));
+                	memcpy(&(scan_rst), scan_result, sizeof(esp_ble_gap_cb_param_t));
                 	if (Isscanning) {
 			esp_ble_gap_stop_scanning();
 			StartStopScanReq = true;
@@ -9657,10 +9750,10 @@ if (fdebug) {
                 (!BleDevStB.btopenreq && BleDevStB.REQ_NAME[0] &&  strlen(BleDevStB.REQ_NAME) == 12 && !incascmp(BleDevStB.REQ_NAME,FND_ADDR,12))) {
 			if (FND_NAME[0]) strcpy (BleDevStB.RQC_NAME,FND_NAME);
 			else strcpy (BleDevStB.RQC_NAME,BleDevStB.REQ_NAME);
-	if (fdebug) ESP_LOGI(AP_TAG, "Searched 2 device %s\n", BleDevStB.RQC_NAME);
+	if (fdebug) ESP_LOGI(AP_TAG, "Searched %d device %s\n", 2, BleDevStB.RQC_NAME);
 			BleDevStB.btopen = false;
                 	BleDevStB.btopenreq = true;
-                	memcpy(&(scan_rstb), scan_result, sizeof(esp_ble_gap_cb_param_t));
+                	memcpy(&(scan_rst), scan_result, sizeof(esp_ble_gap_cb_param_t));
                 	if (Isscanning) {
 			esp_ble_gap_stop_scanning();
 			StartStopScanReq = true;
@@ -9671,10 +9764,10 @@ if (fdebug) {
                 (!BleDevStC.btopenreq && BleDevStC.REQ_NAME[0] &&  strlen(BleDevStC.REQ_NAME) == 12 && !incascmp(BleDevStC.REQ_NAME,FND_ADDR,12))) {
 			if (FND_NAME[0]) strcpy (BleDevStC.RQC_NAME,FND_NAME);
 			else strcpy (BleDevStC.RQC_NAME,BleDevStC.REQ_NAME);
-	if (fdebug) ESP_LOGI(AP_TAG, "Searched 3 device %s\n", BleDevStC.RQC_NAME);
+	if (fdebug) ESP_LOGI(AP_TAG, "Searched %d device %s\n", 3, BleDevStC.RQC_NAME);
 			BleDevStC.btopen = false;
                 	BleDevStC.btopenreq = true;
-                	memcpy(&(scan_rstc), scan_result, sizeof(esp_ble_gap_cb_param_t));
+                	memcpy(&(scan_rst), scan_result, sizeof(esp_ble_gap_cb_param_t));
                 	if (Isscanning) {
 			esp_ble_gap_stop_scanning();
 			StartStopScanReq = true;
@@ -9685,10 +9778,10 @@ if (fdebug) {
                 (!BleDevStD.btopenreq && BleDevStD.REQ_NAME[0] &&  strlen(BleDevStD.REQ_NAME) == 12 && !incascmp(BleDevStD.REQ_NAME,FND_ADDR,12))) {
 			if (FND_NAME[0]) strcpy (BleDevStD.RQC_NAME,FND_NAME);
 			else strcpy (BleDevStD.RQC_NAME,BleDevStD.REQ_NAME);
-	if (fdebug) ESP_LOGI(AP_TAG, "Searched 4 device %s\n", BleDevStD.RQC_NAME);
+	if (fdebug) ESP_LOGI(AP_TAG, "Searched %d device %s\n", 4, BleDevStD.RQC_NAME);
 			BleDevStD.btopen = false;
                 	BleDevStD.btopenreq = true;
-                	memcpy(&(scan_rstd), scan_result, sizeof(esp_ble_gap_cb_param_t));
+                	memcpy(&(scan_rst), scan_result, sizeof(esp_ble_gap_cb_param_t));
                 	if (Isscanning) {
 			esp_ble_gap_stop_scanning();
 			StartStopScanReq = true;
@@ -9699,10 +9792,10 @@ if (fdebug) {
                 (!BleDevStE.btopenreq && BleDevStE.REQ_NAME[0] &&  strlen(BleDevStE.REQ_NAME) == 12 && !incascmp(BleDevStE.REQ_NAME,FND_ADDR,12))) {
 			if (FND_NAME[0]) strcpy (BleDevStE.RQC_NAME,FND_NAME);
 			else strcpy (BleDevStE.RQC_NAME,BleDevStE.REQ_NAME);
-	if (fdebug) ESP_LOGI(AP_TAG, "Searched 5 device %s\n", BleDevStE.RQC_NAME);
+	if (fdebug) ESP_LOGI(AP_TAG, "Searched %d device %s\n", 5, BleDevStE.RQC_NAME);
 			BleDevStE.btopen = false;
                 	BleDevStE.btopenreq = true;
-                	memcpy(&(scan_rste), scan_result, sizeof(esp_ble_gap_cb_param_t));
+                	memcpy(&(scan_rst), scan_result, sizeof(esp_ble_gap_cb_param_t));
                 	if (Isscanning) {
 			esp_ble_gap_stop_scanning();
 			StartStopScanReq = true;
@@ -9727,25 +9820,20 @@ if (fdebug) {
 	Isscanning = false;
 	if (fdebug) ESP_LOGI(AP_TAG, "Scan stop successfully");
 	if (!BleDevStA.btopen && BleDevStA.btopenreq) {
-	if (fdebug) ESP_LOGI(AP_TAG, "Connect 1 to the remote device");
-/*
-	if (BleDevStA.DEV_TYP == 73) {
-	esp_ble_gap_set_prefer_conn_params(scan_rsta.scan_rst.bda, 24, 40, 0, 500);
-	}
-*/
-	esp_ble_gattc_open(gl_profile_tab[PROFILE_A_APP_ID].gattc_if, scan_rsta.scan_rst.bda, scan_rsta.scan_rst.ble_addr_type, true);
+	if (fdebug) ESP_LOGI(AP_TAG, "Connect %d to the remote device", 1);
+	esp_ble_gattc_open(gl_profile_tab[PROFILE_A_APP_ID].gattc_if, scan_rst.scan_rst.bda, scan_rst.scan_rst.ble_addr_type, true);
 	} else if (!BleDevStB.btopen && BleDevStB.btopenreq) {
-	if (fdebug) ESP_LOGI(AP_TAG, "Connect 2 to the remote device");
-	esp_ble_gattc_open(gl_profile_tab[PROFILE_B_APP_ID].gattc_if, scan_rstb.scan_rst.bda, scan_rstb.scan_rst.ble_addr_type, true);
+	if (fdebug) ESP_LOGI(AP_TAG, "Connect %d to the remote device", 2);
+	esp_ble_gattc_open(gl_profile_tab[PROFILE_B_APP_ID].gattc_if, scan_rst.scan_rst.bda, scan_rst.scan_rst.ble_addr_type, true);
 	} else if (!BleDevStC.btopen && BleDevStC.btopenreq) {
-	if (fdebug) ESP_LOGI(AP_TAG, "Connect 3 to the remote device");
-	esp_ble_gattc_open(gl_profile_tab[PROFILE_C_APP_ID].gattc_if, scan_rstc.scan_rst.bda, scan_rstc.scan_rst.ble_addr_type, true);
+	if (fdebug) ESP_LOGI(AP_TAG, "Connect %d to the remote device", 3);
+	esp_ble_gattc_open(gl_profile_tab[PROFILE_C_APP_ID].gattc_if, scan_rst.scan_rst.bda, scan_rst.scan_rst.ble_addr_type, true);
 	} else if (!BleDevStD.btopen && BleDevStD.btopenreq) {
-	if (fdebug) ESP_LOGI(AP_TAG, "Connect 4 to the remote device");
-	esp_ble_gattc_open(gl_profile_tab[PROFILE_D_APP_ID].gattc_if, scan_rstd.scan_rst.bda, scan_rstd.scan_rst.ble_addr_type, true);
+	if (fdebug) ESP_LOGI(AP_TAG, "Connect %d to the remote device", 4);
+	esp_ble_gattc_open(gl_profile_tab[PROFILE_D_APP_ID].gattc_if, scan_rst.scan_rst.bda, scan_rst.scan_rst.ble_addr_type, true);
 	} else if (!BleDevStE.btopen && BleDevStE.btopenreq) {
-	if (fdebug) ESP_LOGI(AP_TAG, "Connect 5 to the remote device");
-	esp_ble_gattc_open(gl_profile_tab[PROFILE_E_APP_ID].gattc_if, scan_rste.scan_rst.bda, scan_rste.scan_rst.ble_addr_type, true);
+	if (fdebug) ESP_LOGI(AP_TAG, "Connect %d to the remote device", 5);
+	esp_ble_gattc_open(gl_profile_tab[PROFILE_E_APP_ID].gattc_if, scan_rst.scan_rst.bda, scan_rst.scan_rst.ble_addr_type, true);
 	} else {
 	start_scan();
 	}
@@ -11019,6 +11107,18 @@ bool m171s_NLOn(uint8_t blenum) {
 	ptr = &BleDevStA;
 	break;
 	}
+// NightLight colours
+//                       boilOrLight    scale_from rand  rgb1       scale_mid  rand   rgb_mid     scale_to   rand  rgb2
+uint8_t nl_settings[] = {1,             0,         94,   0, 0, 0,   50,        94,    0, 0, 0,    100,       94,   0, 0, 0};
+	nl_settings[3]=ptr->RgbR;
+	nl_settings[4]=ptr->RgbG;
+	nl_settings[5]=ptr->RgbB;
+	nl_settings[8]=ptr->RgbR;
+	nl_settings[9]=ptr->RgbG;
+	nl_settings[10]=ptr->RgbB;
+	nl_settings[13]=ptr->RgbR;
+	nl_settings[14]=ptr->RgbG;
+	nl_settings[15]=ptr->RgbB;    
 	if (r4sCommand(blenum, 0x32, nl_settings, sizeof(nl_settings)) != 5)
 	return false;
 	if (ptr->notifyData[3] == 1)
@@ -13065,10 +13165,10 @@ void msStatus(uint8_t blenum) {
 	itoa(ptr->bKeep,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	}
+	if (ptr->DEV_TYP > 3) {
 	strcat(ptr->cStatus,",\"beep\":");
 	itoa(ptr->bStBp,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	if (ptr->DEV_TYP > 3) {
 	strcat(ptr->cStatus,",\"boil\":");
 	itoa(ptr->bBlTime,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
@@ -13099,7 +13199,6 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,tmpvar);
 	}
 	strcat(ptr->cStatus,"]");
-	}
 	strcat(ptr->cStatus,",\"rgb\":[");
 	itoa(ptr->RgbR,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
@@ -13109,7 +13208,9 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,",");    
 	itoa(ptr->RgbB,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,"]}");    
+	strcat(ptr->cStatus,"]");    
+	}
+	strcat(ptr->cStatus,"}");    
 	if (ptr->DEV_TYP > 3) {
 	uint8_t data[] = {0xc8};
 	if (r4sCommand(blenum, 0x35, data, sizeof(data)) == 9) {
@@ -14876,7 +14977,7 @@ void MqState(uint8_t blenum) {
 	ptr->r4sppcom = 30;
 	ptr->bprevHeat = ptr->bHeat;
 	}
-	if (ptr->DEV_TYP < 10) {
+	if ((ptr->DEV_TYP < 10) && (ptr->DEV_TYP > 3)) {
 	if  (ptr->bprevStNl != ptr->bStNl) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
@@ -21234,7 +21335,8 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
  	else strcat(bsend,"Off");
 	strcat(bsend,", ");
 	}
-	} else strcat(bsend,"Not defined, ");
+	} else if (ptr->REQ_NAME[0]) strcat(bsend,"Not connected, ");
+	else strcat(bsend,"Not defined, ");
 	strcat(bsend,"Json String:</h3><h2>{\"mqtt\":");
 	itoa(mqttConnected,buff,10);
 	strcat(bsend,buff);
@@ -21601,7 +21703,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,buff);
 	strcat(bsend," / ");
 	b2slrr(bsend,bResetReason);
-	strcat(bsend,"</td></tr><tr><td>NoMem count / Free memory</td><td>");
+	strcat(bsend,"</td></tr><tr><td>NoMem errors / Free memory</td><td>");
 	itoa(MemErr,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend," / ");
@@ -21687,7 +21789,9 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	else strcat(bsend,"Idle");
 	}
 
-	strcat(bsend,"</td></tr><tr><td>BLE 1 connection count / state / RSSI</td><td>");
+	strcat(bsend,"</td></tr><tr><td>BLE ");
+	strcat(bsend,"1");
+	strcat(bsend," connections / state / RSSI</td><td>");
 	itoa(BleDevStA.NumConn,buff,10);
 	strcat(bsend,buff);
         (BleDevStA.btauthoriz)? strcat(bsend," / Connected") : strcat(bsend," / Disconnected");
@@ -21698,7 +21802,9 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend," dB");
 	}
 
-	strcat(bsend,"</td></tr><tr><td>BLE 2 connection count / state / RSSI</td><td>");
+	strcat(bsend,"</td></tr><tr><td>BLE ");
+	strcat(bsend,"2");
+	strcat(bsend," connections / state / RSSI</td><td>");
 	itoa(BleDevStB.NumConn,buff,10);
 	strcat(bsend,buff);
         (BleDevStB.btauthoriz)? strcat(bsend," / Connected") : strcat(bsend," / Disconnected");
@@ -21709,7 +21815,9 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend," dB");
 	}
 
-	strcat(bsend,"</td></tr><tr><td>BLE 3 connection count / state / RSSI</td><td>");
+	strcat(bsend,"</td></tr><tr><td>BLE ");
+	strcat(bsend,"3");
+	strcat(bsend," connections / state / RSSI</td><td>");
 	itoa(BleDevStC.NumConn,buff,10);
 	strcat(bsend,buff);
         (BleDevStC.btauthoriz)? strcat(bsend," / Connected") : strcat(bsend," / Disconnected");
@@ -21720,7 +21828,9 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend," dB");
 	}
 
-	strcat(bsend,"</td></tr><tr><td>BLE 4 connection count / state / RSSI</td><td>");
+	strcat(bsend,"</td></tr><tr><td>BLE ");
+	strcat(bsend,"4");
+	strcat(bsend," connections / state / RSSI</td><td>");
 	itoa(BleDevStD.NumConn,buff,10);
 	strcat(bsend,buff);
         (BleDevStD.btauthoriz)? strcat(bsend," / Connected") : strcat(bsend," / Disconnected");
@@ -21731,7 +21841,9 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend," dB");
 	}
 
-	strcat(bsend,"</td></tr><tr><td>BLE 5 connection count / state / RSSI</td><td>");
+	strcat(bsend,"</td></tr><tr><td>BLE ");
+	strcat(bsend,"5");
+	strcat(bsend," connections / state / RSSI</td><td>");
 	itoa(BleDevStE.NumConn,buff,10);
 	strcat(bsend,buff);
         (BleDevStE.btauthoriz)? strcat(bsend," / Connected") : strcat(bsend," / Disconnected");
@@ -21744,9 +21856,9 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 
 	strcat(bsend,"</td></tr>");
 	wifi_ap_record_t wifidata;
-        memset(wifidata.ssid,0,31);
+	memset(wifidata.ssid,0,31);
 	if (esp_wifi_sta_get_ap_info(&wifidata)==0){
-	strcat(bsend,"<tr><td>WiFi connection count / RSSI / Name</td><td>");
+	strcat(bsend,"<tr><td>WiFi connections / RSSI / Name</td><td>");
 	itoa(NumWfConn,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend," / ");
@@ -21766,14 +21878,14 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,":");
 	itoa(mqtt_port,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"<tr><td>MQTT connection count / state</td><td>");
+	strcat(bsend,"<tr><td>MQTT connections / state</td><td>");
 	itoa(NumMqConn,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend," / ");
         (mqttConnected)? strcat(bsend,"Connected") : strcat(bsend,"Disconnected");
 #ifdef USE_TFT
 	strcat(bsend,"</td></tr>");
-	strcat(bsend,"<tr><td>LCD / JPEG load / error counts</td><td>");
+	strcat(bsend,"<tr><td>LCD / JPEG loads / errors</td><td>");
 	if (!tft_conf) strcat(bsend,"Not defined");
 	else switch (tft_conn) {
 	case 0:
@@ -21784,6 +21896,9 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	break;
 	case 2:
 	strcat(bsend,"ILI9342");
+	break;
+	case 3:
+	strcat(bsend,"ST7789");
 	break;
 	}
 	strcat(bsend," / ");
@@ -21891,16 +22006,19 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	strcat(bsend,"value=\"2\">Boil On</option><option ");
 	strcat(bsend,"value=\"3\">Heat On</option><option ");
 	strcat(bsend,"value=\"4\">Boil&Heat On</option><option ");
+	if (ptr->DEV_TYP > 3) {
 	strcat(bsend,"value=\"5\">NightLight On</option><option ");
 	strcat(bsend,"value=\"21\">BackLight Off</option><option ");
 	strcat(bsend,"value=\"22\">BackLight On</option><option ");
 	strcat(bsend,"value=\"23\">Beep Off</option><option ");
 	strcat(bsend,"value=\"24\">Beep On</option><option ");
+	}
 	strcat(bsend,"value=\"25\">Boil ");
 	if (volperc) strcat(bsend,"100%");
 	else strcat(bsend,"1l");
 	strcat(bsend," On</option></select>Select state</br>");
 	strcat(bsend,"<input name=\"stemp\" type=\"number\" value=\"0\" min=\"0\" max=\"95\" size=\"2\">Heat temp 0-95&deg;C, if 0 heat off or boil only</br>");
+	if (ptr->DEV_TYP > 3) {
 	strcat(bsend,"<input name=\"rlight\" type=\"number\" value=\"");
 	itoa(ptr->RgbR,buff,10);
 	strcat(bsend,buff);
@@ -21911,11 +22029,12 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	itoa(ptr->RgbB,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"255\" size=\"3\">Light Blue</br>");
-	if ((ptr->DEV_TYP > 3) && !ptr->bState && !ptr->bHeat) {
+	if (!ptr->bState && !ptr->bHeat) {
 	strcat(bsend,"<input name=\"sbltim\" type=\"number\" value=\"");
 	itoa(ptr->bBlTime,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"-5\" max=\"5\" size=\"3\">Boil Time(Smart Boil)</br>");
+	}
 	}
 	} else if ( ptr->DEV_TYP == 58) {
 	strcat(bsend,"<body><form method=\"POST\" action=\"/cfgdev");
@@ -25376,7 +25495,7 @@ static httpd_handle_t start_webserver(void)
 	httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 	config.max_uri_handlers = 20;
 //	config.max_resp_headers = 16;
-	config.stack_size = 10240;
+	config.stack_size = 9728;
 	// Start the httpd server
 /*
 	if (fdebug) {
@@ -25578,15 +25697,6 @@ void lpcomstat(uint8_t blenum) {
 	case 5:             //nightlight
 	ptr->r4slpres = 1;
 	if (ptr->DEV_TYP > 3) {
-	nl_settings[3]=ptr->RgbR;
-	nl_settings[4]=ptr->RgbG;
-	nl_settings[5]=ptr->RgbB;
-	nl_settings[8]=ptr->RgbR;
-	nl_settings[9]=ptr->RgbG;
-	nl_settings[10]=ptr->RgbB;
-	nl_settings[13]=ptr->RgbR;
-	nl_settings[14]=ptr->RgbG;
-	nl_settings[15]=ptr->RgbB;    
 	if (ptr->bState || ptr->bHeat) m171sOff(blenum);
 	m171s_NLOn(blenum);
 	ptr->bprevState = 255;
@@ -25913,7 +26023,7 @@ void lpcomstat(uint8_t blenum) {
 	ptr->t_rspcnt = (ptr->t_rspcnt & 7) - 1;
 	if (ptr->DEV_TYP == 73) ptr->t_rspdel = 7;
 	else ptr->t_rspdel = 10;
-	} else if ((ptr->DEV_TYP > 60) && (ptr->DEV_TYP < 63)) ptr->t_rspdel = 6000;
+	} else if ((ptr->DEV_TYP > 60) && (ptr->DEV_TYP < 63)) ptr->t_rspdel = 18000;
 	else if (ptr->DEV_TYP == 63) ptr->t_rspdel = 600;
 	else if (ptr->DEV_TYP == 73) ptr->t_rspdel = 100;
 	else if (ptr->DEV_TYP == 74) ptr->t_rspdel = 1800;
@@ -26602,7 +26712,7 @@ void app_main(void)
 	if (!BleDevStA.r4slpcom && !BleDevStB.r4slpcom && !BleDevStC.r4slpcom && !BleDevStD.r4slpcom && !BleDevStE.r4slpcom) {
 	vTaskDelay(300 / portTICK_PERIOD_MS);
 #ifdef USE_TFT
-	if (!f_update && tft_conn && jpg_time && !t_jpg) {
+	if (!wf_retry_cnt && !f_update && tft_conn && jpg_time && !t_jpg) {
 	ret = tftjpg();
 	if (ret) {
 	if (!(f_rmds & 0x01) && (bgpio5 > 191) && (bgpio6 > 127) && (bgpio6 < (MxPOutP + 128))) {

@@ -66,10 +66,10 @@ uint8_t PIN_NUM_MISO = 25;	//MISO
 uint8_t PIN_NUM_MOSI = 23;	//MOSI
 uint8_t PIN_NUM_CLK  = 19;	//CLK
 uint8_t PIN_NUM_CS   = 16;	// Chip select control pin
-uint8_t PIN_NUM_DC   = 17;	// Data Command control pin
+uint8_t PIN_NUM_DC   = 17;	// Data / !Command control pin
 uint8_t PIN_NUM_RST  = 18;	// Reset pin (could connect to RST pin)
 uint8_t PIN_NUM_BCKL = 21;	// TFT_BACKLIGHT
-uint8_t PIN_NUM_PWR = 33;	// Chip select pin (T_CS) of touch screen not used always high
+uint8_t PIN_NUM_PWR = 33;	// TFT pwr pin always high
 
 uint8_t blstnum = 0;
 
@@ -185,7 +185,7 @@ typedef struct {
 
 
 
-DRAM_ATTR static const lcd_init_cmd_t ili9341_init_cmds[]={
+const lcd_init_cmd_t ili9341_init_cmds[]={
     {0xEF, {0x03, 0x80, 0X02}, 3},
 
     /* Power contorl B, power control = 0, DC_ENA = 1 */
@@ -250,12 +250,12 @@ DRAM_ATTR static const lcd_init_cmd_t ili9341_init_cmds[]={
     {0, {0}, 0xff},
 };
 
-DRAM_ATTR static const lcd_init_cmd_t ili9341_init1_cmds[]={
+const lcd_init_cmd_t ili9341_init1_cmds[]={
     {0x36, {0x28}, 1},
 };
 
 
-DRAM_ATTR static const lcd_init_cmd_t ili9342_init_cmds[]={
+const lcd_init_cmd_t ili9342_init_cmds[]={
     {0xB9, {0xFF, 0x93, 0x42}, 3},
 
 //    {0xEF, {0x03, 0x80, 0x02}, 3},
@@ -324,11 +324,60 @@ DRAM_ATTR static const lcd_init_cmd_t ili9342_init_cmds[]={
     {0, {0}, 0xff},
 };
 
-
-
-DRAM_ATTR static const lcd_init_cmd_t ili9342_init1_cmds[]={
+const lcd_init_cmd_t ili9342_init1_cmds[]={
     {0x36, {0xc8}, 1},
 };
+
+
+const lcd_init_cmd_t st7789_init_cmds[]={
+    /* Sleep out */
+    {0x11, {0}, 0x80},
+    /* Normal Display mode on */
+    {0x13, {0}, 0x0},
+//  writedata(TFT_MAD_MX | TFT_MAD_MY | TFT_MAD_MV | TFT_MAD_COLOR_ORDER);
+    {0x36, {0xe8}, 1},
+    /* Pixel format, 16bits/pixel for RGB/MCU interface */
+    {0x3A, {0x55}, 1},
+    /* Porch setting */
+    {0xB2, {0x0c, 0x0c, 0x00, 0x33, 0x33}, 5},
+    /* Gate Control, VGL = -10.43V,  VGH = 13.26V */
+    {0xb7, {0x35}, 1},
+    /* VCOM Setting, 1.1V */
+    {0xbb, {0x28}, 1},
+    /* LCM Control */
+    {0xc0, {0x00}, 1},
+    /* VDV and VRH Command Enable CMDEN = 1, 
+	VDV and VRH register value comes from command write */
+    {0xc2, {0x01, 0xff}, 2},
+    /* VRH Set, VAP(GVDD) = 4.35+( vcom+vcom offset+vdv) V
+	VAN(GVCL) = -4.35+( vcom+vcom offset-vdv) V */
+    {0xc3, {0x10}, 1},
+    /* VDV Set, VDV  = 0V */
+    {0xc4, {0x20}, 1},
+    /* Frame Rate Control in Normal Mode
+	RTNA = 0xf (60Hz)
+	NLA  = 0 (dot inversion) */
+    {0xc6, {0x0f}, 1},
+    /* Power Control 1
+	VDS  = 2.3V
+	AVCL = -4.8V
+	AVDD = 6.8v */
+    {0xd0, {0xa4, 0xa1}, 2},
+    /* Positive gamma correction */
+    {0xE0, {0xd0, 0x00, 0x02, 0x07, 0x0a, 0x28, 0x32, 0X44, 0x42, 0x06, 0x0e, 0x12, 0x14, 0x17}, 14},
+    /* Negative gamma correction */
+    {0xE1, {0xd0, 0x00, 0x02, 0x07, 0x0a, 0x28, 0x31, 0X54, 0x47, 0x0e, 0x1c, 0x17, 0x1b, 0x1e}, 14},
+    /* Display inversion off */
+    {0x20, {0}, 0},
+    /* Display on */
+    {0x29, {0}, 0x80},
+    {0, {0}, 0xff},
+};
+
+const lcd_init_cmd_t st7789_init1_cmds[]={
+    {0x36, {0x28}, 1},
+};
+
 
 //This function is called (in irq context!) just before a transmission starts. It will
 //set the D/C line to the value indicated in the user field.
@@ -337,10 +386,6 @@ void lcd_spi_pre_transfer_callback(spi_transaction_t *t)
 	int dc=(int)t->user;
 	gpio_set_level(PIN_NUM_DC, dc);
 }
-
-
-
-
 
 
 /* Send a command to the LCD. Uses spi_device_polling_transmit, which waits
@@ -380,27 +425,33 @@ uint32_t lcd_get_dd(spi_device_handle_t spi, uint8_t cmd, uint8_t len)
 //write cmd then read up to 4 data bytes
 	uint8_t i = len;
 	uint32_t rxnum;
+	uint32_t rxswnum;
 	if (!i) return 0;
 	if (i > 3) i = 3;
 	spi_transaction_t t;
 	memset(&t, 0, sizeof(t));
-	if (PIN_NUM_MISO == PIN_NUM_MOSI) t.length = 8;
-	else t.length = 8*(i+1);
-	t.tx_buffer = &cmd;
+	if (PIN_NUM_MISO == PIN_NUM_MOSI) {
+	t.length = 8;
+	t.rxlength = 8*i + 1;
+	} else {
+	t.length = 8*(i+1);
 	t.rxlength = 8*i;
+	}
+	t.tx_buffer = &cmd;
 	t.flags = SPI_TRANS_USE_RXDATA;
 	t.user = (void*)0;
 	esp_err_t ret = spi_device_polling_transmit(spi, &t);
 	assert( ret == ESP_OK );
 	rxnum = *(uint32_t*)t.rx_data;
-	if (PIN_NUM_MISO == PIN_NUM_MOSI) {
-	uint32_t rxswnum;
 	rxswnum = ((rxnum>>24)&0xff) | ((rxnum<<8)&0xff0000) | ((rxnum>>8)&0xff00) | ((rxnum<<24)&0xff000000);
-	rxswnum=rxswnum<<1;
-	rxnum = ((rxswnum>>24)&0xff) | ((rxswnum<<8)&0xff0000) | ((rxswnum>>8)&0xff00) | ((rxswnum<<24)&0xff000000);
+	if (PIN_NUM_MISO == PIN_NUM_MOSI) {
+	rxswnum = rxswnum << 1;
+	if (i > 1) rxswnum = rxswnum << 1;
 	} else {
-	rxnum = rxnum >> 8;
+	rxswnum = rxswnum << 8;
+	if (i > 1) rxswnum = rxswnum << 1;
 	}
+	rxnum = ((rxswnum>>24)&0xff) | ((rxswnum<<8)&0xff0000) | ((rxswnum>>8)&0xff00) | ((rxswnum<<24)&0xff000000);
 	return rxnum;
 }
 
@@ -1463,7 +1514,7 @@ uint8_t lcd_init(spi_device_handle_t spi)
     //detect LCD type
 	lcd_id = lcd_get_dd(spi, 0x04, 3);
 	if (fdebug) ESP_LOGI(AP_TAG,"Display identification information (0x04h) = %x", lcd_id);
-	if (lcd_id == 0x0000) {         //0, ili9341
+	if (lcd_id == 0x0000) {         //0x0, ili9341
     //Send all the commands
 	while (ili9341_init_cmds[cmd].databytes!=0xff) {
 	lcd_cmd(spi, ili9341_init_cmds[cmd].cmd);
@@ -1484,7 +1535,7 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	if ((lcd_id & 0x08) == 0x08) {
 	///Enable backlight
 	fillScreen(0);
-        if (fdebug) ESP_LOGI(AP_TAG, "ILI9341 TFT detected.");
+        if (fdebug) ESP_LOGI(AP_TAG, "ILI9341 LCD detected.");
 	bStateS = 255;
 	if (PIN_NUM_BCKL) {
 	if (PIN_NUM_BCKL < MxPOutP) {	
@@ -1499,9 +1550,9 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	}
 	}
 	result = 1;
-	} else if (fdebug) ESP_LOGI(AP_TAG, "ILI9341 TFT init error.");
+	} else if (fdebug) ESP_LOGI(AP_TAG, "ILI9341 LCD init error.");
 
-	} else if (lcd_id == 0x80f1) {  //0, ili9342
+	} else if (lcd_id == 0xe3) {  //0x80f1, ili9342
     //Send all the commands
 	while (ili9342_init_cmds[cmd].databytes!=0xff) {
 	lcd_cmd(spi, ili9342_init_cmds[cmd].cmd);
@@ -1522,7 +1573,7 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	if ((lcd_id & 0x08) == 0x08) {
 	///Enable backlight
 	fillScreen(0);
-        if (fdebug) ESP_LOGI(AP_TAG, "ILI9342 TFT detected.");
+        if (fdebug) ESP_LOGI(AP_TAG, "ILI9342 LCD detected.");
 	bStateS = 255;
 	if (PIN_NUM_BCKL) {
 	if (PIN_NUM_BCKL < MxPOutP) {	
@@ -1537,10 +1588,47 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	}
 	}
 	result = 2;
-	} else if (fdebug) ESP_LOGI(AP_TAG, "ILI9342 TFT init error.");
+	} else if (fdebug) ESP_LOGI(AP_TAG, "ILI9342 LCD init error.");
 
+	} else if (lcd_id == 0x848580) {  //??? 0x4000c0, st7789
+    //Send all the commands
+	while (st7789_init_cmds[cmd].databytes!=0xff) {
+	lcd_cmd(spi, st7789_init_cmds[cmd].cmd);
+	lcd_data(spi, st7789_init_cmds[cmd].data, st7789_init_cmds[cmd].databytes&0x1F);
+	if (st7789_init_cmds[cmd].databytes&0x80) {
+	vTaskDelay(100 / portTICK_RATE_MS);
+	}
+	cmd++;
+	}
+    //Send flip command
+	if (tft_flip) {
+	lcd_cmd(spi, st7789_init1_cmds[0].cmd);
+	lcd_data(spi, st7789_init1_cmds[0].data, st7789_init1_cmds[0].databytes&0x1F);
+	}
+	vTaskDelay(100 / portTICK_RATE_MS);
+	lcd_id = lcd_get_dd(spi, 0x0a, 1);
+	if (fdebug) ESP_LOGI(AP_TAG,"Display Power Mode (0x0ah) = %x", lcd_id);
+	if ((lcd_id & 0x08) == 0x08) {
+	///Enable backlight
+	fillScreen(0);
+        if (fdebug) ESP_LOGI(AP_TAG, "ST7789 LCD detected.");
+	bStateS = 255;
+	if (PIN_NUM_BCKL) {
+	if (PIN_NUM_BCKL < MxPOutP) {	
+	if ((f_i2cdev & 0x40000000) && !(pwr_batmode & 0x06)) ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS >>= 4);
+	else ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, bStateS);
+	ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel);
 	} else {
-        if (fdebug) ESP_LOGI(AP_TAG, "ILI TFT not found.");
+	if ((f_i2cdev & 0x20000000) && !(pwr_batmode & 0x06)) {
+	if (bStateS) i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, (bStateS >> 2) | 1);
+	else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, 0);
+	} else i2c_axpin_set (&f_i2cdev, PIN_NUM_BCKL, bStateS); 
+	}
+	}
+	result = 3;
+	} else if (fdebug) ESP_LOGI(AP_TAG, "ST7789 LCD init error.");
+	} else {
+        if (fdebug) ESP_LOGI(AP_TAG, "LCD not found.");
 	}
 	return result;
 }
@@ -1556,19 +1644,18 @@ uint8_t tftinit()
 	if ((PIN_NUM_MOSI > 33) || (PIN_NUM_MISO > 39) || (PIN_NUM_CLK > 33) || (PIN_NUM_CS > 33)) return result;
 #endif
 	esp_err_t ret;
-	spi_bus_config_t buscfg={
+	spi_bus_config_t buscfg = {
 	.miso_io_num=PIN_NUM_MISO,
 	.mosi_io_num=PIN_NUM_MOSI,
 	.sclk_io_num=PIN_NUM_CLK,
-	.quadwp_io_num=-1,
-	.quadhd_io_num=-1,
-	.max_transfer_sz=153608 	//PARALLEL_LINES*320*2+8
+	.quadwp_io_num = -1,
+	.quadhd_io_num = -1,
 	};
 	spi_device_interface_config_t devcfg={
 	.clock_speed_hz=20*1000*1000,           //Clock out at 20 MHz
-	.mode=0,                                //SPI mode 0
+	.mode = 0,                                //SPI mode 0
 	.spics_io_num = PIN_NUM_CS,             //CS pin
-	.queue_size=7,                          //We want to be able to queue 7 transactions at a time
+	.queue_size = 7,                          //We want to be able to queue 7 transactions at a time
 	.pre_cb=lcd_spi_pre_transfer_callback,  //Specify pre-transfer callback to handle D/C line
 	.command_bits = 0,
 	.address_bits = 0,
@@ -2087,7 +2174,7 @@ void tfblestate(uint8_t tmr)
 	setTextColor(TFT_RED, TFT_BLACK);
         if (ptr->bLock & 0x01) {
 	setTextColor(TFT_RED, TFT_BLACK);
-	sumx += drawString("Movement", sumx, 224, 2);
+	sumx += drawString("Motion", sumx, 224, 2);
         } else if (ptr->bLock & 0x02) {
 	setTextColor(TFT_YELLOW, TFT_BLACK);
 	sumx += drawString("Presence", sumx, 224, 2);
