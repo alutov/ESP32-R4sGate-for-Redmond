@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.08.22"
+#define AP_VER "2023.09.23"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -3396,11 +3396,8 @@ esp_err_t i2c_read_rtc(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp)
 	}
 	} //1
 	if (!idx) {
-	if (err) {
-	*temp = 0xffff;
-	} else {
-	*temp = itmp;
-	}
+	if (!err) *temp = itmp;
+	else *temp = 0xffff;
 	}
 	return err;
 }
@@ -3448,15 +3445,15 @@ static IRAM_ATTR void hw_timer_callback(void *arg)
 	if (BleDevStD.r4sppcom) BleDevStD.r4sppcom--;
 	if (BleDevStE.r4sppcom) BleDevStE.r4sppcom--;
 	} else if (hwtdiv == 2) {
-	if (BleDevStA.t_ppcon) BleDevStA.t_ppcon--;
-	if (BleDevStB.t_ppcon) BleDevStB.t_ppcon--;
-	if (BleDevStC.t_ppcon) BleDevStC.t_ppcon--;
-	if (BleDevStD.t_ppcon) BleDevStD.t_ppcon--;
-	if (BleDevStE.t_ppcon) BleDevStE.t_ppcon--;
+	if (BleDevStA.t_ppcon && (BleDevStA.t_ppcon != 30)) BleDevStA.t_ppcon--;
+	if (BleDevStB.t_ppcon && (BleDevStB.t_ppcon != 30)) BleDevStB.t_ppcon--;
+	if (BleDevStC.t_ppcon && (BleDevStC.t_ppcon != 30)) BleDevStC.t_ppcon--;
+	if (BleDevStD.t_ppcon && (BleDevStD.t_ppcon != 30)) BleDevStD.t_ppcon--;
+	if (BleDevStE.t_ppcon && (BleDevStE.t_ppcon != 30)) BleDevStE.t_ppcon--;
 	} else if (hwtdiv == 3) {
 	if (t_clock) t_clock--;
 	if (t_lasts) t_lasts--;
-	if (t_ppcons) t_ppcons--;
+	if (t_ppcons && (t_ppcons != 25)) t_ppcons--;
 #ifdef USE_TFT
 	if (t_jpg) t_jpg--;
 #endif
@@ -3779,7 +3776,7 @@ static IRAM_ATTR void hw_timer_callback(void *arg)
 }
 
 //******************** ble hass discovery data **********************
-void MqttPubSub (uint8_t blenum, bool mqtttst) {
+void MqttPubSub (uint8_t blenum) {
 	uint8_t blenum1 = blenum + 1;
 	char tbuff[16]; 
 	if (blenum > 4) return;
@@ -3801,7 +3798,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	ptr = &BleDevStA;
 	break;
 	}
-	if (!mqtdel && ptr->tBLEAddr[0] && ptr->btauthoriz && mqtttst && ptr->DEV_TYP) {
+	if (!mqtdel && ptr->tBLEAddr[0] && mqttConnected && ptr->DEV_TYP) {
 	char *bufd = NULL;
 	bufd = malloc(1792);
 	if (bufd == NULL) {
@@ -3815,13 +3812,15 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 	strcat(buft,"/");
 	strcat(buft,ptr->tBLEAddr);
 	strcat(buft,"/status");
-	esp_mqtt_client_publish(mqttclient, buft, "online", 0, 1, 1);
+	if (ptr->btauthoriz) esp_mqtt_client_publish(mqttclient, buft, "online", 0, 1, 1);
+	else esp_mqtt_client_publish(mqttclient, buft, "offline", 0, 1, 1);
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
 	strcat(buft,ptr->tBLEAddr);
 	strcat(buft,"/name");
 	esp_mqtt_client_publish(mqttclient, buft, ptr->DEV_NAME, 0, 1, 1);
 
+	if (ptr->btauthoriz) {
 	if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73))) {
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
@@ -7480,6 +7479,7 @@ void MqttPubSub (uint8_t blenum, bool mqtttst) {
 
 
 	}
+	}
 	free(bufd);
 	}
 	}
@@ -7568,40 +7568,44 @@ static void start_scan(void)
 	esp_err_t scan_ret = 0;
 
 //step 1: set scan only if not update, if not already starting scan or if no connections is opening   
-	if (!f_update && !StartStopScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen) && (!BleDevStD.btopenreq || BleDevStD.btopen) && (!BleDevStE.btopenreq || BleDevStE.btopen)) {
+	if (!f_update && !StartStopScanReq && !SetScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen) && (!BleDevStD.btopenreq || BleDevStD.btopen) && (!BleDevStE.btopenreq || BleDevStE.btopen)) {
 	if (!ble_mon || (ble_mon == 3)) {
 	if ((BleDevStA.REQ_NAME[0] && !BleDevStA.btopenreq) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btopenreq) || (BleDevStC.REQ_NAME[0] && !BleDevStC.btopenreq) || (BleDevStD.REQ_NAME[0] && !BleDevStD.btopenreq) || (BleDevStE.REQ_NAME[0] && !BleDevStE.btopenreq)) {
 	if (!Isscanning) {
+	SetScanReq = true;
 	scan_ret = esp_ble_gap_set_scan_params(&ble_scan_params);
 	IsPassiveScan = false;
 	} else if (IsPassiveScan) {
-	esp_ble_gap_stop_scanning();
 	StartStopScanReq = true;
+	esp_ble_gap_stop_scanning();
 	}
 	} else if (ble_mon) {
 	if (!Isscanning) {
+	SetScanReq = true;
 	scan_ret = esp_ble_gap_set_scan_params(&ble_pscan_params);
 	IsPassiveScan = true;
 	} else if (!IsPassiveScan) {
-	esp_ble_gap_stop_scanning();
 	StartStopScanReq = true;
+	esp_ble_gap_stop_scanning();
 	}
 	}
 	} else if (ble_mon == 2) {
 	if (!Isscanning) {
+	SetScanReq = true;
 	scan_ret = esp_ble_gap_set_scan_params(&ble_scan_params);
 	IsPassiveScan = false;
 	} else if (IsPassiveScan) {
-	esp_ble_gap_stop_scanning();
 	StartStopScanReq = true;
+	esp_ble_gap_stop_scanning();
 	}
 	} else if (ble_mon == 1) {
 	if (!Isscanning) {
+	SetScanReq = true;
 	scan_ret = esp_ble_gap_set_scan_params(&ble_pscan_params);
 	IsPassiveScan = true;
 	} else if (!IsPassiveScan) {
-	esp_ble_gap_stop_scanning();
 	StartStopScanReq = true;
+	esp_ble_gap_stop_scanning();
 	}
 	}
 	if (scan_ret){
@@ -7713,8 +7717,9 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ptr = &BleDevStA;
 	break;
 	}
+//	MemErr = uxTaskGetStackHighWaterMark(NULL);
 
-    switch (event) {
+	switch (event) {
     case ESP_GATTC_REG_EVT:
 	if (!blenum) {
 	esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV,ESP_PWR_LVL_P9); // for more power???
@@ -7877,19 +7882,19 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73)) {
 	const uint8_t uid1[16] = XREMOTE_SERVICE_UUID;
 	if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (!memcmp(&p_data->search_res.srvc_id.uuid.uuid.uuid128, uid1,16))) {
-	if (fdebug) ESP_LOGI(AP_TAG, "Xiaomi Service1 %d found", blenum1);
+	if (fdebug) ESP_LOGI(AP_TAG, "Xiaomi Service%d %d found", 1, blenum1);
 		gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
 		gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
 	} else if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_16) && (p_data->search_res.srvc_id.uuid.uuid.uuid16 == XREMOTE_SERVICE116_UUID)) {
-	if (fdebug) ESP_LOGI(AP_TAG, "Xiaomi Service2 %d found", blenum1);
+	if (fdebug) ESP_LOGI(AP_TAG, "Xiaomi Service%d %d found", 2, blenum1);
 		gl_profile_tab[blenum].service1_start_handle = p_data->search_res.start_handle;
 		gl_profile_tab[blenum].service1_end_handle = p_data->search_res.end_handle;
 	} else if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_16) && (p_data->search_res.srvc_id.uuid.uuid.uuid16 == XREMOTE_SERVICE216_UUID)) {
-	if (fdebug) ESP_LOGI(AP_TAG, "Xiaomi Service3 %d found", blenum1);
+	if (fdebug) ESP_LOGI(AP_TAG, "Xiaomi Service%d %d found", 3, blenum1);
 		gl_profile_tab[blenum].service2_start_handle = p_data->search_res.start_handle;
 		gl_profile_tab[blenum].service2_end_handle = p_data->search_res.end_handle;
 	} else if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_16) && (p_data->search_res.srvc_id.uuid.uuid.uuid16 == XREMOTE_SERVICE316_UUID)) {
-	if (fdebug) ESP_LOGI(AP_TAG, "Xiaomi Service4 %d found", blenum1);
+	if (fdebug) ESP_LOGI(AP_TAG, "Xiaomi Service%d %d found", 4, blenum1);
 		ptr->get_server = true;
 		gl_profile_tab[blenum].service3_start_handle = p_data->search_res.start_handle;
 		gl_profile_tab[blenum].service3_end_handle = p_data->search_res.end_handle;
@@ -7899,15 +7904,15 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	const uint8_t uid2[16] = GLREMOTE_SERVICE1_UUID;
 	const uint8_t uid3[16] = GLREMOTE_SERVICE2_UUID;
 	if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (!memcmp(&p_data->search_res.srvc_id.uuid.uuid.uuid128, uid1,16))) {
-	if (fdebug) ESP_LOGI(AP_TAG, "Galcon Service1 %d found", blenum1);
+	if (fdebug) ESP_LOGI(AP_TAG, "Galcon Service%d %d found", 1, blenum1);
 		gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
 		gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
 	} else if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (!memcmp(&p_data->search_res.srvc_id.uuid.uuid.uuid128, uid2,16))) {
-	if (fdebug) ESP_LOGI(AP_TAG, "Galcon Service2 %d found", blenum1);
+	if (fdebug) ESP_LOGI(AP_TAG, "Galcon Service%d %d found", 2, blenum1);
 		gl_profile_tab[blenum].service1_start_handle = p_data->search_res.start_handle;
 		gl_profile_tab[blenum].service1_end_handle = p_data->search_res.end_handle;
 	} else if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (!memcmp(&p_data->search_res.srvc_id.uuid.uuid.uuid128, uid3,16))) {
-	if (fdebug) ESP_LOGI(AP_TAG, "Galcon Service3 %d found", blenum1);
+	if (fdebug) ESP_LOGI(AP_TAG, "Galcon Service%d %d found", 3, blenum1);
 		ptr->get_server = true;
 		gl_profile_tab[blenum].service2_start_handle = p_data->search_res.start_handle;
 		gl_profile_tab[blenum].service2_end_handle = p_data->search_res.end_handle;
@@ -7954,7 +7959,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
                                                                      &count);
     	if (status != ESP_GATT_OK){
 		conerr = 1;
-		if (fdebug) ESP_LOGE(AP_TAG, "esp_ble_gattc_get_attr_count error");
+	if (fdebug) ESP_LOGE(AP_TAG, "esp_ble_gattc_get_attr%d_count error", 1);
     	}
 
 	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 74)) {
@@ -7967,7 +7972,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
                                                                      &count1);
     	if (status != ESP_GATT_OK){
 		conerr = 1;
-	if (fdebug) ESP_LOGE(AP_TAG, "esp_ble_gattc_get_attr1_count error");
+	if (fdebug) ESP_LOGE(AP_TAG, "esp_ble_gattc_get_attr%d_count error", 2);
     	}
 	count = count + count1;
 	count1 = 0;		
@@ -7980,7 +7985,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
                                                                      &count1);
     	if (status != ESP_GATT_OK){
 		conerr = 1;
-	if (fdebug) ESP_LOGE(AP_TAG, "esp_ble_gattc_get_attr2_count error");
+	if (fdebug) ESP_LOGE(AP_TAG, "esp_ble_gattc_get_attr%d_count error", 3);
     	}
 	count = count + count1;
 	count1 = 0;		
@@ -7995,13 +8000,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
                                                                      &count1);
     	if (status != ESP_GATT_OK){
 		conerr = 1;
-	if (fdebug) ESP_LOGE(AP_TAG, "esp_ble_gattc_get_attr3_count error");
+	if (fdebug) ESP_LOGE(AP_TAG, "esp_ble_gattc_get_attr%d_count error", 4);
     	}
 	count = count + count1;
 	}
         if (conerr) count = 0;
     	if (count > 0) {
-		char_elem_result = (esp_gattc_char_elem_t *)malloc(sizeof(esp_gattc_char_elem_t) * count);
+		char_elem_result = malloc(sizeof(esp_gattc_char_elem_t) * (count + 1));
         	if (!char_elem_result){
 		conerr = 1;
 	if (fdebug) ESP_LOGE(AP_TAG, "Gattc no mem");
@@ -8508,7 +8513,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
     	}
 	if (conerr) count = 0;
     	if (count > 0) {
-                descr_elem_result = malloc(sizeof(esp_gattc_descr_elem_t) * count);
+		descr_elem_result = malloc(sizeof(esp_gattc_descr_elem_t) * (count + 1));
         	if (!descr_elem_result){
         	        conerr = 1;
         		if (fdebug) ESP_LOGE(AP_TAG, "malloc error, gattc no mem");
@@ -8564,7 +8569,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
     	}
 	if (conerr) count = 0;
     	if (count > 0) {
-                descr_elem_result = malloc(sizeof(esp_gattc_descr_elem_t) * count);
+		descr_elem_result = malloc(sizeof(esp_gattc_descr_elem_t) * (count + 1));
         	if (!descr_elem_result){
 		conerr = 1;
 		if (fdebug) ESP_LOGE(AP_TAG, "malloc error, gattc no mem");
@@ -8619,16 +8624,19 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
 */
 	int length = p_data->read.value_len;
-	if (length > BLE_INPUT_BUFFSIZE)
-	length = BLE_INPUT_BUFFSIZE;
+	if (length > BLE_INPUT_BUFFSIZE) length = BLE_INPUT_BUFFSIZE;
 	if (length > 0) {
 	memcpy(ptr->readData, p_data->read.value, length);
 	}
 	ptr->readDataLen = length;
 	ptr->readDataHandle = p_data->read.handle;
 	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73) && (p_data->read.handle == gl_profile_tab[blenum].mcuver_handle)) {
-	if (length && (length < sizeof(ptr->sVer))) memcpy(ptr->sVer, p_data->read.value, length);
-	MqttPubSub(blenum, mqttConnected);	
+	if (length && (length < sizeof(ptr->sVer))) {
+	memset(ptr->sVer, 0, sizeof(ptr->sVer));
+	memcpy(ptr->sVer, p_data->read.value, length);
+	}
+//
+	ptr->t_ppcon = 40;
 	}
 }
 	break;
@@ -8636,8 +8644,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	if ((p_data->notify.is_notify) && (p_data->notify.handle == gl_profile_tab[blenum].rxchar_handle)) {
 	if (ptr->btauthoriz) {
 	int length = p_data->notify.value_len;
-	if (length > BLE_INPUT_BUFFSIZE)
-	length = BLE_INPUT_BUFFSIZE;
+	if (length > BLE_INPUT_BUFFSIZE) length = BLE_INPUT_BUFFSIZE;
 	if (length > 0) {
 /*
 	if (fdebug) {
@@ -8723,7 +8730,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	if (!ptr->NumConn) ptr->NumConn--;
 	bin2hex(gl_profile_tab[blenum].remote_bda, ptr->tBLEAddr,6,0);
 	strcpy(ptr->DEV_NAME,ptr->RQC_NAME);
-//	MqttPubSub(blenum, mqttConnected);	
 	} else {
 	if (fdebug) ESP_LOGI(AP_TAG, "Authorize %d Redmond error", blenum1);
 	ptr->r4sAuthCount++;
@@ -8750,7 +8756,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	if (!ptr->NumConn) ptr->NumConn--;
 	bin2hex(gl_profile_tab[blenum].remote_bda, ptr->tBLEAddr,6,0);
 	strcpy(ptr->DEV_NAME,ptr->RQC_NAME);
-	MqttPubSub(blenum, mqttConnected);	
 	} else if ((p_data->notify.value_len == 5) && (!memcmp(&p_data->notify.value[0],"\x9a\x17\x01\xa5\xce",5))) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Authorize %d AM43 A-OK error, Passkey %d invalid", blenum1, ptr->PassKey);
 	conerr = 1;
@@ -8774,7 +8779,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	if (!ptr->NumConn) ptr->NumConn--;
 	bin2hex(gl_profile_tab[blenum].remote_bda, ptr->tBLEAddr,6,0);
 	strcpy(ptr->DEV_NAME,ptr->RQC_NAME);
-//	MqttPubSub(blenum, mqttConnected);	
 	} else {
 	if (fdebug) ESP_LOGI(AP_TAG, "Authorize %d HLK-LD2410 error", blenum1);
 	conerr = 1;
@@ -8912,7 +8916,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	if (!ptr->NumConn) ptr->NumConn--;
 	bin2hex(gl_profile_tab[blenum].remote_bda, ptr->tBLEAddr,6,0);
 	strcpy(ptr->DEV_NAME,ptr->RQC_NAME);
-//	MqttPubSub(blenum, mqttConnected);	
 	esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, gl_profile_tab[blenum].rxchar_handle);
 	}
 	} else {
@@ -9059,7 +9062,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	if (!ptr->NumConn) ptr->NumConn--;
 	bin2hex(gl_profile_tab[blenum].remote_bda, ptr->tBLEAddr,6,0);
 	strcpy(ptr->DEV_NAME,ptr->RQC_NAME);
-	MqttPubSub(blenum, mqttConnected);	
 	}
 	} else if (ptr->DEV_TYP == 74) {
         write_char_data[0] = 0x00;
@@ -9157,23 +9159,15 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
         break;
 
     case ESP_GATTC_DISCONNECT_EVT:
-	if (memcmp(p_data->disconnect.remote_bda, gl_profile_tab[blenum].remote_bda, 6) == 0){
-	ptr->btopen = false;
-	ptr->btopenreq = false;
+	if (!memcmp(p_data->disconnect.remote_bda, gl_profile_tab[blenum].remote_bda, 6)) {
 	memset(ptr->sVer, 0, sizeof(ptr->sVer));
 	ptr->btauthoriz = false;
 	ptr->get_server = false;
 	ptr->xbtauth = 0;
+	ptr->t_ppcon = 30;
+	ptr->btopenreq = false;
+	ptr->btopen = false;
 	if (fdebug) ESP_LOGI(AP_TAG, "DISCONNECT_EVT %d, reason = %d", blenum1, p_data->disconnect.reason);
-	if ((mqttConnected) &&(ptr->tBLEAddr[0])) {
-	char ldata[32];
-	strcpy(ldata,MQTT_BASE_TOPIC);
-	strcat(ldata,"/");
-	strcat(ldata,ptr->tBLEAddr);
-	strcat(ldata,"/status");
-	esp_mqtt_client_publish(mqttclient, ldata, "offline", 0, 1, 1);
-	}
-//	Isscanning = false;
 	start_scan();
 	}
         break;
@@ -9196,7 +9190,9 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 	uint8_t blenum = 255;
 	uint8_t blenum1 = 255;
         struct BleDevSt *ptr;
-    switch (event) {
+//	MemErr = uxTaskGetStackHighWaterMark(NULL);
+
+	switch (event) {
 
     case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
 //	if (fdebug) esp_log_buffer_hex(AP_TAG, param->read_rssi_cmpl.remote_addr, 6);
@@ -9323,6 +9319,7 @@ if (fdebug) {
         esp_err_t scan_ret = ESP_GATT_OK;
 	if (!ble_mon || (ble_mon == 3)) {
 	if ((BleDevStA.REQ_NAME[0] && !BleDevStA.btopenreq) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btopenreq) || (BleDevStC.REQ_NAME[0] && !BleDevStC.btopenreq) || (BleDevStD.REQ_NAME[0] && !BleDevStD.btopenreq) || (BleDevStE.REQ_NAME[0] && !BleDevStE.btopenreq)) {
+	SetScanReq = true;
 	scan_ret = esp_ble_gap_set_scan_params(&ble_scan_params);
 	IsPassiveScan = false;
 	} else if (ble_mon) {
@@ -9330,9 +9327,11 @@ if (fdebug) {
 	IsPassiveScan = true;
 	}
 	} else if (ble_mon == 2) {
+	SetScanReq = true;
 	scan_ret = esp_ble_gap_set_scan_params(&ble_scan_params);
 	IsPassiveScan = false;
 	} else if (ble_mon == 1) {
+	SetScanReq = true;
 	scan_ret = esp_ble_gap_set_scan_params(&ble_pscan_params);
 	IsPassiveScan = true;
 	}
@@ -9445,6 +9444,7 @@ if (fdebug) {
 
 
     case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: 
+	SetScanReq = false;
 //step 1: start scan only if not update, if not scanning, if not already starting scan or if no connections is opening   
 	if (!f_update && !Isscanning && !StartStopScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen) && (!BleDevStD.btopenreq || BleDevStD.btopen) && (!BleDevStE.btopenreq || BleDevStE.btopen)) {
 //step 2: start scan if defined but not open connection present
@@ -9466,7 +9466,6 @@ if (fdebug) {
 	if (param->scan_start_cmpl.status != ESP_BT_STATUS_SUCCESS) {
 	if (fdebug) ESP_LOGE(AP_TAG, "scan start failed, error status = 0x%X", param->scan_start_cmpl.status);
 //	if (ble_mon && !f_update && !Isscanning) esp_restart();
-//	if (!f_update && !Isscanning) esp_restart();
 	break;
 	} 
 	if (fdebug) ESP_LOGI(AP_TAG, "Scan start success");
@@ -13064,7 +13063,6 @@ void msStatus(uint8_t blenum) {
 	if (ptr->notifyData[4] < 10) strcat (ptr->sVer,"0");
 	itoa(ptr->notifyData[4],buff,10);
 	strcat (ptr->sVer,buff);
-	MqttPubSub(blenum, mqttConnected);	
 	}
 	if (!ptr->sVer[0]) ptr->sVer[0] = 0x20;
 	}
@@ -13977,7 +13975,6 @@ void msStatus(uint8_t blenum) {
 //???
 
 	} else if (ptr->btauthoriz && (ptr->DEV_TYP == 76)) {
-//???
 	if (!ptr->sVer[0]) {
 	char buff[4];
 	uint8_t buf[2];
@@ -14001,7 +13998,6 @@ void msStatus(uint8_t blenum) {
 	strcat (ptr->sVer,buff);
 	bin2hex(&ptr->readData[14],buff,1,0);
 	strcat (ptr->sVer,buff);
-	MqttPubSub(blenum, mqttConnected);	
 	}
 	}
         retc = ld24Command(blenum, 0xfe, 0, 0);	
@@ -18946,122 +18942,12 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	return result;
 }
 
-void MqBlPrevSt(uint8_t blenum) {
-	if (blenum > 4) return;
-        struct BleDevSt *ptr;
-	switch (blenum) {
-	case 1:
-	ptr = &BleDevStB;
-	break;
-	case 2:
-	ptr = &BleDevStC;
-	break;
-	case 3:
-	ptr = &BleDevStD;
-	break;
-	case 4:
-	ptr = &BleDevStE;
-	break;
-	default:
-	ptr = &BleDevStA;
-	break;
-	}
-	ptr->t_ppcon = 40;
-	ptr->t_rspdel = 0;
-	ptr->cprevStatus[0] = 0;
-	ptr->iprevRssi = 0;
-	ptr->bprevState = 255;
-	ptr->bprevHeat = 255;
-	ptr->bprevLock = 255;
-	ptr->bprevProg = 253;
-	ptr->bprevModProg = 255;
-	ptr->bprevPHour = 255;
-	ptr->bprevPMin = 255;
-	ptr->bprevCHour = 255;
-	ptr->bprevCMin = 255;
-	ptr->bprevDHour = 255;
-	ptr->bprevDMin = 255;
-	ptr->bprevStNl = 255;
-	ptr->bprevStBl = 255;
-	ptr->bprevStBp = 255;
-	ptr->bprevCtemp = 255;
-	ptr->bprevHtemp = 255;
-	ptr->bprevAwarm = 255;
-	ptr->bprevBlTime = ~ptr->bBlTime;
-	ptr->PRgbR = ~ptr->RgbR;
-	ptr->PRgbG = ~ptr->RgbG;
-	ptr->PRgbB = ~ptr->RgbB;
-	ptr->bprevSEnergy = ~ptr->bSEnergy;
-	ptr->bprevSTime = ~ptr->bSTime;
-	ptr->bprevSCount = ~ptr->bSCount;
-	ptr->bprevSHum = ~ptr->bSHum;
-	ptr->bprevCVol = 255;
-	ptr->bprevCVoll = 255;
-}
-
-
-//******************* Mqtt **********************
-static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
-{
-    esp_mqtt_client_handle_t client = event->client;
-//    int msg_id;
-    // your_context_t *context = event->context;
-//uint32_t fdeltmp = 0;
-    switch (event->event_id) {
-        case MQTT_EVENT_CONNECTED:
-	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_EVENT_CONNECTED");
-	t_ppcons = 30;
-	iprevRssiESP = 0;
-	for (uint8_t i = 0; i < 5; i++) MqBlPrevSt(i);
-	bprevStateS = ~bStateS;
-	bprevStatHx6 = ~bStatHx6;
-	bprevStatG6 = ~bStatG6;
-	bprevStatG7 = ~bStatG7;
-	bprevStatG8 = ~bStatG8;
-	bprevStatG6h = ~bStatG6h;
-	bprevStatG7h = ~bStatG7h;
-	bprevStatG8h = ~bStatG8h;
-	pwr_batprevlevp = 255;
-	pwr_batprevlevv = ~pwr_batlevv;
-	pwr_batprevlevc = ~pwr_batlevc;
-	pwr_batprevmode = 255;
-	fgpio1 = 1;
-	fgpio2 = 1;
-	fgpio3 = 1;
-	fgpio4 = 1;
-	fgpio5 = 1;
-	for (int i = 0; i < BleMonNum; i++) {
-	BleMX[i].prstate = 255;
-	BleMX[i].prrssi = 255;
-	BleMX[i].cmrssi = 0;
-	BleMX[i].gtnum = 255;
-	BleMX[i].ppar1 = ~BleMX[i].par1;
-	BleMX[i].ppar2 = ~BleMX[i].par2;
-	BleMX[i].ppar3 = ~BleMX[i].par3;
-	BleMX[i].ppar4 = ~BleMX[i].par4;
-	BleMX[i].ppar5 = ~BleMX[i].par5;
-	BleMX[i].ppar6 = ~BleMX[i].par6;
-	BleMX[i].ppar7 = ~BleMX[i].par7;
-	}
-	for (int i = 0; i < 28; i++) {
-	SnPi2c[i].ppar1 = ~SnPi2c[i].par1;
-	SnPi2c[i].ppar2 = ~SnPi2c[i].par2;
-	SnPi2c[i].ppar3 = ~SnPi2c[i].par3;
-	SnPi2c[i].ppar4 = ~SnPi2c[i].par4;
-/*
-	SnPi2c[i].ppar5 = ~SnPi2c[i].par5;
-	SnPi2c[i].ppar6 = ~SnPi2c[i].par6;
-	SnPi2c[i].ppar7 = ~SnPi2c[i].par7;
-	SnPi2c[i].ppar8 = ~SnPi2c[i].par8;
-*/
-	}
-
+void MqtDevInit(bool mqtttst) {
+	if (mqtttst) {
 	char llwtt[128];
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/status");
-	esp_mqtt_client_publish(client, llwtt, "online", 0, 1, 1);
-//	msg_id = esp_mqtt_client_publish(client, llwtt, "online", 0, 1, 1);
-//	if (fdebug) ESP_LOGI(AP_TAG,"sent publish successful, msg_id=%d", msg_id);
+	esp_mqtt_client_publish(mqttclient, llwtt, "online", 0, 1, 1);
 	tcpip_adapter_ip_info_t ipInfo;
 	char wbuff[32];
 	memset(wbuff,0,32);
@@ -19069,23 +18955,23 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	sprintf(wbuff, "%d.%d.%d.%d", IP2STR(&ipInfo.ip));
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/ip");
-	esp_mqtt_client_publish(client, llwtt, wbuff, 0, 1, 1);
+	esp_mqtt_client_publish(mqttclient, llwtt, wbuff, 0, 1, 1);
 #ifdef USE_TFT
-	if (MQTT_TOPP1[0]) esp_mqtt_client_subscribe(client, MQTT_TOPP1, 0);
-	if (MQTT_TOPP2[0]) esp_mqtt_client_subscribe(client, MQTT_TOPP2, 0);
-	if (MQTT_TOPP3[0]) esp_mqtt_client_subscribe(client, MQTT_TOPP3, 0);
-	if (MQTT_TOPP4[0]) esp_mqtt_client_subscribe(client, MQTT_TOPP4, 0);
-	if (MQTT_TOPP5[0]) esp_mqtt_client_subscribe(client, MQTT_TOPP5, 0);
-	if (MQTT_TOPP6[0]) esp_mqtt_client_subscribe(client, MQTT_TOPP6, 0);
-	if (MQTT_TOPP7[0]) esp_mqtt_client_subscribe(client, MQTT_TOPP7, 0);
+	if (MQTT_TOPP1[0]) esp_mqtt_client_subscribe(mqttclient, MQTT_TOPP1, 0);
+	if (MQTT_TOPP2[0]) esp_mqtt_client_subscribe(mqttclient, MQTT_TOPP2, 0);
+	if (MQTT_TOPP3[0]) esp_mqtt_client_subscribe(mqttclient, MQTT_TOPP3, 0);
+	if (MQTT_TOPP4[0]) esp_mqtt_client_subscribe(mqttclient, MQTT_TOPP4, 0);
+	if (MQTT_TOPP5[0]) esp_mqtt_client_subscribe(mqttclient, MQTT_TOPP5, 0);
+	if (MQTT_TOPP6[0]) esp_mqtt_client_subscribe(mqttclient, MQTT_TOPP6, 0);
+	if (MQTT_TOPP7[0]) esp_mqtt_client_subscribe(mqttclient, MQTT_TOPP7, 0);
 
 	if (tft_conn) {
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/jpg_url");
-	esp_mqtt_client_subscribe(client, llwtt, 0);
+	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
 	strcpy(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/jpg_time");
-	esp_mqtt_client_subscribe(client, llwtt, 0);
+	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
 	}
 #endif
 	if (FDHass && tESP32Addr[0]) {
@@ -19805,13 +19691,118 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcat(llwtt,"/gpio8");
 	esp_mqtt_client_subscribe(mqttclient, llwtt, 0);
 	}
-	MqttPubSub(0, true);	
-	MqttPubSub(1, true);	
-	MqttPubSub(2, true);	
-	MqttPubSub(3, true);	
-	MqttPubSub(4, true);	
-	HDiscBlemon(true);
-	if (HDisci2c(&f_i2cdev)) i2cdevnumo = i2cdevnum;
+	}
+}
+
+void MqBlPrevSt(uint8_t blenum) {
+	if (blenum > 4) return;
+        struct BleDevSt *ptr;
+	switch (blenum) {
+	case 1:
+	ptr = &BleDevStB;
+	break;
+	case 2:
+	ptr = &BleDevStC;
+	break;
+	case 3:
+	ptr = &BleDevStD;
+	break;
+	case 4:
+	ptr = &BleDevStE;
+	break;
+	default:
+	ptr = &BleDevStA;
+	break;
+	}
+	ptr->t_ppcon = 40;
+	ptr->t_rspdel = 0;
+	ptr->cprevStatus[0] = 0;
+	ptr->iprevRssi = 0;
+	ptr->bprevState = 255;
+	ptr->bprevHeat = 255;
+	ptr->bprevLock = 255;
+	ptr->bprevProg = 253;
+	ptr->bprevModProg = 255;
+	ptr->bprevPHour = 255;
+	ptr->bprevPMin = 255;
+	ptr->bprevCHour = 255;
+	ptr->bprevCMin = 255;
+	ptr->bprevDHour = 255;
+	ptr->bprevDMin = 255;
+	ptr->bprevStNl = 255;
+	ptr->bprevStBl = 255;
+	ptr->bprevStBp = 255;
+	ptr->bprevCtemp = 255;
+	ptr->bprevHtemp = 255;
+	ptr->bprevAwarm = 255;
+	ptr->bprevBlTime = ~ptr->bBlTime;
+	ptr->PRgbR = ~ptr->RgbR;
+	ptr->PRgbG = ~ptr->RgbG;
+	ptr->PRgbB = ~ptr->RgbB;
+	ptr->bprevSEnergy = ~ptr->bSEnergy;
+	ptr->bprevSTime = ~ptr->bSTime;
+	ptr->bprevSCount = ~ptr->bSCount;
+	ptr->bprevSHum = ~ptr->bSHum;
+	ptr->bprevCVol = 255;
+	ptr->bprevCVoll = 255;
+}
+
+
+//******************* Mqtt **********************
+static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
+{
+//	esp_mqtt_client_handle_t client = event->client;
+//	int msg_id;
+    // your_context_t *context = event->context;
+//uint32_t fdeltmp = 0;
+	switch (event->event_id) {
+        case MQTT_EVENT_CONNECTED:
+	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_EVENT_CONNECTED");
+	t_ppcons = 30;
+	iprevRssiESP = 0;
+	for (uint8_t i = 0; i < 5; i++) MqBlPrevSt(i);
+	bprevStateS = ~bStateS;
+	bprevStatHx6 = ~bStatHx6;
+	bprevStatG6 = ~bStatG6;
+	bprevStatG7 = ~bStatG7;
+	bprevStatG8 = ~bStatG8;
+	bprevStatG6h = ~bStatG6h;
+	bprevStatG7h = ~bStatG7h;
+	bprevStatG8h = ~bStatG8h;
+	pwr_batprevlevp = 255;
+	pwr_batprevlevv = ~pwr_batlevv;
+	pwr_batprevlevc = ~pwr_batlevc;
+	pwr_batprevmode = 255;
+	fgpio1 = 1;
+	fgpio2 = 1;
+	fgpio3 = 1;
+	fgpio4 = 1;
+	fgpio5 = 1;
+	for (int i = 0; i < BleMonNum; i++) {
+	BleMX[i].prstate = 255;
+	BleMX[i].prrssi = 255;
+	BleMX[i].cmrssi = 0;
+	BleMX[i].gtnum = 255;
+	BleMX[i].ppar1 = ~BleMX[i].par1;
+	BleMX[i].ppar2 = ~BleMX[i].par2;
+	BleMX[i].ppar3 = ~BleMX[i].par3;
+	BleMX[i].ppar4 = ~BleMX[i].par4;
+	BleMX[i].ppar5 = ~BleMX[i].par5;
+	BleMX[i].ppar6 = ~BleMX[i].par6;
+	BleMX[i].ppar7 = ~BleMX[i].par7;
+	}
+	for (int i = 0; i < 28; i++) {
+	SnPi2c[i].ppar1 = ~SnPi2c[i].par1;
+	SnPi2c[i].ppar2 = ~SnPi2c[i].par2;
+	SnPi2c[i].ppar3 = ~SnPi2c[i].par3;
+	SnPi2c[i].ppar4 = ~SnPi2c[i].par4;
+/*
+	SnPi2c[i].ppar5 = ~SnPi2c[i].par5;
+	SnPi2c[i].ppar6 = ~SnPi2c[i].par6;
+	SnPi2c[i].ppar7 = ~SnPi2c[i].par7;
+	SnPi2c[i].ppar8 = ~SnPi2c[i].par8;
+*/
+	}
 	mqttConnected = true;
 	NumMqConn++;
 	if (!NumMqConn) NumMqConn--;
@@ -20348,8 +20339,8 @@ static void mqtt_app_start(void)
 	.lwt_retain = 1,
 	.keepalive = 60,
 	.client_id = MQTT_BASE_TOPIC,
-	.buffer_size = 1536,
-	.task_stack = 7168,
+	.buffer_size = 2048,
+	.task_stack = 3456,
 	};
 	if (fdebug) ESP_LOGI(AP_TAG,"Mqtt url: %s, port: %d, login: %s, password: %s", luri, mqtt_port, MQTT_USER, MQTT_PASSWORD);
 	if (fmssl && (bufcert[0] || fmsslbundle)) {
@@ -20401,8 +20392,6 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 	if (floop && MQTT_SERVER[0]) esp_mqtt_client_reconnect(mqttclient);
 	NumWfConn++;
 	if (!NumWfConn) NumWfConn--;
-	} else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP) {
-	if (!wf_retry_cnt) wf_retry_cnt++;
 	}
 }
 
@@ -21796,69 +21785,40 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	else strcat(bsend,"Idle");
 	}
 
+	for (uint8_t i = 0; i < 5; i++) {
+        struct BleDevSt *ptr;
+	switch (i) {
+	case 1:
+	ptr = &BleDevStB;
+	break;
+	case 2:
+	ptr = &BleDevStC;
+	break;
+	case 3:
+	ptr = &BleDevStD;
+	break;
+	case 4:
+	ptr = &BleDevStE;
+	break;
+	default:
+	ptr = &BleDevStA;
+	break;
+	}
+	if (ptr->REQ_NAME[0]) {
 	strcat(bsend,"</td></tr><tr><td>BLE ");
-	strcat(bsend,"1");
-	strcat(bsend," connections / state / RSSI</td><td>");
-	itoa(BleDevStA.NumConn,buff,10);
+	itoa(i + 1,buff,10);
 	strcat(bsend,buff);
-        (BleDevStA.btauthoriz)? strcat(bsend," / Connected") : strcat(bsend," / Disconnected");
-	if ((BleDevStA.btauthoriz) && (BleDevStA.iRssi)) {
+	strcat(bsend," connections / state / RSSI</td><td>");
+	itoa(ptr->NumConn,buff,10);
+	strcat(bsend,buff);
+        (ptr->btauthoriz)? strcat(bsend," / Connected") : strcat(bsend," / Disconnected");
+	if ((ptr->btauthoriz) && (ptr->iRssi)) {
 	strcat(bsend," / ");
-	itoa(BleDevStA.iRssi,buff,10);
+	itoa(ptr->iRssi,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend," dB");
 	}
-
-	strcat(bsend,"</td></tr><tr><td>BLE ");
-	strcat(bsend,"2");
-	strcat(bsend," connections / state / RSSI</td><td>");
-	itoa(BleDevStB.NumConn,buff,10);
-	strcat(bsend,buff);
-        (BleDevStB.btauthoriz)? strcat(bsend," / Connected") : strcat(bsend," / Disconnected");
-	if ((BleDevStB.btauthoriz) && (BleDevStB.iRssi)) {
-	strcat(bsend," / ");
-	itoa(BleDevStB.iRssi,buff,10);
-	strcat(bsend,buff);
-	strcat(bsend," dB");
 	}
-
-	strcat(bsend,"</td></tr><tr><td>BLE ");
-	strcat(bsend,"3");
-	strcat(bsend," connections / state / RSSI</td><td>");
-	itoa(BleDevStC.NumConn,buff,10);
-	strcat(bsend,buff);
-        (BleDevStC.btauthoriz)? strcat(bsend," / Connected") : strcat(bsend," / Disconnected");
-	if ((BleDevStC.btauthoriz) && (BleDevStC.iRssi)) {
-	strcat(bsend," / ");
-	itoa(BleDevStC.iRssi,buff,10);
-	strcat(bsend,buff);
-	strcat(bsend," dB");
-	}
-
-	strcat(bsend,"</td></tr><tr><td>BLE ");
-	strcat(bsend,"4");
-	strcat(bsend," connections / state / RSSI</td><td>");
-	itoa(BleDevStD.NumConn,buff,10);
-	strcat(bsend,buff);
-        (BleDevStD.btauthoriz)? strcat(bsend," / Connected") : strcat(bsend," / Disconnected");
-	if ((BleDevStD.btauthoriz) && (BleDevStD.iRssi)) {
-	strcat(bsend," / ");
-	itoa(BleDevStD.iRssi,buff,10);
-	strcat(bsend,buff);
-	strcat(bsend," dB");
-	}
-
-	strcat(bsend,"</td></tr><tr><td>BLE ");
-	strcat(bsend,"5");
-	strcat(bsend," connections / state / RSSI</td><td>");
-	itoa(BleDevStE.NumConn,buff,10);
-	strcat(bsend,buff);
-        (BleDevStE.btauthoriz)? strcat(bsend," / Connected") : strcat(bsend," / Disconnected");
-	if ((BleDevStE.btauthoriz) && (BleDevStE.iRssi)) {
-	strcat(bsend," / ");
-	itoa(BleDevStE.iRssi,buff,10);
-	strcat(bsend,buff);
-	strcat(bsend," dB");
 	}
 
 	strcat(bsend,"</td></tr>");
@@ -21915,7 +21875,20 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	itoa(JpgLoadErr,buff,10);
 	strcat(bsend,buff);
 #endif
-	strcat(bsend,"</td></tr></table><footer><h6>More info on <a href='https://github.com/alutov/ESP32-R4sGate-for-Redmond' style='font-size: 15px; text-decoration: none'>github.com/alutov</a></h6>");
+	strcat(bsend,"</td></tr></table>");
+/*
+// + free_RTOS place to flash & USE_TRACE_FACILITY & USE_STATS_FORMATTING_FUNCTIONS
+	char *bufd = NULL;
+	bufd = malloc(2048);
+	if (bufd != NULL) {
+	memset (bufd,0,2048);
+        vTaskList(bufd);
+	strcat(bsend,bufd);
+	free(bufd);
+	}
+	strcat(bsend,"</br>");
+*/
+	strcat(bsend,"<footer><h6>More info on <a href='https://github.com/alutov/ESP32-R4sGate-for-Redmond' style='font-size: 15px; text-decoration: none'>github.com/alutov</a></h6>");
 
 //itoa(strlen(bsend),buff,10);
 //strcat(bsend,buff);
@@ -23113,7 +23086,17 @@ return cm_done;
 
 static esp_err_t pcfgdev1ok_get_handler(httpd_req_t *req)
 {
-	char buf1[512] = {0};
+	char *buf1 = NULL;
+	buf1 = malloc(512);
+	if (buf1 == NULL) {
+	if (fdebug) ESP_LOGE(AP_TAG, "Http blemon: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	httpd_resp_set_status(req, "303 See Other");
+	httpd_resp_set_hdr(req, "Location", "/");
+	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	} else {	
+	memset (buf1,0,512);
 	int  ret;
 	ret = httpd_req_recv(req,buf1,512);
 /*
@@ -23128,6 +23111,8 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	if (!ret) httpd_resp_set_hdr(req, "Location", "/cfgdev1");
 	else httpd_resp_set_hdr(req, "Location", "/");
 	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	free(buf1);
+	}
 	return ESP_OK;
 }
 
@@ -23200,7 +23185,17 @@ static const httpd_uri_t pcfgdev2 = {
 
 static esp_err_t pcfgdev2ok_get_handler(httpd_req_t *req)
 {
-	char buf1[512] = {0};
+	char *buf1 = NULL;
+	buf1 = malloc(512);
+	if (buf1 == NULL) {
+	if (fdebug) ESP_LOGE(AP_TAG, "Http blemon: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	httpd_resp_set_status(req, "303 See Other");
+	httpd_resp_set_hdr(req, "Location", "/");
+	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	} else {	
+	memset (buf1,0,512);
 	int  ret;
 	ret = httpd_req_recv(req,buf1,512);
 /*
@@ -23215,6 +23210,8 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	if (!ret) httpd_resp_set_hdr(req, "Location", "/cfgdev2");
 	else httpd_resp_set_hdr(req, "Location", "/");
 	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	free(buf1);
+	}
 	return ESP_OK;
 }
 
@@ -23289,7 +23286,17 @@ static const httpd_uri_t pcfgdev3 = {
 
 static esp_err_t pcfgdev3ok_get_handler(httpd_req_t *req)
 {
-	char buf1[512] = {0};
+	char *buf1 = NULL;
+	buf1 = malloc(512);
+	if (buf1 == NULL) {
+	if (fdebug) ESP_LOGE(AP_TAG, "Http blemon: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	httpd_resp_set_status(req, "303 See Other");
+	httpd_resp_set_hdr(req, "Location", "/");
+	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	} else {	
+	memset (buf1,0,512);
 	int  ret;
 	ret = httpd_req_recv(req,buf1,512);
 /*
@@ -23304,6 +23311,8 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	if (!ret) httpd_resp_set_hdr(req, "Location", "/cfgdev3");
 	else httpd_resp_set_hdr(req, "Location", "/");
 	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	free(buf1);
+	}
 	return ESP_OK;
 }
 
@@ -23379,7 +23388,17 @@ static const httpd_uri_t pcfgdev4 = {
 
 static esp_err_t pcfgdev4ok_get_handler(httpd_req_t *req)
 {
-	char buf1[512] = {0};
+	char *buf1 = NULL;
+	buf1 = malloc(512);
+	if (buf1 == NULL) {
+	if (fdebug) ESP_LOGE(AP_TAG, "Http blemon: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	httpd_resp_set_status(req, "303 See Other");
+	httpd_resp_set_hdr(req, "Location", "/");
+	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	} else {	
+	memset (buf1,0,512);
 	int  ret;
 	ret = httpd_req_recv(req,buf1,512);
 /*
@@ -23394,6 +23413,8 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	if (!ret) httpd_resp_set_hdr(req, "Location", "/cfgdev4");
 	else httpd_resp_set_hdr(req, "Location", "/");
 	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	free(buf1);
+	}
 	return ESP_OK;
 }
 
@@ -23469,7 +23490,17 @@ static const httpd_uri_t pcfgdev5 = {
 
 static esp_err_t pcfgdev5ok_get_handler(httpd_req_t *req)
 {
-	char buf1[512] = {0};
+	char *buf1 = NULL;
+	buf1 = malloc(512);
+	if (buf1 == NULL) {
+	if (fdebug) ESP_LOGE(AP_TAG, "Http blemon: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	httpd_resp_set_status(req, "303 See Other");
+	httpd_resp_set_hdr(req, "Location", "/");
+	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	} else {	
+	memset (buf1,0,512);
 	int  ret;
 	ret = httpd_req_recv(req,buf1,512);
 /*
@@ -23484,6 +23515,8 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	if (!ret) httpd_resp_set_hdr(req, "Location", "/cfgdev5");
 	else httpd_resp_set_hdr(req, "Location", "/");
 	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	free(buf1);
+	}
 	return ESP_OK;
 }
 
@@ -23728,7 +23761,17 @@ static const httpd_uri_t pblemon = {
 
 static esp_err_t pblemonok_get_handler(httpd_req_t *req)
 {
-	char buf1[512] = {0};
+	char *buf1 = NULL;
+	buf1 = malloc(512);
+	if (buf1 == NULL) {
+	if (fdebug) ESP_LOGE(AP_TAG, "Http blemon: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	httpd_resp_set_status(req, "303 See Other");
+	httpd_resp_set_hdr(req, "Location", "/");
+	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	} else {	
+	memset (buf1,0,512);
 	char buf2[16] = {0};
 	char buf3[96] = {0};
 	uint8_t buf4[48] = {0};
@@ -23806,6 +23849,8 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	httpd_resp_set_status(req, "303 See Other");
 	httpd_resp_set_hdr(req, "Location", "/blemon");
 	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	free(buf1);
+	}
 	return ESP_OK;
 }
 static const httpd_uri_t pblemonok = {
@@ -25268,7 +25313,17 @@ static esp_err_t prestart_get_handler(httpd_req_t *req)
 		return ESP_OK;
 	}
 
-	char buf1[512] = {0};
+	char *buf1 = NULL;
+	buf1 = malloc(512);
+	if (buf1 == NULL) {
+	if (fdebug) ESP_LOGE(AP_TAG, "Http blemon: No memory");
+	MemErr++;
+	if (!MemErr) MemErr--;
+	httpd_resp_set_status(req, "303 See Other");
+	httpd_resp_set_hdr(req, "Location", "/");
+	httpd_resp_send(req, NULL, 0);  // Response body can be empty
+	} else {	
+	memset (buf1,0,512);
 //save ip from header
 	char bufip[32] = {0};
 	int buf_len;
@@ -25283,6 +25338,8 @@ static esp_err_t prestart_get_handler(httpd_req_t *req)
 	strcat(buf1, bufip);
 	strcat(buf1,"\"></head><body>Rebooting...</body></html>");
 	httpd_resp_sendstr(req, buf1);
+	free(buf1);
+	}
 	if (floop && mqttConnected) esp_mqtt_client_disconnect(mqttclient);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
@@ -25502,7 +25559,11 @@ static httpd_handle_t start_webserver(void)
 	httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 	config.max_uri_handlers = 20;
 //	config.max_resp_headers = 16;
-	config.stack_size = 10240;
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+	config.stack_size = 5760;
+#else
+	config.stack_size = 5376;
+#endif
 	// Start the httpd server
 /*
 	if (fdebug) {
@@ -25591,7 +25652,10 @@ void lpcomstat(uint8_t blenum) {
 	ptr = &BleDevStA;
 	break;
 	}
-
+	if (ptr->t_ppcon == 30) {
+	MqttPubSub(blenum);	
+        ptr->t_ppcon = 29;
+	}
 	if (fkpmd && ptr->bKeep && ptr->bCtemp && (ptr->DEV_TYP < 10) && ptr->btauthoriz && !ptr->r4slpcom) {
 	switch (ptr->bKeep) {
 	case 1:
@@ -26033,7 +26097,7 @@ void lpcomstat(uint8_t blenum) {
 	} else if ((ptr->DEV_TYP > 60) && (ptr->DEV_TYP < 63)) ptr->t_rspdel = 18000;
 	else if (ptr->DEV_TYP == 63) ptr->t_rspdel = 600;
 	else if (ptr->DEV_TYP == 73) ptr->t_rspdel = 100;
-	else if (ptr->DEV_TYP == 74) ptr->t_rspdel = 1800;
+	else if ((ptr->DEV_TYP > 73) && (ptr->DEV_TYP < 76)) ptr->t_rspdel = 6000;
 	else if (ptr->DEV_TYP == 76) ptr->t_rspdel = 10;
 	else ptr->t_rspdel = 40;
 	}
@@ -26523,7 +26587,7 @@ void app_main(void)
     timer_set_counter_value(TIMER_GROUP_0, TIMER_0, 0);
     timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, 20000);
     timer_enable_intr(TIMER_GROUP_0, TIMER_0);
-    timer_isr_register(TIMER_GROUP_0, TIMER_0, &hw_timer_callback, NULL, 0, &s_timer_handle);
+    timer_isr_register(TIMER_GROUP_0, TIMER_0, &hw_timer_callback, NULL, ESP_INTR_FLAG_IRAM, &s_timer_handle);
 
     timer_start(TIMER_GROUP_0, TIMER_0);
 
@@ -26544,7 +26608,9 @@ void app_main(void)
 //init bt
         Isscanning = false;
         StartStopScanReq = false;
-	ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
+        SetScanReq = false;
+//	ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
+	ESP_ERROR_CHECK(esp_bt_mem_release(ESP_BT_MODE_CLASSIC_BT));
 	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
 	ret = esp_bt_controller_init(&bt_cfg);
 	if (ret) {
@@ -26698,12 +26764,17 @@ void app_main(void)
 
 //r4s state nonitoring and command execution loop
 	while (floop) {
-
 	lpcomstat(0);
 	lpcomstat(1);
 	lpcomstat(2);
 	lpcomstat(3);
 	lpcomstat(4);
+	if (t_ppcons == 25) {
+	MqtDevInit(mqttConnected);
+	HDiscBlemon(mqttConnected);
+	if (mqttConnected && HDisci2c(&f_i2cdev)) i2cdevnumo = i2cdevnum;
+	t_ppcons = 24;
+	}
 #ifdef USE_IRTX
 	if ((bgpio6 > 191) && (bgpio6 < (MxPOutP + 192))) {
 	rmtir_send(0, &bStatG6, &bprevStatG6, &bStatG6h);

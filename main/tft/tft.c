@@ -2413,7 +2413,7 @@ bool tftjpg()
 	} else {	
 	memset(MyJPGbuf,0,MyJPGbuflen);
 	esp_err_t err = ESP_OK;
-	JpHttpUri = calloc(520, 1);
+	JpHttpUri = malloc(520);
 	if (JpHttpUri != NULL) {
 	memset(JpHttpUri,0,520);
 	myurlcpy(JpHttpUri, MyHttpUri, 518);
@@ -2480,7 +2480,7 @@ bool tftjpg()
 	esp_err_t ret = ESP_OK;
 
     //Allocate the work space for the jpeg decoder.
-	work = calloc(WORKSZ, 1);
+	work = malloc(WORKSZ);
 	if (work == NULL) {
         if (fdebug) ESP_LOGE(AP_TAG, "Cannot allocate workspace");
         ret = ESP_ERR_NO_MEM;

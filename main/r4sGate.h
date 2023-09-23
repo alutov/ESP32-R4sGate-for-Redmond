@@ -154,7 +154,7 @@
 #define PROFILE_E_APP_ID 4
 #define INVALID_HANDLE   0
 #define BLE_INPUT_BUFFSIZE 64
-#define cStatus_len 128
+#define cStatus_len 160
 #define otabufsize 2048
 #define BleMonNum 24
 #define BleMonDefTO 3000
@@ -329,6 +329,7 @@ uint16_t  ppar4;
 static bool Isscanning = false;
 static bool IsPassiveScan = false;
 static bool StartStopScanReq = false;
+static bool SetScanReq = false;
 static uint8_t hwtdiv = 0;
 
 static esp_gattc_char_elem_t *char_elem_result   = NULL;
