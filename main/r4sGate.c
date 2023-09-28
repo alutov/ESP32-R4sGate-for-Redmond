@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.09.23"
+#define AP_VER "2023.09.28"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -1840,7 +1840,7 @@ esp_err_t i2c_init_bus()
 {
 /*
 timeout:  10us(1bit @100kbit) * 10 bit(~byte+start/stop/ack) * 256 bytes(max) = 25.6ms
-assume 80ms for read, 40ms for write/check(2/1 bytes)
+assume 200ms for read, 160ms for write/check(2/1 bytes)
 */
 	esp_err_t err = -1;
 	if ((bgpio9 < 192) | (bgpio10 < 192) | (bgpio9 > 225) | (bgpio10 > 225)) return err;
@@ -1865,7 +1865,7 @@ esp_err_t i2c_check(uint8_t addr)
 	i2c_master_start(CmdHd);
 	i2c_master_write_byte(CmdHd, addr << 1, 1);
 	i2c_master_stop(CmdHd);
-	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 40);
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 160);
 	i2c_cmd_link_delete(CmdHd);
 	if (err == ESP_ERR_TIMEOUT) { // if i2c bus busy errcnt++
 	i2c_errcnt++;
@@ -1912,7 +1912,7 @@ esp_err_t i2c_read0_data(uint8_t addr, uint8_t* data, uint16_t len)
 	if (len > 1) i2c_master_read(CmdHd, data, len, I2C_MASTER_ACK);
 	i2c_master_read_byte(CmdHd, data+len-1, I2C_MASTER_NACK);
 	i2c_master_stop(CmdHd);
-	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 80);
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 200);
 	i2c_cmd_link_delete(CmdHd);
 	}
 	if (err) {
@@ -1936,7 +1936,7 @@ esp_err_t i2c_read_data(uint8_t addr, uint8_t reg, uint8_t* data, uint16_t len)
 	i2c_master_read_byte(CmdHd, data+len-1, I2C_MASTER_NACK);
 	}
 	i2c_master_stop(CmdHd);
-	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 80);
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 200);
 	i2c_cmd_link_delete(CmdHd);
 	if (err) {
 	i2c_errcnt++;
@@ -1960,7 +1960,7 @@ esp_err_t i2c_read2_data(uint8_t addr, uint8_t reg, uint8_t cmd, uint8_t* data, 
 	i2c_master_read_byte(CmdHd, data+len-1, I2C_MASTER_NACK);
 	}
 	i2c_master_stop(CmdHd);
-	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 80);
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 200);
 	i2c_cmd_link_delete(CmdHd);
 	if (err) {
 	i2c_errcnt++;
@@ -1985,7 +1985,7 @@ esp_err_t i2c_read3_data(uint8_t addr, uint8_t reg, uint8_t cmd, uint8_t par, ui
 	i2c_master_read_byte(CmdHd, data+len-1, I2C_MASTER_NACK);
 	}
 	i2c_master_stop(CmdHd);
-	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 80);
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 200);
 	i2c_cmd_link_delete(CmdHd);
 	if (err) {
 	i2c_errcnt++;
@@ -2003,7 +2003,7 @@ esp_err_t i2c_write_byte(uint8_t addr, uint8_t reg, uint8_t value)
 	i2c_master_write_byte(CmdHd, reg, I2C_MASTER_ACK);
 	i2c_master_write_byte(CmdHd, value, I2C_MASTER_ACK);
 	i2c_master_stop(CmdHd);
-	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 40);
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 160);
 	i2c_cmd_link_delete(CmdHd);
 	if (err) {
 	i2c_errcnt++;
@@ -2021,7 +2021,7 @@ esp_err_t i2c_write_data(uint8_t addr, uint8_t reg, uint8_t* data, uint16_t len)
 	i2c_master_write_byte(CmdHd, reg, I2C_MASTER_ACK);
 	if (len) i2c_master_write(CmdHd, data, len, I2C_MASTER_ACK);
 	i2c_master_stop(CmdHd);
-	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 40);
+	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 160);
 	i2c_cmd_link_delete(CmdHd);
 	if (err) {
 	i2c_errcnt++;
@@ -3223,7 +3223,7 @@ esp_err_t i2c_read_scd4x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_
 	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
 	if (!(i2cbits & 0x80000000) || idx) return err;
-	uint8_t buf[12] = {0};
+	uint8_t buf[12];
 	uint8_t addr;
 	addr = i2c_addr[idx + 10];
 	err = i2c_check(addr);
@@ -3237,12 +3237,16 @@ esp_err_t i2c_read_scd4x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_
 	vTaskDelay(5 / portTICK_PERIOD_MS);      //1ms command execution delay
 	memset(buf, 0xff, sizeof(buf));
 	err = i2c_read0_data(addr, buf, 10); //read data
-	buf[9] = i2c_sgpxx_crc(&buf[0],2);
-	if (!err && (buf[2] != buf[9])) err = -1;
 	if (!err) { //4
+	buf[9] = i2c_sgpxx_crc(&buf[0],2);
+	buf[10] = i2c_sgpxx_crc(&buf[3],2);
+	buf[11] = i2c_sgpxx_crc(&buf[6],2);
+	if ((buf[2] != buf[9]) || (buf[5] != buf[10]) || (buf[8] != buf[11])) err = -1;
+	if (!err) { //5
 	*co2 = (buf[0] << 8) + buf[1]; 
 	*temp = ((((buf[3] << 8) + buf[4]) * 1750 ) >> 12) - 7200; 
 	*humid = (((buf[6] << 8) + buf[7]) * 1000) >> 16;
+	} //5
 	} //4
 	} //3
 	} //2
@@ -3318,9 +3322,12 @@ esp_err_t i2c_read_rtc(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp)
 	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
 	if (!err) {  //1
 	if (!idx) {                                //ds3231
-	err = i2c_read_data(addr, 0x00, data, 20);
+	err = i2c_read_data(addr, 0x00, data, 8);
+	if (!err) err = i2c_read_data(addr, 0x0f, &data[0x0f], 5);
 	itmp =  (data[0x11]<< 8) | data[0x12];
 	itmp = (itmp >> 1) + (itmp >> 3) + 8;
+	if (!err) *temp = itmp;
+	else *temp = 0xffff;
 	if (!err) {  //2
 	time(&now);
 	localtime_r(&now, &timeinfo);
@@ -3395,10 +3402,6 @@ esp_err_t i2c_read_rtc(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp)
 	} //2
 	}
 	} //1
-	if (!idx) {
-	if (!err) *temp = itmp;
-	else *temp = 0xffff;
-	}
 	return err;
 }
 
@@ -3420,18 +3423,7 @@ static struct BleMonExt BleMX[BleMonNum];
 #endif
 
 //******************* timer *********************
-static intr_handle_t s_timer_handle;
-static IRAM_ATTR void hw_timer_callback(void *arg)
-{
-//Reset irq and set for next time
-#ifdef CONFIG_IDF_TARGET_ESP32C3
-	TIMERG0.int_clr_timers.t0_int_clr = 1;
-	TIMERG0.hw_timer[0].config.tx_alarm_en = 1;
-#else
-	TIMERG0.int_clr_timers.t0 = 1;
-	TIMERG0.hw_timer[0].config.alarm_en = 1;
-#endif
-//
+static IRAM_ATTR bool hw_timer_callback(void *arg) {
 	if (!hwtdiv) {
 	if (BleDevStA.t_rspdel) BleDevStA.t_rspdel--;
 	if (BleDevStB.t_rspdel) BleDevStB.t_rspdel--;
@@ -3773,6 +3765,7 @@ static IRAM_ATTR void hw_timer_callback(void *arg)
 	break;
 
 	}
+	return false;
 }
 
 //******************** ble hass discovery data **********************
@@ -26458,14 +26451,14 @@ void app_main(void)
 	if ((bgpio6 > 63) && (bgpio6 < 128)) {
 	bStatG6 = 0;
 	if (bgpio6 < (MxPOutP + 64)) {
-    ledc_channel_config_t ledc_channel = {
-            .channel    = LEDC_CHANNEL_1,
-            .duty       = 0,
-            .gpio_num   = (bgpio6 & 0x3f),
-            .speed_mode = LEDC_LOW_SPEED_MODE,
-            .hpoint     = 0,
-            .timer_sel  = LEDC_TIMER_1
-    };
+	ledc_channel_config_t ledc_channel = {
+		.channel    = LEDC_CHANNEL_1,
+		.duty       = 0,
+		.gpio_num   = (bgpio6 & 0x3f),
+		.speed_mode = LEDC_LOW_SPEED_MODE,
+		.hpoint     = 0,
+		.timer_sel  = LEDC_TIMER_1
+	};
         ledc_channel_config(&ledc_channel);
 	}
 	} else if ((bgpio6 > 127) && (bgpio6 < 192)) {
@@ -26495,14 +26488,14 @@ void app_main(void)
 	if ((bgpio7 > 63) && (bgpio7 < 128)) {
 	bStatG7 = 0;
 	if (bgpio7 < (MxPOutP + 64)) {
-    ledc_channel_config_t ledc_channel = {
-            .channel    = LEDC_CHANNEL_2,
-            .duty       = 0,
-            .gpio_num   = (bgpio7 & 0x3f),
-            .speed_mode = LEDC_LOW_SPEED_MODE,
-            .hpoint     = 0,
-            .timer_sel  = LEDC_TIMER_1
-    };
+	ledc_channel_config_t ledc_channel = {
+		.channel    = LEDC_CHANNEL_2,
+		.duty       = 0,
+		.gpio_num   = (bgpio7 & 0x3f),
+		.speed_mode = LEDC_LOW_SPEED_MODE,
+		.hpoint     = 0,
+		.timer_sel  = LEDC_TIMER_1
+	};
         ledc_channel_config(&ledc_channel);
 	}
 	} else if ((bgpio7 > 127) && (bgpio7 < 192)) {
@@ -26524,14 +26517,14 @@ void app_main(void)
 	if ((bgpio8 > 63) && (bgpio8 < 128)) {
 	bStatG8 = 0;
 	if (bgpio8 < (MxPOutP + 64)) {
-    ledc_channel_config_t ledc_channel = {
-            .channel    = LEDC_CHANNEL_3,
-            .duty       = 0,
-            .gpio_num   = (bgpio8 & 0x3f),
-            .speed_mode = LEDC_LOW_SPEED_MODE,
-            .hpoint     = 0,
-            .timer_sel  = LEDC_TIMER_1
-    };
+	ledc_channel_config_t ledc_channel = {
+		.channel    = LEDC_CHANNEL_3,
+		.duty       = 0,
+		.gpio_num   = (bgpio8 & 0x3f),
+		.speed_mode = LEDC_LOW_SPEED_MODE,
+		.hpoint     = 0,
+		.timer_sel  = LEDC_TIMER_1
+	};
         ledc_channel_config(&ledc_channel);
 	}
 #ifdef CONFIG_IDF_TARGET_ESP32C3
@@ -26574,22 +26567,20 @@ void app_main(void)
 	} //if i2c
 
 //timer 
-    timer_config_t config = {
-            .alarm_en = true,				//Alarm Enable
-            .counter_en = false,			//If the counter is enabled it will start incrementing / decrementing immediately after calling timer_init()
-            .intr_type = TIMER_INTR_LEVEL,	//Is interrupt is triggered on timer's alarm (timer_intr_mode_t)
-            .counter_dir = TIMER_COUNT_UP,	//Does counter increment or decrement (timer_count_dir_t)
-            .auto_reload = true,			//If counter should auto_reload a specific initial value on the timer's alarm, or continue incrementing or decrementing.
-            .divider = 80   				//Divisor of the incoming 80 MHz (12.5nS) APB_CLK clock. E.g. 80 = 1uS per timer tick
-    };
-
-    timer_init(TIMER_GROUP_0, TIMER_0, &config);
-    timer_set_counter_value(TIMER_GROUP_0, TIMER_0, 0);
-    timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, 20000);
-    timer_enable_intr(TIMER_GROUP_0, TIMER_0);
-    timer_isr_register(TIMER_GROUP_0, TIMER_0, &hw_timer_callback, NULL, ESP_INTR_FLAG_IRAM, &s_timer_handle);
-
-    timer_start(TIMER_GROUP_0, TIMER_0);
+	timer_config_t config = {
+		.alarm_en = true,				//Alarm Enable
+		.counter_en = false,			//If the counter is enabled it will start incrementing / decrementing immediately after calling timer_init()
+		.intr_type = TIMER_INTR_LEVEL,	//Is interrupt is triggered on timer's alarm (timer_intr_mode_t)
+		.counter_dir = TIMER_COUNT_UP,	//Does counter increment or decrement (timer_count_dir_t)
+		.auto_reload = true,			//If counter should auto_reload a specific initial value on the timer's alarm, or continue incrementing or decrementing.
+		.divider = 80   				//Divisor of the incoming 80 MHz (12.5nS) APB_CLK clock. E.g. 80 = 1uS per timer tick
+	};
+	timer_init(TIMER_GROUP_0, TIMER_0, &config);
+	timer_set_counter_value(TIMER_GROUP_0, TIMER_0, 0);
+	timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, 20000);
+	timer_enable_intr(TIMER_GROUP_0, TIMER_0);
+	timer_isr_callback_add(TIMER_GROUP_0, TIMER_0, hw_timer_callback, NULL, 0);
+	timer_start(TIMER_GROUP_0, TIMER_0);
 
 #ifdef USE_TFT
 	if (tft_conf) tft_conn = tftinit();
