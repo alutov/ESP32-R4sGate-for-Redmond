@@ -330,6 +330,8 @@ static bool Isscanning = false;
 static bool IsPassiveScan = false;
 static bool StartStopScanReq = false;
 static bool SetScanReq = false;
+static bool f_scanproc = false;
+static uint8_t hwtdiv = 0;
 
 static esp_gattc_char_elem_t *char_elem_result   = NULL;
 static esp_gattc_descr_elem_t *descr_elem_result = NULL;
@@ -357,7 +359,7 @@ char FND_ADDR[16];                          // last founded device addr
 char FND_ADDRx[32];                         // last founded device addr incl :
 char MQTT_USER[16];                         // MQTT Server user
 char MQTT_PASSWORD[20];                     // MQTT Server password
-char MQTT_SERVER[33];                       // MQTT Server
+char MQTT_SERVER[65];                       // MQTT Server
 char WIFI_SSID[33];                         // network SSID for ESP32 to connect to
 char WIFI_PASSWORD[65];                     // password for the network above
 char NTP_SERVER[33];                        // NTP Server

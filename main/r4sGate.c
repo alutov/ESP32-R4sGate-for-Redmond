@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.09.28"
+#define AP_VER "2023.10.05"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -3429,6 +3429,7 @@ static struct BleMonExt BleMX[BleMonNum];
 //******************* timer *********************
 static IRAM_ATTR bool hw_timer_callback(void *arg) {
 
+	if (hwtdiv & 1) {
 	if (BleDevStA.t_rspdel) BleDevStA.t_rspdel--;
 	if (BleDevStB.t_rspdel) BleDevStB.t_rspdel--;
 	if (BleDevStC.t_rspdel) BleDevStC.t_rspdel--;
@@ -3452,6 +3453,7 @@ static IRAM_ATTR bool hw_timer_callback(void *arg) {
 #endif
 	if (t_tinc) t_tinc--;
 	if (r4sppcoms) r4sppcoms--;
+	} else {
 //
 	for (int i = 0; i < BleMonNum; i++) {
 	if (BleMX[i].ttick) {
@@ -3479,6 +3481,9 @@ static IRAM_ATTR bool hw_timer_callback(void *arg) {
 	}
 	}
 	}
+	}
+	hwtdiv = (hwtdiv & 1) ^ 1;
+
 //	
 	switch (bgpio1 & 0xc0) {
 	case 128:
@@ -7555,6 +7560,8 @@ static struct gattc_profile_inst gl_profile_tab[PROFILE_NUM] = {
 
 static void start_scan(void)
 {
+	if (f_scanproc) return;
+	f_scanproc = true;
 	esp_err_t scan_ret = 0;
 
 //step 1: set scan only if not update, if not already starting scan or if no connections is opening   
@@ -7602,6 +7609,7 @@ static void start_scan(void)
 	if (fdebug) ESP_LOGE(AP_TAG, "Set scan params error, error code = 0x%X", scan_ret);
 		}
 	}
+	f_scanproc = false;
 }
 
 static char *esp_key_type_to_str(esp_ble_key_type_t key_type)
@@ -20308,7 +20316,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
 static void mqtt_app_start(void)
 {
-	char luri[128];
+	char luri[96];
 	char llwtt[16];
 	if (fmwss) {
 	(fmssl)? strcpy(luri,"wss://") : strcpy(luri,"ws://");
@@ -20775,7 +20783,7 @@ uint8_t ReadNVS(){
 	nvs_get_str(my_handle,"swfid", WIFI_SSID,&nvsize);
 	nvsize = 64;
 	nvs_get_str(my_handle,"swfpsw", WIFI_PASSWORD,&nvsize);
-	nvsize = 32;
+	nvsize = 64;
 	nvs_get_str(my_handle,"smqsrv", MQTT_SERVER,&nvsize);
 	nvsize = 16;
 	nvs_get_str(my_handle,"smqid", MQTT_USER,&nvsize);
@@ -24052,7 +24060,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (WIFI_PASSWORD[0]) strcat(bsend,WIFI_PASSWORD);
 	strcat(bsend,"\"size=\"31\">Password</br><h3>MQTT Setting</h3><br/><input name=\"smqsrv\" value=\"");
 	if (MQTT_SERVER[0]) strcat(bsend,MQTT_SERVER);
-	strcat(bsend,"\"size=\"20\">Server &emsp;<input name=\"smqprt\" type=\"number\" value=\"");
+	strcat(bsend,"\"size=\"25\">Server &emsp;<input name=\"smqprt\" type=\"number\" value=\"");
 	itoa(mqtt_port,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"65535\" size=\"5\">Port &emsp;<input name=\"smqid\" value=\"");
@@ -24454,7 +24462,7 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	strcpy(buf2,"swfpsw");
 	parsuri(buf1,WIFI_PASSWORD,buf2,4096,65,0);
 	strcpy(buf2,"smqsrv");
-	parsuri(buf1,MQTT_SERVER,buf2,4096,32,0);
+	parsuri(buf1,MQTT_SERVER,buf2,4096,65,0);
 	strcpy(buf2,"smqid");
 	parsuri(buf1,MQTT_USER,buf2,4096,16,0);
 	strcpy(buf2,"smqpsw");
@@ -26574,7 +26582,7 @@ void app_main(void)
 	};
 	timer_init(TIMER_GROUP_0, TIMER_0, &config);
 	timer_set_counter_value(TIMER_GROUP_0, TIMER_0, 0);
-	timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, 100000);
+	timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, 50000);
 	timer_enable_intr(TIMER_GROUP_0, TIMER_0);
 	timer_isr_callback_add(TIMER_GROUP_0, TIMER_0, hw_timer_callback, NULL, 0);
 	timer_start(TIMER_GROUP_0, TIMER_0);
@@ -26597,6 +26605,7 @@ void app_main(void)
         Isscanning = false;
         StartStopScanReq = false;
         SetScanReq = false;
+	f_scanproc = false;
 //	ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
 	ESP_ERROR_CHECK(esp_bt_mem_release(ESP_BT_MODE_CLASSIC_BT));
 	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
