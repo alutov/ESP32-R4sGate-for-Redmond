@@ -145,6 +145,11 @@
 // LDREMOTE_TXCHAR_UUID  "fff2"
 #define LDREMOTE_TXCHAR_UUID 0xfff2
 
+//delonghi
+// DLREMOTE_SERVICE_UUID "00035b03-58e6-07dd-021a-08123a000300"
+#define DLREMOTE_SERVICE_UUID {0x00, 0x03, 0x00, 0x3a, 0x12, 0x08, 0x1a, 0x02, 0xdd, 0x07, 0xe6, 0x58, 0x03, 0x5b, 0x03, 0x00}
+// DLREMOTE_CHAR_UUID  "00035b03-58e6-07dd-021a-08123a000301"
+#define DLREMOTE_CHAR_UUID {0x01, 0x03, 0x00, 0x3a, 0x12, 0x08, 0x1a, 0x02, 0xdd, 0x07, 0xe6, 0x58, 0x03, 0x5b, 0x03, 0x00}
 
 #define PROFILE_NUM      5
 #define PROFILE_A_APP_ID 0
@@ -153,7 +158,8 @@
 #define PROFILE_D_APP_ID 3
 #define PROFILE_E_APP_ID 4
 #define INVALID_HANDLE   0
-#define BLE_INPUT_BUFFSIZE 64
+#define BLE_INPUT_BUFFSIZE 80
+#define BLE_OUTPUT_BUFFSIZE 48
 #define cStatus_len 160
 #define otabufsize 2048
 #define BleMonNum 24
@@ -170,7 +176,7 @@ int8_t   notifyDataLen;
 uint8_t  readData[BLE_INPUT_BUFFSIZE];
 int8_t   readDataLen;
 int8_t   readDataHandle;
-uint8_t  sendData[BLE_INPUT_BUFFSIZE];
+uint8_t  sendData[BLE_OUTPUT_BUFFSIZE];
 int8_t   sendDataLen;
 int8_t   sendDataHandle;
 uint8_t  DEV_TYP; 
@@ -326,6 +332,7 @@ uint16_t  ppar4;
 //uint16_t  ppar8;
 };
 
+static uint16_t wf_retry_cnt;
 static bool Isscanning = false;
 static bool IsPassiveScan = false;
 static bool StartStopScanReq = false;
@@ -430,7 +437,8 @@ uint8_t macauth = 0;
 uint8_t volperc = 0;
 uint8_t fkpmd = 0;
 uint8_t ftvoc = 0;
-int floop = 0;
+uint8_t floop = 0;
+uint32_t OtaBytes;
 
 bool mqttConnected = false;
 

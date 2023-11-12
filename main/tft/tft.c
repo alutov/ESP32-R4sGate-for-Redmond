@@ -1781,8 +1781,7 @@ void tftclock()
 }
 
 void blstnum_inc() {
-	if (blstnum == 253) return;
-	else if (f_update) blstnum = 254;
+	if (blstnum > 127) return;
 	else if (BleDevStA.REQ_NAME[0] || BleDevStB.REQ_NAME[0] || BleDevStC.REQ_NAME[0] || BleDevStD.REQ_NAME[0] || BleDevStE.REQ_NAME[0]) {
 	int i = 0;
 	while (i < 5) {
@@ -1795,7 +1794,7 @@ void blstnum_inc() {
 	if ((blstnum == 4) && BleDevStE.REQ_NAME[0]) i = 5;
 	i++;
 	}
-	} else blstnum = 255;
+	} else blstnum = 127;
 }
 void tfststr(char* in1, char* in2, char* in3)
 {
@@ -1819,6 +1818,7 @@ void tfblestate(uint8_t tmr)
 {
 	uint8_t blstnum1 = blstnum + 1;
         struct BleDevSt *ptr;
+        struct BleDevSt *lptr;
 	switch (blstnum) {
 	case 1:
 	ptr = &BleDevStB;
@@ -1845,70 +1845,40 @@ void tfblestate(uint8_t tmr)
 	sumx = 250;
 	uint16_t sym;
 	uint16_t bkg;
-	if (blstnum == 0) bkg = TFT_DARKB;
-	else bkg = TFT_BLACK;
-	if (!BleDevStA.btauthoriz) sym = TFT_DARKGREY;
-	else if (!BleDevStA.bState && BleDevStA.bHeat) sym = TFT_YELLOW;
-	else if (!BleDevStA.bState) sym = TFT_BLUE;
-	else if (BleDevStA.bState == 254) sym = TFT_DARKGREY;
-	else if ((BleDevStA.DEV_TYP > 15) && (BleDevStA.DEV_TYP < 24) && (BleDevStA.bState == 1)) sym = TFT_WHITE;
-	else if ((BleDevStA.DEV_TYP > 15) && (BleDevStA.DEV_TYP < 17) && (BleDevStA.bState == 5)) sym = TFT_YELLOW;
-	else if ((BleDevStA.DEV_TYP > 16) && (BleDevStA.DEV_TYP < 24) && (BleDevStA.bState == 2)) sym = TFT_YELLOW;
-	else sym = TFT_RED;
-	setTextColor(sym, bkg);
-        sumx += drawString("1",sumx,26,4);
 
-	if (blstnum == 1) bkg = TFT_DARKB;
+	for (uint8_t i = 0; i < 5; i++) {
+	switch (i) {
+	case 1:
+	lptr = &BleDevStB;
+	break;
+	case 2:
+	lptr = &BleDevStC;
+	break;
+	case 3:
+	lptr = &BleDevStD;
+	break;
+	case 4:
+	lptr = &BleDevStE;
+	break;
+	default:
+	lptr = &BleDevStA;
+	break;
+	}
+	if (i == blstnum) bkg = TFT_DARKB;
 	else bkg = TFT_BLACK;
-	if (!BleDevStB.btauthoriz) sym = TFT_DARKGREY;
-	else if (!BleDevStB.bState && BleDevStB.bHeat) sym = TFT_YELLOW;
-	else if (!BleDevStB.bState) sym = TFT_BLUE;
-	else if (BleDevStB.bState == 254) sym = TFT_DARKGREY;
-	else if ((BleDevStB.DEV_TYP > 15) && (BleDevStB.DEV_TYP < 24) && (BleDevStB.bState == 1)) sym = TFT_WHITE;
-	else if ((BleDevStB.DEV_TYP > 15) && (BleDevStB.DEV_TYP < 17) && (BleDevStB.bState == 5)) sym = TFT_YELLOW;
-	else if ((BleDevStB.DEV_TYP > 16) && (BleDevStB.DEV_TYP < 24) && (BleDevStB.bState == 2)) sym = TFT_YELLOW;
+	if (!lptr->btauthoriz) sym = TFT_DARKGREY;
+	else if (!lptr->bState && lptr->bHeat && (lptr->DEV_TYP < 74)) sym = TFT_YELLOW;
+	else if (!lptr->bState) sym = TFT_BLUE;
+	else if (lptr->bState == 254) sym = TFT_DARKGREY;
+	else if ((lptr->DEV_TYP > 15) && (lptr->DEV_TYP < 24) && (lptr->bState == 1)) sym = TFT_WHITE;
+	else if ((lptr->DEV_TYP > 15) && (lptr->DEV_TYP < 17) && (lptr->bState == 5)) sym = TFT_YELLOW;
+	else if ((lptr->DEV_TYP > 16) && (lptr->DEV_TYP < 24) && (lptr->bState == 2)) sym = TFT_YELLOW;
+	else if ((lptr->DEV_TYP == 77) && !lptr->bModProg) sym = TFT_WHITE;
 	else sym = TFT_RED;
 	setTextColor(sym, bkg);
-        sumx += drawString("2",sumx,26,4);
-
-	if (blstnum == 2) bkg = TFT_DARKB;
-	else bkg = TFT_BLACK;
-	if (!BleDevStC.btauthoriz) sym = TFT_DARKGREY;
-	else if (!BleDevStC.bState && BleDevStC.bHeat) sym = TFT_YELLOW;
-	else if (!BleDevStC.bState) sym = TFT_BLUE;
-	else if (BleDevStC.bState == 254) sym = TFT_DARKGREY;
-	else if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 24) && (BleDevStC.bState == 1)) sym = TFT_WHITE;
-	else if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 17) && (BleDevStC.bState == 5)) sym = TFT_YELLOW;
-	else if ((BleDevStC.DEV_TYP > 16) && (BleDevStC.DEV_TYP < 24) && (BleDevStC.bState == 2)) sym = TFT_YELLOW;
-	else sym = TFT_RED;
-	setTextColor(sym, bkg);
-        sumx += drawString("3",sumx,26,4);
-
-	if (blstnum == 3) bkg = TFT_DARKB;
-	else bkg = TFT_BLACK;
-	if (!BleDevStD.btauthoriz) sym = TFT_DARKGREY;
-	else if (!BleDevStD.bState && BleDevStD.bHeat) sym = TFT_YELLOW;
-	else if (!BleDevStD.bState) sym = TFT_BLUE;
-	else if (BleDevStD.bState == 254) sym = TFT_DARKGREY;
-	else if ((BleDevStD.DEV_TYP > 15) && (BleDevStD.DEV_TYP < 24) && (BleDevStD.bState == 1)) sym = TFT_WHITE;
-	else if ((BleDevStD.DEV_TYP > 15) && (BleDevStD.DEV_TYP < 17) && (BleDevStD.bState == 5)) sym = TFT_YELLOW;
-	else if ((BleDevStD.DEV_TYP > 16) && (BleDevStD.DEV_TYP < 24) && (BleDevStD.bState == 2)) sym = TFT_YELLOW;
-	else sym = TFT_RED;
-	setTextColor(sym, bkg);
-        sumx += drawString("4",sumx,26,4);
-
-	if (blstnum == 4) bkg = TFT_DARKB;
-	else bkg = TFT_BLACK;
-	if (!BleDevStE.btauthoriz) sym = TFT_DARKGREY;
-	else if (!BleDevStE.bState && BleDevStE.bHeat) sym = TFT_YELLOW;
-	else if (!BleDevStE.bState) sym = TFT_BLUE;
-	else if (BleDevStE.bState == 254) sym = TFT_DARKGREY;
-	else if ((BleDevStE.DEV_TYP > 15) && (BleDevStE.DEV_TYP < 24) && (BleDevStE.bState == 1)) sym = TFT_WHITE;
-	else if ((BleDevStE.DEV_TYP > 15) && (BleDevStE.DEV_TYP < 17) && (BleDevStE.bState == 5)) sym = TFT_YELLOW;
-	else if ((BleDevStE.DEV_TYP > 16) && (BleDevStE.DEV_TYP < 24) && (BleDevStE.bState == 2)) sym = TFT_YELLOW;
-	else sym = TFT_RED;
-	setTextColor(sym, bkg);
-        sumx += drawString("5",sumx,26,4);
+	itoa(i + 1,buff,10);
+        sumx += drawString(buff,sumx,26,4);
+	}
 
 	if (tmr < 41) {
 	if (f_update || BleDevStA.REQ_NAME[0] || BleDevStB.REQ_NAME[0] || BleDevStC.REQ_NAME[0] || BleDevStD.REQ_NAME[0] || BleDevStE.REQ_NAME[0]) mpos = 198;
@@ -1979,13 +1949,14 @@ void tfblestate(uint8_t tmr)
 	else sumx += drawString("\xe0 ", sumx, 224, 2);
 	}
 	if (ptr->btauthoriz) {
-	if (!ptr->bState && ptr->bHeat) setTextColor(TFT_YELLOW, TFT_BLACK);
+	if (!ptr->bState && ptr->bHeat && (ptr->DEV_TYP < 74)) setTextColor(TFT_YELLOW, TFT_BLACK);
 	else if (!ptr->bState) setTextColor(TFT_BLUE, TFT_BLACK);
 	else if (ptr->bState == 254) setTextColor(TFT_DARKGREY, TFT_BLACK);
 	else if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 24) && (ptr->bState == 1)) setTextColor(TFT_WHITE, TFT_BLACK);
 	else if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 17) && (ptr->bState == 5)) setTextColor(TFT_YELLOW, TFT_BLACK);
 	else if ((ptr->DEV_TYP > 16) && (ptr->DEV_TYP < 24) && (ptr->bState == 2)) setTextColor(TFT_YELLOW, TFT_BLACK);
 	else if ((ptr->DEV_TYP == 74) && !(ptr->bState & 0x01)) setTextColor(TFT_BLUE, TFT_BLACK);
+	else if ((ptr->DEV_TYP == 77) && !ptr->bModProg) setTextColor(TFT_WHITE, TFT_BLACK);
 	else setTextColor(TFT_RED, TFT_BLACK);
 	sumx += drawString(ptr->DEV_NAME, sumx, 224, 2);
 	sumx += drawString(":", sumx, 224, 2);
@@ -2180,6 +2151,17 @@ void tfblestate(uint8_t tmr)
 	setTextColor(TFT_YELLOW, TFT_BLACK);
 	sumx += drawString("Presence", sumx, 224, 2);
 	}
+	} else if (ptr->DEV_TYP == 77) {
+	sumx += drawString(" Bv/Md/Pr: ", sumx, 224, 2);
+	itoa(ptr->bStNl,buff,10);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("/", sumx, 224, 2);
+	itoa(ptr->bModProg,buff,10);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("/", sumx, 224, 2);
+	itoa(ptr->bStBp,buff,10);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("%", sumx, 224, 2);
 	}
         setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString(", ", sumx, 224, 2);
@@ -2208,7 +2190,12 @@ void tfblestate(uint8_t tmr)
 	}
 	if (blstnum == 254) {
 	setTextColor(TFT_WHITE, TFT_BLACK);
-	sumx = drawString("Update firmware in progress ...", 0, 224, 2);
+	sumx = drawString("Update firmware ", 0, 224, 2);
+	itoa(OtaBytes / 1024,buff,10);
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+	sumx += drawString(buff, sumx, 224, 2);
+	setTextColor(TFT_WHITE, TFT_BLACK);
+	sumx += drawString(" kbytes", sumx, 224, 2);
 	fillRect(sumx,224,320-sumx,16,TFT_BLACK);
 	setTextColor(TFT_GREEN, TFT_BLACK);
 	}
