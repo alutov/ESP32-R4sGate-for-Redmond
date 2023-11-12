@@ -68,7 +68,7 @@ RUS | [ENG](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 
 **Кофемашины**
 
-* Delonghi **ECAM650.75** (Возможно и другие моделии ;) серии Primadonna Elite)
+* Delonghi **ECAM650.75** (Возможно и другие модели ;) серии Primadonna Elite)
 
 **Розетки**
 
