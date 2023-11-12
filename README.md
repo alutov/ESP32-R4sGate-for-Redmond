@@ -66,6 +66,10 @@ RUS | [ENG](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 
 * Redmond SkyCoffee **RCM-M1519S**
 
+**Кофемашины**
+
+* Delonghi **ECAM650.75** (Возможно и другие моделии ;) серии Primadonna Elite)
+
 **Розетки**
 
 * Redmond SkyPort **RSP-103S** / RSP-100S
