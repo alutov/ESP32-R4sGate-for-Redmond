@@ -1882,7 +1882,7 @@ void tfblestate(uint8_t tmr)
 
 	if (tmr < 41) {
 	if (f_update || BleDevStA.REQ_NAME[0] || BleDevStB.REQ_NAME[0] || BleDevStC.REQ_NAME[0] || BleDevStD.REQ_NAME[0] || BleDevStE.REQ_NAME[0]) mpos = 198;
-	if ((MQTT_VALP1[0]) || (MQTT_VALP4[0]) || (MQTT_VALP6[0])) {
+	if (!wf_retry_cnt && (MQTT_VALP1[0] || MQTT_VALP4[0] || MQTT_VALP6[0])) {
 	setTextColor(TFT_GREEN, TFT_BLACK);
   	sumx = 0;
 	if (MQTT_VALP1[0]) {

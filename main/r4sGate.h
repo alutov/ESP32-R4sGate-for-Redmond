@@ -333,6 +333,7 @@ uint16_t  ppar4;
 };
 
 static uint16_t wf_retry_cnt;
+static uint8_t wf_bits;
 static bool Isscanning = false;
 static bool IsPassiveScan = false;
 static bool StartStopScanReq = false;

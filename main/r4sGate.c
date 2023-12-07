@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.11.12"
+#define AP_VER "2023.12.06"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -554,41 +554,46 @@ void uptime_string_exp(char *cout)
 }
 void b2slrr(char *slrr, uint8_t blrr)
 {
+	char buf[8];
 	switch (blrr) {
 	case 1:
-	strcat(slrr,"Power_ON(1)");
+	strcat(slrr,"Power_ON");
 	break;
 	case 2:
-	strcat(slrr,"Ext_Pin(2)");
+	strcat(slrr,"Ext_Pin");
 	break;
 	case 3:
-	strcat(slrr,"Software(3)");
+	strcat(slrr,"Software");
 	break;
 	case 4:
-	strcat(slrr,"Panic(4)");
+	strcat(slrr,"Panic");
 	break;
 	case 5:
-	strcat(slrr,"INT_WDT(5)");
+	strcat(slrr,"INT_WDT");
 	break;
 	case 6:
-	strcat(slrr,"TASK_WDT(6)");
+	strcat(slrr,"TASK_WDT");
 	break;
 	case 7:
-	strcat(slrr,"WDT(7)");
+	strcat(slrr,"WDT");
 	break;
 	case 8:
-	strcat(slrr,"Deepsleep(8)");
+	strcat(slrr,"Deepsleep");
 	break;
 	case 9:
-	strcat(slrr,"Brownout(9)");
+	strcat(slrr,"Brownout");
 	break;
 	case 10:
-	strcat(slrr,"SDIO(10)");
+	strcat(slrr,"SDIO");
 	break;
 	default:
 	strcat(slrr,"Unknown");
 	break;
 	}
+	strcat(slrr,"(");
+	itoa(blrr,buf,10);
+	strcat(slrr,buf);
+	strcat(slrr,")");
 }
 
 void ecmmb2st(char *smd, uint8_t bst, uint8_t bmd)
@@ -602,6 +607,9 @@ void ecmmb2st(char *smd, uint8_t bst, uint8_t bmd)
 	break;
 	case 2:
 	strcat(smd,"Power down");
+	break;
+	case 4:
+	strcat(smd,"Descaling");
 	break;
 	case 7:
 	switch (bmd) {
@@ -637,12 +645,20 @@ void ecmmb2st(char *smd, uint8_t bst, uint8_t bmd)
 	strcat(smd,"Moving infuser");
 	break;
 	default:
-	strcat(smd,"Unknown");
+	strcat(smd,"Unknown(");
+	char buf[8];
+	itoa(bst,buf,10);
+	strcat(smd,buf);
+	strcat(smd,")");
 	break;
 	}
 	break;
 	default:
-	strcat(smd,"Unknown");
+	strcat(smd,"Unknown(");
+	char buf[8];
+	itoa(bst,buf,10);
+	strcat(smd,buf);
+	strcat(smd,")");
 	break;
 	}
 }
@@ -754,7 +770,11 @@ void ecmsb2st(char *smd, uint8_t bmd)
 	strcat(smd,"Milk clean");
 	break;
 	default:
-	strcat(smd,"Unknown");
+	strcat(smd,"Unknown(");
+	char buf[8];
+	itoa(bmd,buf,10);
+	strcat(smd,buf);
+	strcat(smd,")");
 	break;
 	}
 }
@@ -1012,7 +1032,7 @@ bool rmtir_send (uint8_t idx,  uint16_t* ptxcmd, uint16_t* pprtxcmd, uint16_t* p
 	uint16_t prtxcmd, taddr;
 	prtxcmd = *pprtxcmd;
 	taddr = *ptaddr;
-	if (fdebug) ESP_LOGI(AP_TAG, "IR Tx code: %02X%04x%02x", ((txcmd >> 8) & 0xff), taddr, (txcmd & 0xff));
+	if (fdebug) ESP_LOGI(AP_TAG, "IR/RC Tx code: %02X%04x%02x", ((txcmd >> 8) & 0xff), taddr, (txcmd & 0xff));
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 	if (idx > 1) return result;
 	tidx = idx;
@@ -1721,6 +1741,112 @@ bool rmtir_send (uint8_t idx,  uint16_t* ptxcmd, uint16_t* pprtxcmd, uint16_t* p
 	if (out != 255) result = 1;
 	}
 	break;
+	case 0x80:                        //livolo
+	if ((rmt_set_clk_div(tidx, 80) == ESP_OK) && 
+	(rmt_set_tx_carrier(tidx, false, 80, 80,  1) == ESP_OK)) {
+//12.5ns * 80(= 1us)
+	uint16_t T = 150;                 //150us
+	uint16_t out;
+	uint8_t  xor;
+	rmt_item32_t tx_items[25] = {0};
+	tx_items[0].level0 = 0;           //idle 1us
+	tx_items[0].duration0 = 1;
+	tx_items[0].level1 = 1;           //start 525us
+	tx_items[0].duration1 = 525;
+	out = taddr;
+	xor = 1;
+	for (int i = 1; i < 17; i++) {     //a15-a0
+	xor ^= 1;
+	tx_items[i].duration0 = T;
+	tx_items[i].duration1 = T;
+	tx_items[i].level0 = xor;
+	if (!(out & 0x8000)) xor ^= 1;
+	tx_items[i].level1 = xor;
+	out <<= 1;
+	}
+	out = txcmd;
+	for (int i = 17; i < 24; i++) {    //d7-d0
+	xor ^= 1;
+	tx_items[i].duration0 = T;
+	tx_items[i].duration1 = T;
+	tx_items[i].level0 = xor;
+	if (!(out & 0x40)) xor ^= 1;
+	tx_items[i].level1 = xor;
+	out <<= 1;
+	}
+	tx_items[24].level0 = 0;           //idle 1us
+	tx_items[24].duration0 = 1;
+	tx_items[24].level1 = 0;           //end
+	tx_items[24].duration1 = 0;
+	out = 0;
+	if (rmt_fill_tx_items(tidx, tx_items, 25, 0) != ESP_OK) out = 255;
+	if (rmt_set_tx_loop_mode(tidx, true) != ESP_OK) out = 255;
+	if (rmt_tx_start(tidx, true) != ESP_OK) out = 255;
+	vTaskDelay(1200 / portTICK_RATE_MS);
+	if (rmt_set_tx_loop_mode(tidx, false) != ESP_OK) out = 255;
+//	if (rmt_tx_stop(tidx) != ESP_OK) out = 255;
+	if (fdebug) {
+	if (out != 255) ESP_LOGI(AP_TAG, "RC Livolo Tx addr: 0x%X, cmd: 0x%X", taddr, (txcmd & 0x7f));
+	else  ESP_LOGI(AP_TAG, "RC Livolo Tx error");
+	}
+	if (out != 255) result = 1;
+	}
+	break;
+	case 0x81:                        //RC Switch
+	if ((rmt_set_clk_div(tidx, 80) == ESP_OK) && 
+	(rmt_set_tx_carrier(tidx, false, 80, 80,  1) == ESP_OK)) {
+//12.5ns * 80(= 1us)
+	uint16_t T = 350;                 //350us
+	uint16_t out;
+	rmt_item32_t tx_items[26] = {0};
+	out = taddr;
+	for (int i = 0; i < 16; i++) {     //a15-a0
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	if (out & 0x8000) {
+	tx_items[i].duration0 = 3 * T;
+	tx_items[i].duration1 = T;
+	} else {
+	tx_items[i].duration0 = T;
+	tx_items[i].duration1 = 3 * T;
+	}
+	out <<= 1;
+	}
+	out = txcmd;
+	for (int i = 16; i < 24; i++) {    //d7-d0
+	tx_items[i].level0 = 1;
+	tx_items[i].level1 = 0;
+	if (out & 0x80) {
+	tx_items[i].duration0 = 3 * T;
+	tx_items[i].duration1 = T;
+	} else {
+	tx_items[i].duration0 = T;
+	tx_items[i].duration1 = 3 * T;
+	}
+	out <<= 1;
+	}
+	tx_items[24].level0 = 1;           //sync mark T
+	tx_items[24].duration0 = T;
+	tx_items[24].level1 = 0;           //sync space 31 * T
+	tx_items[24].duration1 = 20 * T;
+	tx_items[25].level0 = 0;
+	tx_items[25].duration0 = 11 * T;
+	tx_items[25].level1 = 0;           //end
+	tx_items[25].duration1 = 0;
+	out = 0;
+	if (rmt_fill_tx_items(tidx, tx_items, 26, 0) != ESP_OK) out = 255;
+	if (rmt_set_tx_loop_mode(tidx, true) != ESP_OK) out = 255;
+	if (rmt_tx_start(tidx, true) != ESP_OK) out = 255;
+	vTaskDelay(300 / portTICK_RATE_MS);
+	if (rmt_set_tx_loop_mode(tidx, false) != ESP_OK) out = 255;
+//	if (rmt_tx_stop(tidx) != ESP_OK) out = 255;
+	if (fdebug) {
+	if (out != 255) ESP_LOGI(AP_TAG, "RC Switch Tx addr: 0x%X, cmd: 0x%X", taddr, (txcmd & 0xff));
+	else  ESP_LOGI(AP_TAG, "RC Switch Tx error");
+	}
+	if (out != 255) result = 1;
+	}
+	break;
 	}
 	txcmd &= 0xff;
 	*ptxcmd = txcmd;
@@ -2114,7 +2240,7 @@ assume 200ms for read, 160ms for write/check(2/1 bytes)
 		.master.clk_speed = 100000
 	};
 	i2c_param_config(I2C_NUM_0, &i2c_config);
-	err = i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM);
+	err = i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_LOWMED | ESP_INTR_FLAG_IRAM);
 	return err;
 }
 esp_err_t i2c_check(uint8_t addr)
@@ -2170,8 +2296,7 @@ esp_err_t i2c_read0_data(uint8_t addr, uint8_t* data, uint16_t len)
 	CmdHd = i2c_cmd_link_create();
 	i2c_master_start(CmdHd);
 	i2c_master_write_byte(CmdHd, (addr << 1) + 1, I2C_MASTER_ACK);
-	if (len > 1) i2c_master_read(CmdHd, data, len, I2C_MASTER_ACK);
-	i2c_master_read_byte(CmdHd, data+len-1, I2C_MASTER_NACK);
+	i2c_master_read(CmdHd, data, len, I2C_MASTER_LAST_NACK);
 	i2c_master_stop(CmdHd);
 	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 200);
 	i2c_cmd_link_delete(CmdHd);
@@ -2193,8 +2318,7 @@ esp_err_t i2c_read_data(uint8_t addr, uint8_t reg, uint8_t* data, uint16_t len)
 	if (len) {
 	i2c_master_start(CmdHd);
 	i2c_master_write_byte(CmdHd, (addr << 1) + 1, I2C_MASTER_ACK);
-	if (len > 1) i2c_master_read(CmdHd, data, len, I2C_MASTER_ACK);
-	i2c_master_read_byte(CmdHd, data+len-1, I2C_MASTER_NACK);
+	i2c_master_read(CmdHd, data, len, I2C_MASTER_LAST_NACK);
 	}
 	i2c_master_stop(CmdHd);
 	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 200);
@@ -2217,8 +2341,7 @@ esp_err_t i2c_read2_data(uint8_t addr, uint8_t reg, uint8_t cmd, uint8_t* data, 
 	if (len) {
 	i2c_master_start(CmdHd);
 	i2c_master_write_byte(CmdHd, (addr << 1) + 1, I2C_MASTER_ACK);
-	if (len > 1) i2c_master_read(CmdHd, data, len, I2C_MASTER_ACK);
-	i2c_master_read_byte(CmdHd, data+len-1, I2C_MASTER_NACK);
+	i2c_master_read(CmdHd, data, len, I2C_MASTER_LAST_NACK);
 	}
 	i2c_master_stop(CmdHd);
 	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 200);
@@ -2242,8 +2365,7 @@ esp_err_t i2c_read3_data(uint8_t addr, uint8_t reg, uint8_t cmd, uint8_t par, ui
 	if (len) {
 	i2c_master_start(CmdHd);
 	i2c_master_write_byte(CmdHd, (addr << 1) + 1, I2C_MASTER_ACK);
-	if (len > 1) i2c_master_read(CmdHd, data, len, I2C_MASTER_ACK);
-	i2c_master_read_byte(CmdHd, data+len-1, I2C_MASTER_NACK);
+	i2c_master_read(CmdHd, data, len, I2C_MASTER_LAST_NACK);
 	}
 	i2c_master_stop(CmdHd);
 	err = i2c_master_cmd_begin(I2C_NUM_0, CmdHd, 200);
@@ -3426,7 +3548,7 @@ esp_err_t i2c_read_sgp4x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* tvoc)
 	vTaskDelay(50 / portTICK_PERIOD_MS);      //30ms sgp40_measure_raw_signal measurement duration
 	if (!err) {
 	memset(buf, 0xff, sizeof(buf));
-	err = i2c_read0_data(addr, buf, 4); //read data
+	err = i2c_read0_data(addr, buf, 3); //read data
 	buf[3] = i2c_sgpxx_crc(&buf[0],2);
 	if (!err && (buf[2] != buf[3])) err = -1;
 	if (!err) {
@@ -3445,7 +3567,7 @@ esp_err_t i2c_read_sgp4x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* tvoc)
 	return err;
 }
 
-esp_err_t i2c_init_scd4x(uint8_t idx,uint32_t* f_i2cdev)
+esp_err_t i2c_init_scd4x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* ercnt)
 {
 	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
@@ -3474,13 +3596,15 @@ esp_err_t i2c_init_scd4x(uint8_t idx,uint32_t* f_i2cdev)
 	if (err) return err;
 	}
 	err = i2c_write_byte(addr, 0x21, 0xb1);  //start_periodic_measurement
+//	err = i2c_write_byte(addr, 0x21, 0xac);  //start_low_power_periodic_measurement
 	if (err) return err;
 	vTaskDelay(30 / portTICK_PERIOD_MS);
 	i2cbits = i2cbits | (0x0400 << idx);
 	*f_i2cdev = i2cbits;
+	*ercnt = 0;
 	return err;
 }
-esp_err_t i2c_read_scd4x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_t* humid, uint32_t* co2)
+esp_err_t i2c_read_scd4x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_t* humid, uint32_t* co2, uint16_t* ercnt)
 {
 	esp_err_t err = -1;
 	uint32_t i2cbits = * f_i2cdev;
@@ -3491,25 +3615,35 @@ esp_err_t i2c_read_scd4x(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp, uint16_
 	err = i2c_check(addr);
 	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
 	if (!err) { //1
-	err = i2c_write_byte(addr, 0x21, 0xb1);  //start_periodic_measurement
+	err = i2c_write_byte(addr, 0xe4, 0xb8);  //get_data_ready
 	if (!err) { //2
-	vTaskDelay(30 / portTICK_PERIOD_MS);
-	err = i2c_write_byte(addr, 0xec, 0x05);  //read_measurement
-	if (!err) { //3
 	vTaskDelay(5 / portTICK_PERIOD_MS);      //1ms command execution delay
 	memset(buf, 0xff, sizeof(buf));
-	err = i2c_read0_data(addr, buf, 10); //read data
+	err = i2c_read0_data(addr, buf, 3);      //read data
+	buf[3] = i2c_sgpxx_crc(&buf[0],2);
+	if (buf[2] != buf[3]) err = -1;
+	if (!err && ((buf[0] & 7) || buf[1])) { //3
+	err = i2c_write_byte(addr, 0xec, 0x05);  //read_measurement
 	if (!err) { //4
+	vTaskDelay(5 / portTICK_PERIOD_MS);      //1ms command execution delay
+	memset(buf, 0xff, sizeof(buf));
+	err = i2c_read0_data(addr, buf, 9);     //read data
+	if (!err) { //5
 	buf[9] = i2c_sgpxx_crc(&buf[0],2);
 	buf[10] = i2c_sgpxx_crc(&buf[3],2);
 	buf[11] = i2c_sgpxx_crc(&buf[6],2);
 	if ((buf[2] != buf[9]) || (buf[5] != buf[10]) || (buf[8] != buf[11])) err = -1;
-	if (!err) { //5
+	else if (!err) { //6
 	*co2 = (buf[0] << 8) + buf[1]; 
 	*temp = ((((buf[3] << 8) + buf[4]) * 1750 ) >> 12) - 7200; 
 	*humid = (((buf[6] << 8) + buf[7]) * 1000) >> 16;
+	*ercnt = 0;
+	} //6
 	} //5
 	} //4
+	} else if (!err) { //3
+	*ercnt = *ercnt + 1;
+	if (*ercnt > 5) err = -1;
 	} //3
 	} //2
 	} //1
@@ -3534,7 +3668,7 @@ esp_err_t i2c_init_rtc(uint8_t idx,uint32_t* f_i2cdev)
 	if (err) return err;
 	memset(data, 0xff, sizeof(data));
 	if (!idx) {                                //ds3231
-	err = i2c_read_data(addr, 0x00, data, 20);
+	err = i2c_read_data(addr, 0x00, data, 19);
 	if (err) return err;
 	if ((data[0x00] & 0x80) || (data[0x01] & 0x80) || (data[0x02] & 0x80) || (data[0x03] & 0xf8)
 	 || (data[0x04] & 0xc0) || (data[0x05] & 0x60) || (data[0x0f] & 0x70) || (data[0x12] & 0x3f)) return -1;
@@ -3584,9 +3718,9 @@ esp_err_t i2c_read_rtc(uint8_t idx,uint32_t* f_i2cdev, uint16_t* temp)
 	if (err == ESP_FAIL) err = ESP_ERR_TIMEOUT; 
 	if (!err) {  //1
 	if (!idx) {                                //ds3231
-	err = i2c_read_data(addr, 0x00, data, 8);
+	err = i2c_read_data(addr, 0x00, data, 7);
 	data[0x0e] = 0;
-	if (!err) err = i2c_read_data(addr, 0x0e, &data[0x0e], 6);
+	if (!err) err = i2c_read_data(addr, 0x0e, &data[0x0e], 5);
 	if (!(data[0x0e] & 0x20)) {
 	itmp =  (data[0x11]<< 8) | data[0x12];
 	itmp = (itmp >> 1) + (itmp >> 3) + 8;
@@ -14525,9 +14659,11 @@ bool mkSync(uint8_t blenum) {
 	buf[5] = data[1];
 	buf[1] = 0x60;
 	if ((ecamCommand(blenum, 0x0f90, buf, 6) != 9) || (ptr->readData[5] != buf[1])) return false;
+/*
 	buf[5] = data[2];
 	buf[1] = 0x61;
 	if ((ecamCommand(blenum, 0x0f90, buf, 6) != 9) || (ptr->readData[5] != buf[1])) return false;
+*/
 	}
 	}
 	ptr->f_Sync = 0;
@@ -15555,8 +15691,8 @@ void msStatus(uint8_t blenum) {
 	ptr->bCStemp = ptr->readData[10];    //model id
 	ptr->bHtemp = ptr->readData[11];     //heater
 	ptr->bCtemp = ptr->readData[12];     //steamer
-	if (ptr->bHtemp > 140) ptr->bHtemp = 0;
-	if (ptr->bCtemp > 140) ptr->bCtemp = 0;
+	if (ptr->bHtemp > 150) ptr->bHtemp = 0;
+	if (ptr->bCtemp > 150) ptr->bCtemp = 0;
 	ptr->bStNl = ptr->readData[13];      //beverage
 	ptr->bAwarm = ptr->readData[14];    //waste
 	if (!ptr->sVer[0]) {
@@ -15570,6 +15706,8 @@ void msStatus(uint8_t blenum) {
         if (retc == 21) {
 	ptr->bLock = ptr->readData[12];      //infuser
 	ptr->bSCount = (ptr->readData[13] << 8) + ptr->readData[14]; //water
+
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	buf[0] = 0x00;
 	buf[1] = 0x3f;
 	buf[2] = 0x01;
@@ -15579,7 +15717,7 @@ void msStatus(uint8_t blenum) {
 	buf[1] = 0x3e;
 	retc = ecamCommand(blenum, 0x0f95, buf, 3);	
         if ((retc == 12) && (ptr->readData[5] == 0x3e)) {
-	ptr->bBlTime = ptr->readData[9];      //auto off
+	ptr->bDHour = ptr->readData[9];      //auto off
 	buf[1] = 0x3d;
 	retc = ecamCommand(blenum, 0x0f95, buf, 3);	
         if ((retc == 12) && (ptr->readData[5] == 0x3d)) {
@@ -15588,7 +15726,15 @@ void msStatus(uint8_t blenum) {
 	retc = ecamCommand(blenum, 0x0f95, buf, 3);	
         if ((retc == 12) && (ptr->readData[5] == 0x32)) {
 	ptr->bPMin = ptr->readData[9];       //water hardness
-
+	} else retc = 0;    //0f95/32
+	} else retc = 0;    //0f95/3d
+	} else retc = 0;    //0f95/3e
+	} else retc = 0;    //0f95/3f
+	}                   //if idle
+	} else retc = 0;    //0f60
+	} else retc = 0;    //0f70
+	} else retc = 0;    //0f75
+	if (retc) {
 	strcpy(ptr->cStatus,"{\"state\":");
 	itoa(ptr->bState,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
@@ -15620,15 +15766,7 @@ void msStatus(uint8_t blenum) {
 	itoa(ptr->bCtemp,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,"}");    
-
-	} else retc = 0;    //0f95/32
-	} else retc = 0;    //0f95/3d
-	} else retc = 0;    //0f95/3e
-	} else retc = 0;    //0f95/3f
-	} else retc = 0;    //0f60
-	} else retc = 0;    //0f70
-	} else retc = 0;    //0f75
-	if (!retc) {
+	} else {
 	ptr->r4sConnErr++;
 	if (ptr->r4sConnErr > 2) { 
 	ptr->cStatus[0] = 0;
@@ -16234,6 +16372,12 @@ void MqSState() {
 	break;
 	case 0x09:
 	strcpy(tmpvar,"PANASONIC");
+	break;
+	case 0x80:
+	strcpy(tmpvar,"LIVOLO");
+	break;
+	case 0x81:
+	strcpy(tmpvar,"RCSWITCH");
 	break;
 	default:
         strcpy(tmpvar,"OFF");
@@ -18138,13 +18282,13 @@ void MqState(uint8_t blenum) {
 	ptr->r4sppcom = 30;
 	ptr->bprevHeat = ptr->bHeat;
 	}
-	if  (ptr->bprevBlTime != ptr->bBlTime) {
+	if  (ptr->bprevDHour != ptr->bDHour) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
 	strcat(ldata,ptr->tBLEAddr);
 	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/tmautooff");
-	switch (ptr->bBlTime) {
+	switch (ptr->bDHour) {
 	case 1:
 	esp_mqtt_client_publish(mqttclient, ldata, "30 min", 0, 1, 1);
 	break;
@@ -18162,7 +18306,7 @@ void MqState(uint8_t blenum) {
 	break;
 	}
 	ptr->r4sppcom = 30;
-	ptr->bprevBlTime = ptr->bBlTime;
+	ptr->bprevDHour = ptr->bDHour;
 	}
 	if  (ptr->bprevPHour != ptr->bPHour) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
@@ -19345,7 +19489,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	if (!ptr->bState) {
 	ptr->r4slppar1 = 1;
 	ptr->r4slpcom = 10;
-	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_POWER_ON");
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_POWER_ON");
 	} else ptr->t_rspdel = 0;
 
 	} else if ((!incascmp("0",data,data_len)) || (!incascmp("off",data,data_len))
@@ -19353,7 +19497,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	if (ptr->bState == 7) {
 	ptr->r4slppar1 = 0;
 	ptr->r4slpcom = 10;
-	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_POWER_OFF");
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_POWER_OFF");
 	} else ptr->t_rspdel = 0;
 		} 
 	} else if (!memcmp(topic+topoff, "beverage", topic_len-topoff)) {
@@ -19407,9 +19551,14 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	else if (!incascmp("1 hour",data,data_len)) ptr->r4slppar2 = 2; 
 	else if (!incascmp("2 hour",data,data_len)) ptr->r4slppar2 = 3; 
 	else if (!incascmp("3 hour",data,data_len)) ptr->r4slppar2 = 4; 
-	if ((ptr->r4slppar2 != 255) && ((!fcommtp) || (!ptr->r4sppcom) || (ptr->r4slppar2 != ptr->bBlTime))) {
+	if ((ptr->r4slppar2 != 255) && ((!fcommtp) || (!ptr->r4sppcom) || (ptr->r4slppar2 != ptr->bDHour))) {
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	ptr->r4slppar1 = 16;
 	ptr->r4slpcom = 10;
+	} else {
+	ptr->t_rspdel = 0;
+	ptr->bprevDHour = 255;
+	}
 	}
 	} else if (!memcmp(topic+topoff, "wtemp", topic_len-topoff)) {
 	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
@@ -19419,8 +19568,13 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	else if (!incascmp("High",data,data_len)) ptr->r4slppar2 = 2; 
 	else if (!incascmp("Maximum",data,data_len)) ptr->r4slppar2 = 3; 
 	if ((ptr->r4slppar2 != 255) && ((!fcommtp) || (!ptr->r4sppcom) || (ptr->r4slppar2 != ptr->bPHour))) {
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	ptr->r4slppar1 = 17;
 	ptr->r4slpcom = 10;
+	} else {
+	ptr->t_rspdel = 0;
+	ptr->bprevPHour = 255;
+	}
 	}
 	} else if (!memcmp(topic+topoff, "whardness", topic_len-topoff)) {
 	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
@@ -19430,24 +19584,39 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	else if (!incascmp("3",data,data_len)) ptr->r4slppar2 = 2; 
 	else if (!incascmp("4",data,data_len)) ptr->r4slppar2 = 3; 
 	if ((ptr->r4slppar2 != 255) && ((!fcommtp) || (!ptr->r4sppcom) || (ptr->r4slppar2 != ptr->bPMin))) {
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	ptr->r4slppar1 = 18;
 	ptr->r4slpcom = 10;
+	} else {
+	ptr->t_rspdel = 0;
+	ptr->bprevPMin = 255;
+	}
 	}
 	} else if (!memcmp(topic+topoff, "cupwarming", topic_len-topoff)) {
 	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!(ptr->bProg & 0x20)) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	ptr->r4slppar1 = 3;
 	ptr->r4slpcom = 10;
-	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CUP_WARMING_ON");
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CUP_WARMING_ON");
+	} else {
+	ptr->t_rspdel = 0;
+	ptr->bprevProg = 251;
+	}
 	}
 	} else if ((!incascmp("0",data,data_len)) || (!incascmp("off",data,data_len))
 		|| (!incascmp("false",data,data_len))) {
 	if ((ptr->bProg & 0x20) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strOFF,data,data_len))) {
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	ptr->r4slppar1 = 2;
 	ptr->r4slpcom = 10;
-	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CUP_WARMING_OFF");
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CUP_WARMING_OFF");
+	} else {
+	ptr->t_rspdel = 0;
+	ptr->bprevProg = 251;
+	}
 	}
 	}
 	} else if (!memcmp(topic+topoff, "cuplighting", topic_len-topoff)) {
@@ -19455,16 +19624,26 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!(ptr->bProg & 0x08)) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	ptr->r4slppar1 = 5;
 	ptr->r4slpcom = 10;
-	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CUP_LIGHTING_ON");
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CUP_LIGHTING_ON");
+	} else {
+	ptr->t_rspdel = 0;
+	ptr->bprevProg = 251;
+	}
 	}
 	} else if ((!incascmp("0",data,data_len)) || (!incascmp("off",data,data_len))
 		|| (!incascmp("false",data,data_len))) {
 	if ((ptr->bProg & 0x08) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strOFF,data,data_len))) {
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	ptr->r4slppar1 = 4;
 	ptr->r4slpcom = 10;
-	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CUP_LIGHTING_OFF");
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CUP_LIGHTING_OFF");
+	} else {
+	ptr->t_rspdel = 0;
+	ptr->bprevProg = 251;
+	}
 	}
 	}
 	} else if (!memcmp(topic+topoff, "energysaving", topic_len-topoff)) {
@@ -19472,16 +19651,26 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!(ptr->bProg & 0x10)) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	ptr->r4slppar1 = 7;
 	ptr->r4slpcom = 10;
-	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_ENERGY_SAVING_ON");
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_ENERGY_SAVING_ON");
+	} else {
+	ptr->t_rspdel = 0;
+	ptr->bprevProg = 251;
+	}
 	}
 	} else if ((!incascmp("0",data,data_len)) || (!incascmp("off",data,data_len))
 		|| (!incascmp("false",data,data_len))) {
 	if ((ptr->bProg & 0x10) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strOFF,data,data_len))) {
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	ptr->r4slppar1 = 6;
 	ptr->r4slpcom = 10;
-	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_ENERGY_SAVING_OFF");
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_ENERGY_SAVING_OFF");
+	} else {
+	ptr->t_rspdel = 0;
+	ptr->bprevProg = 251;
+	}
 	}
 	}
 	} else if (!memcmp(topic+topoff, "beep", topic_len-topoff)) {
@@ -19489,16 +19678,26 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!(ptr->bProg & 0x04)) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	ptr->r4slppar1 = 9;
 	ptr->r4slpcom = 10;
-	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_BEEP_ON");
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_BEEP_ON");
+	} else {
+	ptr->t_rspdel = 0;
+	ptr->bprevProg = 251;
+	}
 	}
 	} else if ((!incascmp("0",data,data_len)) || (!incascmp("off",data,data_len))
 		|| (!incascmp("false",data,data_len))) {
 	if ((ptr->bProg & 0x04) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strOFF,data,data_len))) {
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	ptr->r4slppar1 = 8;
 	ptr->r4slpcom = 10;
-	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_BEEP_OFF");
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_BEEP_OFF");
+	} else {
+	ptr->t_rspdel = 0;
+	ptr->bprevProg = 251;
+	}
 	}
 	}
 	} else if (!memcmp(topic+topoff, "filter", topic_len-topoff)) {
@@ -19506,16 +19705,26 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
 		|| (!incascmp("true",data,data_len))) {
 	if ((!(ptr->bProg & 0x80)) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	ptr->r4slppar1 = 11;
 	ptr->r4slpcom = 10;
-	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_FILTER_ON");
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_FILTER_ON");
+	} else {
+	ptr->t_rspdel = 0;
+	ptr->bprevProg = 251;
+	}
 	}
 	} else if ((!incascmp("0",data,data_len)) || (!incascmp("off",data,data_len))
 		|| (!incascmp("false",data,data_len))) {
 	if ((ptr->bProg & 0x80) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strOFF,data,data_len))) {
+	if (!ptr->bState || ((ptr->bState == 7) && !ptr->bModProg)) {
 	ptr->r4slppar1 = 10;
 	ptr->r4slpcom = 10;
-	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_FILTER_OFF");
+//	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_FILTER_OFF");
+	} else {
+	ptr->t_rspdel = 0;
+	ptr->bprevProg = 251;
+	}
 	}
 	}
 
@@ -21490,7 +21699,7 @@ void MqtDevInit(bool mqtttst) {
 	strcat(llwtd,"tx\",\"availability_topic\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\",\"options\":");
-	strcat(llwtd,"[\"OFF\",\"NEC\",\"NECx16\",\"RC5\",\"RC6\",\"SAMSUNG\",\"SIRCx12\",\"SIRCx15\",\"SIRCx20\",\"PANASONIC\"]}");
+	strcat(llwtd,"[\"OFF\",\"NEC\",\"NECx16\",\"RC5\",\"RC6\",\"SAMSUNG\",\"SIRCx12\",\"SIRCx15\",\"SIRCx20\",\"PANASONIC\",\"LIVOLO\",\"RCSWITCH\"]}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 //
 	strcpy(llwtt,"homeassistant/number/");
@@ -22208,6 +22417,8 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	else if (!incascmp("sircx15", event->data, event->data_len)) tmp = 7;
 	else if (!incascmp("sircx20", event->data, event->data_len)) tmp = 8;
 	else if (!incascmp("panasonic", event->data, event->data_len)) tmp = 9;
+	else if (!incascmp("livolo", event->data, event->data_len)) tmp = 128;
+	else if (!incascmp("rcswitch", event->data, event->data_len)) tmp = 129;
 	if (tmp && !(bStatG6 & 0xff00)) {
 	bStatG6 = (bStatG6 & 0xff) | ((tmp << 8) & 0xff00);
 	bprevStatG6 = bprevStatG6 | 0xff00;
@@ -22257,7 +22468,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	if (event->data_len && (event->data_len == 8)) {
 	uint8_t buf[4];
 	mystrcpy(tbuff, event->data, event->data_len);
-	if (hex2bin(tbuff, buf, 4) && buf[0] && (buf[0] < 16) && !(bStatG6 & 0xff00)) {
+	if (hex2bin(tbuff, buf, 4) && buf[0] && ((buf[0] & 0x7f) < 16) && !(bStatG6 & 0xff00)) {
 	bStatG6 = (buf[0] << 8) + buf[3];	
 	bStatG6h = (buf[1] << 8) + buf[2];	
 	t_lasts = 0;
@@ -22423,10 +22634,12 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 	} else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
 //	if (floop && mqttConnected) esp_mqtt_client_disconnect(mqttclient);
 	if (fdebug) ESP_LOGI(AP_TAG,"AP disconnected");
-	if ((!floop && (wf_retry_cnt < WIFI_MAXIMUM_RETRY)) || (floop && (wf_retry_cnt < (WIFI_MAXIMUM_RETRY << 4)))) {
+	if ((!floop && (wf_retry_cnt < WIFI_MAXIMUM_RETRY)) || (floop && (wf_retry_cnt < (WIFI_MAXIMUM_RETRY << 6)))) {
 	esp_wifi_connect();
 	if (fdebug) ESP_LOGI(AP_TAG, "Retry %d to connect to the AP",wf_retry_cnt);
-	wf_retry_cnt++;
+	if (!wf_retry_cnt) MyHttpMqtt = MyHttpMqtt | 0x80;
+	if (floop && (wf_bits & 0x02)) wf_retry_cnt |= 0x01;
+	else wf_retry_cnt++;
 	BleDevStA.t_rspdel = 0;
 	BleDevStB.t_rspdel = 0;
 	BleDevStC.t_rspdel = 0;
@@ -22527,7 +22740,16 @@ void wifi_init_sta(void)
 	} else if (bits & WIFI_FAIL_BIT) {
 	if (fdebug) ESP_LOGI(AP_TAG,"Failed to connect to SSID:'%s', password:'%s'",
 		WIFI_SSID, WIFI_PASSWORD);
-
+	if (wf_bits & 0x01) {
+#ifdef USE_TFT
+	if (tft_conn) tfststr("Connection to AP ",WIFI_SSID," failed. Restarting ..."); 
+#endif
+	if (fdebug) ESP_LOGI(AP_TAG,"Restarting now...");
+	fflush(stdout);
+	if (floop && mqttConnected) esp_mqtt_client_disconnect(mqttclient);
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
+	esp_restart();
+	} else {
 	ESP_ERROR_CHECK(esp_wifi_stop() );
 	char DEFWFSSID[33];
 	char DEFWFPSW[65];
@@ -22570,6 +22792,7 @@ void wifi_init_sta(void)
 	if (floop && mqttConnected) esp_mqtt_client_disconnect(mqttclient);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
+	}
 	}
 	} else {
 	if (fdebug) ESP_LOGE(AP_TAG, "UNEXPECTED EVENT");
@@ -22694,6 +22917,7 @@ uint8_t ReadNVS(){
 	fdebug = 0;
         ble_mon =  nvtemp & 0x03;
 	ble_mon_refr = 0;
+	wf_bits = 0;
 	if (nvtemp & 0x04) FDHass = 1;
 	if (nvtemp & 0x08) fcommtp = 1;
 	if (nvtemp & 0x10) ftrufal = 1;
@@ -22719,6 +22943,8 @@ uint8_t ReadNVS(){
 	if (nvtemp & 0x100000) lvout4 = 1;
 	if (nvtemp & 0x200000) lvout5 = 1;
 	if (nvtemp & 0x400000) ble_mon_refr = 1;
+	if (nvtemp & 0x800000) wf_bits |= 0x01;
+	if (nvtemp & 0x1000000) wf_bits |= 0x02;
 	nvtemp = 0;
 	nvs_get_u64(my_handle, "bhx1", &nvtemp);
 	bZeroHx6 = nvtemp & 0xffffffff;
@@ -23005,6 +23231,8 @@ void WriteNVS () {
 	if (lvout4) nvtemp = nvtemp | 0x100000;
 	if (lvout5) nvtemp = nvtemp | 0x200000;
 	if (ble_mon_refr) nvtemp = nvtemp | 0x400000;
+	if (wf_bits & 0x01) nvtemp = nvtemp | 0x800000;
+	if (wf_bits & 0x02) nvtemp = nvtemp | 0x1000000;
 	nvs_set_u64(my_handle, "cmbits", nvtemp);
 	nvtemp = bDivHx6;
 	nvtemp = (nvtemp << 32) | bZeroHx6;
@@ -24390,13 +24618,13 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	strcat(bsend,"&emsp;&emsp;Setting</br>");
 	strcat(bsend,"<select name=\"sphour\"><option ");
 	strcat(bsend,"value=\"0\">15 min</option><option ");
-	if (ptr->bBlTime == 1) strcat(bsend,"selected ");
+	if (ptr->bDHour == 1) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"1\">30 min</option><option ");
-	if (ptr->bBlTime == 2) strcat(bsend,"selected ");
+	if (ptr->bDHour == 2) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"2\">1 hour</option><option ");
-	if (ptr->bBlTime == 3) strcat(bsend,"selected ");
+	if (ptr->bDHour == 3) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"3\">2 hour</option><option ");
-	if (ptr->bBlTime == 4) strcat(bsend,"selected ");
+	if (ptr->bDHour == 4) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"4\">3 hour</option></select>Select auto off</br>");
 	strcat(bsend,"<select name=\"stemp\"><option ");
 	strcat(bsend,"value=\"0\">Low</option><option ");
@@ -24414,7 +24642,6 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	strcat(bsend,"value=\"2\">3</option><option ");
 	if (ptr->bPMin == 3) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"3\">4</option></select>Select water hardness</br>");
-//
 	strcat(bsend,"<input type=\"checkbox\" name=\"sbt04\" value=\"4\"");
 	if (ptr->bProg & 0x04) strcat(bsend,"checked");
 	strcat(bsend,"> Beep</br>");
@@ -24430,11 +24657,6 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	strcat(bsend,"<input type=\"checkbox\" name=\"sbt80\" value=\"128\"");
 	if (ptr->bProg & 0x80) strcat(bsend,"checked");
 	strcat(bsend,"> Filter</br>");
-
-
-//???
-
-
 	} else if ( ptr->DEV_TYP < 12) {
 	strcat(bsend,"<body><form method=\"POST\" action=\"/cfgdev");
 	itoa(blenum1,buff,10);
@@ -26328,7 +26550,11 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (WIFI_SSID[0]) strcat(bsend,WIFI_SSID);
 	strcat(bsend,"\" size=\"15\">SSID &emsp;<input type=\"password\" input name=\"swfpsw\" value=\"");
 	if (WIFI_PASSWORD[0]) strcat(bsend,WIFI_PASSWORD);
-	strcat(bsend,"\"size=\"31\">Password</br><h3>MQTT Setting</h3><br/><input name=\"smqsrv\" value=\"");
+	strcat(bsend,"\"size=\"31\">Password&emsp;<input type=\"checkbox\" name=\"wfb1\" value=\"1\"");
+	if (wf_bits & 0x01) strcat(bsend,"checked");
+	strcat(bsend,"> Connect to this AP only&emsp;<input type=\"checkbox\" name=\"wfb2\" value=\"2\"");
+	if (wf_bits & 0x02) strcat(bsend,"checked");
+	strcat(bsend,"> Disable restart due WIFI loss</br><h3>MQTT Setting</h3><br/><input name=\"smqsrv\" value=\"");
 	if (MQTT_SERVER[0]) strcat(bsend,MQTT_SERVER);
 	strcat(bsend,"\"size=\"25\">Server &emsp;<input name=\"smqprt\" type=\"number\" value=\"");
 	itoa(mqtt_port,buff,10);
@@ -26604,7 +26830,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"value=\"128\">18b20/Hx C</option><option ");
 	if ((bgpio6 & 0xc0) == 0xc0) strcat(bsend,"selected ");
 #ifdef USE_IRTX
-	strcat(bsend,"value=\"192\">IR Tx</option></select>&emsp;<input name=\"ppin7\" type=\"number\" value=\"");
+	strcat(bsend,"value=\"192\">IR/RC Tx</option></select>&emsp;<input name=\"ppin7\" type=\"number\" value=\"");
 #else
 	strcat(bsend,"value=\"192\">Dht22</option></select>&emsp;<input name=\"ppin7\" type=\"number\" value=\"");
 #endif
@@ -26916,6 +27142,16 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	strcpy(buf2,"smjpuri");
 	parsuri(buf1,MyHttpUri,buf2,4096,128,0);
 #endif
+	buf3[0] = 0;
+	strcpy(buf2,"wfb1");
+	parsuri(buf1,buf3,buf2,4096,2,0);
+	wf_bits &= 0xfe;
+	if (buf3[0] == 0x31) wf_bits |= 0x01;
+	buf3[0] = 0;
+	strcpy(buf2,"wfb2");
+	parsuri(buf1,buf3,buf2,4096,2,0);
+	wf_bits &= 0xfd;
+	if (buf3[0] == 0x32) wf_bits |= 0x02;
 	buf3[0] = 0;
 	strcpy(buf2,"chk1");
 	parsuri(buf1,buf3,buf2,4096,2,0);
@@ -28164,7 +28400,7 @@ void lpcomstat(uint8_t blenum) {
 	case 12:	//800 mode
 	ptr->r4slpres = 1;
 	ptr->bprevModProg = 255;
-        rm800sMod(blenum, ptr->r4slppar1);
+	rm800sMod(blenum, ptr->r4slppar1);
 	ptr->r4slpcom = 0;
 	ptr->t_rspdel = 0;
 	break;
@@ -28172,7 +28408,7 @@ void lpcomstat(uint8_t blenum) {
 	case 13:	//800 temp
 	ptr->r4slpres = 1;
 	ptr->bprevHtemp = 255;
-        rm800sTemp(blenum, ptr->r4slppar1);
+	rm800sTemp(blenum, ptr->r4slppar1);
 	ptr->r4slpcom = 0;
 	ptr->t_rspdel = 0;
 	break;
@@ -28180,7 +28416,7 @@ void lpcomstat(uint8_t blenum) {
 	case 14:	//800 phour
 	ptr->r4slpres = 1;
 	ptr->bprevPHour = 255;
-        rm800sPhour(blenum, ptr->r4slppar1);
+	rm800sPhour(blenum, ptr->r4slppar1);
 	ptr->r4slpcom = 0;
 	ptr->t_rspdel = 0;
 	break;
@@ -28188,7 +28424,7 @@ void lpcomstat(uint8_t blenum) {
 	case 15:	//800 pmin
 	ptr->r4slpres = 1;
 	ptr->bprevPMin = 255;
-        rm800sPmin(blenum, ptr->r4slppar1);
+	rm800sPmin(blenum, ptr->r4slppar1);
 	ptr->r4slpcom = 0;
 	ptr->t_rspdel = 0;
 	break;
@@ -28196,7 +28432,7 @@ void lpcomstat(uint8_t blenum) {
 	case 16:	//800 awarm
 	ptr->r4slpres = 1;
 	ptr->bprevAwarm = 255;
-        rm800sAwarm(blenum, ptr->r4slppar1);
+	rm800sAwarm(blenum, ptr->r4slppar1);
 	ptr->r4slpcom = 0;
 	ptr->t_rspdel = 0;
 	break;
@@ -28231,7 +28467,7 @@ void lpcomstat(uint8_t blenum) {
 	case 19:	//800 dhour
 	ptr->r4slpres = 1;
 	ptr->bprevDHour = 255;
-        rm800sDhour(blenum, ptr->r4slppar1);
+	rm800sDhour(blenum, ptr->r4slppar1);
 	ptr->r4slpcom = 0;
 	ptr->t_rspdel = 0;
 	break;
@@ -28239,7 +28475,7 @@ void lpcomstat(uint8_t blenum) {
 	case 20:	//800 dmin
 	ptr->r4slpres = 1;
 	ptr->bprevDMin = 255;
-        rm800sDmin(blenum, ptr->r4slppar1);
+	rm800sDmin(blenum, ptr->r4slppar1);
 	ptr->r4slpcom = 0;
 	ptr->t_rspdel = 0;
 	break;
@@ -28272,7 +28508,7 @@ void lpcomstat(uint8_t blenum) {
 
 	case 23:	//beep off
 	ptr->r4slpres = 1;
-        ptr->bprevStBp = 255;
+	ptr->bprevStBp = 255;
 	m171Bp(blenum, 0);
 	ptr->r4slpcom = 0;
 	ptr->t_rspdel = 0;
@@ -28280,7 +28516,7 @@ void lpcomstat(uint8_t blenum) {
 
 	case 24:	//beep on
 	ptr->r4slpres = 1;
-        ptr->bprevStBp = 255;
+	ptr->bprevStBp = 255;
 	m171Bp(blenum, 1);
 	ptr->r4slpcom = 0;
 	ptr->t_rspdel = 0;
@@ -28288,14 +28524,14 @@ void lpcomstat(uint8_t blenum) {
 
 	case 25:	//boil time
 	ptr->r4slpres = 1;
-        ptr->bprevBlTime = 128;
+	ptr->bprevBlTime = 128;
 	m171sBlTm(blenum, ptr->r4slppar1);
 	ptr->r4slpcom = 0;
 	ptr->t_rspdel = 0;
 	break;
 
 	case 26:	//blinds position
-        MqState(blenum);
+	MqState(blenum);
 	ptr->r4slpres = 1;
 	ptr->bprevState = 255;
 	m43sPos(blenum, ptr->r4slppar1);
@@ -28313,7 +28549,7 @@ void lpcomstat(uint8_t blenum) {
 
 	case 28:	//ecam setting
 	ptr->r4slpres = 1;
-        ptr->bprevBlTime = 255;
+	ptr->bprevDHour = 255;
 	ptr->bprevPHour = 255;
 	ptr->bprevPMin = 255;
 	ptr->bprevProg |= 2;
@@ -28323,7 +28559,7 @@ void lpcomstat(uint8_t blenum) {
 	break;
 
 	case 62:	//smoke reset
-        MqState(blenum);
+	MqState(blenum);
 	ptr->r4slpres = 1;
 	ptr->bprevState = 255;
 	m61sClear(blenum);
@@ -28332,7 +28568,7 @@ void lpcomstat(uint8_t blenum) {
 	break;
 
 	case 63:	//weather calibrate
-        MqState(blenum);
+	MqState(blenum);
 	ptr->r4slpres = 1;
 	ptr->bprevState = 255;
 	m51sCalibrate(blenum);
@@ -28887,7 +29123,7 @@ void app_main(void)
 	i2c_init_aht2x(0, &f_i2cdev);
 	i2c_init_htu21(0, &f_i2cdev);
 	i2c_init_sgp3x(0, &f_i2cdev);
-	i2c_init_scd4x(0, &f_i2cdev);
+	i2c_init_scd4x(0, &f_i2cdev, &SnPi2c[10].par3);
 	i2c_init_sgp4x(0, &f_i2cdev);
 	if (f_i2cdev & 0x60000000) i2c_read_pwr(&f_i2cdev, &pwr_batmode, &pwr_batlevp, &pwr_batlevv, &pwr_batlevc);
 	} //if i2c init
@@ -29055,7 +29291,7 @@ void app_main(void)
 	if (i2c_read_sgp3x(0, &f_i2cdev, &SnPi2c[9].par3, &SnPi2c[9].par4)) i2c_init_sgp3x(0, &f_i2cdev);
 	}
 	if (f_i2cdev & 0x400) {
-	if (i2c_read_scd4x(0, &f_i2cdev, &SnPi2c[10].par1, &SnPi2c[10].par2, &SnPi2c[10].par4)) i2c_init_scd4x(0, &f_i2cdev);
+	if (i2c_read_scd4x(0, &f_i2cdev, &SnPi2c[10].par1, &SnPi2c[10].par2, &SnPi2c[10].par4, &SnPi2c[10].par3)) i2c_init_scd4x(0, &f_i2cdev, &SnPi2c[10].par3);
 	}
 	if (f_i2cdev & 0x800) {
 	if (i2c_read_sgp4x(0, &f_i2cdev, &SnPi2c[11].par3)) i2c_init_sgp4x(0, &f_i2cdev);
@@ -29136,6 +29372,11 @@ void app_main(void)
 	else t_jpg = jpg_time * 10 + ((R4SNUM & 0x0f) + 1);	
 	} else if (!wf_retry_cnt && !f_update && tft_conn && !jpg_time && ((MyHttpMqtt & 0x80) == 0x80)) {
 	pushImage(0, 52, 320, 240, wallpaper);
+	MyHttpMqtt = MyHttpMqtt & 0x7f;
+	} else if (wf_retry_cnt && !f_update && tft_conn && ((MyHttpMqtt & 0x80) == 0x80)) {
+	pushImage(0, 52, 320, 240, wallpaper);
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+       	drawString("WIFI disconnected", 8, 60, 4);
 	MyHttpMqtt = MyHttpMqtt & 0x7f;
 	}
 #endif
@@ -29251,17 +29492,17 @@ void app_main(void)
 	if ((SnPi2c[5].ppar1 != SnPi2c[5].par1) || (SnPi2c[5].ppar2 != SnPi2c[5].par2))  t_lasts = 0;
 	} else if (s_i2cdev & 0x20) i2c_init_htu21(0, &f_i2cdev);
 	if (f_i2cdev & 0x400) {
-	err = i2c_read_scd4x(0, &f_i2cdev, &SnPi2c[10].par1, &SnPi2c[10].par2, &SnPi2c[10].par4);
-	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_scd4x(0, &f_i2cdev);
+	err = i2c_read_scd4x(0, &f_i2cdev, &SnPi2c[10].par1, &SnPi2c[10].par2, &SnPi2c[10].par4, &SnPi2c[10].par3);
+	if (err && (err != ESP_ERR_TIMEOUT)) i2c_init_scd4x(0, &f_i2cdev, &SnPi2c[10].par3);
 	if ((SnPi2c[10].ppar1 != SnPi2c[10].par1) || (SnPi2c[10].ppar2 != SnPi2c[10].par2) || (SnPi2c[10].ppar4 != SnPi2c[10].par4)) t_lasts = 0;
-	} else if (s_i2cdev & 0x400) i2c_init_scd4x(0, &f_i2cdev); 
+	} else if (s_i2cdev & 0x400) i2c_init_scd4x(0, &f_i2cdev, &SnPi2c[10].par3); 
 	}
 	break;
 	}
 	RmtDsNum++;
 	}
 	t_tinc = 40;
-	if (wf_retry_cnt >= (WIFI_MAXIMUM_RETRY << 8)) {
+	if (wf_retry_cnt >= (WIFI_MAXIMUM_RETRY << 6)) {
 	if (fdebug) ESP_LOGI(AP_TAG,"Wifi disconnected. Restarting ...");
 #ifdef USE_TFT
 	blstnum = 253;
