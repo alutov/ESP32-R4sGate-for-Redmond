@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2023.12.06"
+#define AP_VER "2023.12.23"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -931,10 +931,33 @@ void cipherCrypt(uint8_t  *cin, uint8_t  *cout, uint8_t  *ctab, int size)
 	cout[i] = cin[i] ^ ctab[idx];
 	}
 }
+//02 01 06 1a 16 95 fe 58 58 5b 05 6d d7 e5 f9 38 c1 a4 b2 b8 fb 2e 4e 09 00 00 0d 5d 1b bc
+//                           9        12                18                24    26
+//         0                 6        9                 15             20       23
+//                           devp  fc mac           mac enc pl            cnt   token
+bool xmadvdcrpt(uint8_t *datout, uint8_t *datin, uint8_t *keyin) {
+	bool ret = 0;
+	if ((datin == NULL) || (datin[0] < 22)) return ret;
+	uint8_t iv[12];
+	uint8_t dtsz = datin[0] - 21;
+	uint8_t auth = 0x11;
+	mbedtls_ccm_context ctx;
+	mbedtls_ccm_init(&ctx);
+	mbedtls_ccm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, keyin, 128);
+
+	memcpy(iv, &datin[9], 6);
+	memcpy(&iv[6], &datin[6], 3);
+	memcpy(&iv[9], &datin[dtsz + 15], 3);
+	if (!mbedtls_ccm_auth_decrypt(&ctx, dtsz, iv, 12, &auth, 1, &datin[15], datout, &datin[dtsz + 18], 4)) ret = 1;
+//esp_log_buffer_hex(AP_TAG, datout, 5);
+	mbedtls_ccm_free(&ctx);
+	return ret;
+}
+
 //******************* smart tag ***************
 bool vstsign(uint8_t *datin, uint8_t *keyin)
 {
-	bool result = 0;
+	bool ret = 0;
 	uint8_t datout[16];
 	uint8_t iv[16];
 	mbedtls_aes_context aes;
@@ -942,8 +965,8 @@ bool vstsign(uint8_t *datin, uint8_t *keyin)
 	mbedtls_aes_init(&aes);
 	mbedtls_aes_setkey_enc(&aes, keyin, 128);
 	mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, 16, iv, datin, datout);
-	if (!memcmp(datout, &datin[16], 4)) result = 1;
-	return result;
+	if (!memcmp(datout, &datin[16], 4)) ret = 1;
+	return ret;
 }
 //******************* ecam ********************
 uint16_t ecam_crc(uint8_t *data, uint8_t datalen) {
@@ -8810,7 +8833,7 @@ static void start_scan(void)
 	esp_err_t scan_ret = 0;
 
 //step 1: set scan only if not update, if not already starting scan or if no connections is opening   
-	if (!wf_retry_cnt && !f_update && !StartStopScanReq && !SetScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen) && (!BleDevStD.btopenreq || BleDevStD.btopen) && (!BleDevStE.btopenreq || BleDevStE.btopen)) {
+	if (!(wf_retry_cnt && (wf_bits & 0x04)) && !f_update && !StartStopScanReq && !SetScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen) && (!BleDevStD.btopenreq || BleDevStD.btopen) && (!BleDevStE.btopenreq || BleDevStE.btopen)) {
 	if (!ble_mon || (ble_mon == 3)) {
 	if ((BleDevStA.REQ_NAME[0] && !BleDevStA.btopenreq) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btopenreq) || (BleDevStC.REQ_NAME[0] && !BleDevStC.btopenreq) || (BleDevStD.REQ_NAME[0] && !BleDevStD.btopenreq) || (BleDevStE.REQ_NAME[0] && !BleDevStE.btopenreq)) {
 	if (!Isscanning) {
@@ -10543,8 +10566,8 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
     default:
 	break;
     }
-//	if ((conerr || wf_retry_cnt || f_update) && ptr->btopen) esp_ble_gattc_close(gl_profile_tab[blenum].gattc_if,gl_profile_tab[blenum].conn_id);
-	if ((conerr || wf_retry_cnt || f_update) && ptr->btopen) esp_ble_gap_disconnect(gl_profile_tab[blenum].remote_bda);
+//	if ((conerr || (wf_retry_cnt && (wf_bits & 0x04)) || f_update) && ptr->btopen) esp_ble_gattc_close(gl_profile_tab[blenum].gattc_if,gl_profile_tab[blenum].conn_id);
+	if ((conerr || (wf_retry_cnt && (wf_bits & 0x04)) || f_update) && ptr->btopen) esp_ble_gap_disconnect(gl_profile_tab[blenum].remote_bda);
 
 }
 
@@ -10816,7 +10839,7 @@ if (fdebug) {
 	case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: 
 	SetScanReq = false;
 //step 1: start scan only if not update, if not scanning, if not already starting scan or if no connections is opening   
-	if (!wf_retry_cnt && !f_update && !Isscanning && !StartStopScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen) && (!BleDevStD.btopenreq || BleDevStD.btopen) && (!BleDevStE.btopenreq || BleDevStE.btopen)) {
+	if (!(wf_retry_cnt && (wf_bits & 0x04)) && !f_update && !Isscanning && !StartStopScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen) && (!BleDevStD.btopenreq || BleDevStD.btopen) && (!BleDevStE.btopenreq || BleDevStE.btopen)) {
 //step 2: start scan if defined but not open connection present
 //	if ((BleDevStA.REQ_NAME[0] && !BleDevStA.btopenreq) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btopenreq) || (BleDevStC.REQ_NAME[0] && !BleDevStC.btopenreq) || (BleDevStD.REQ_NAME[0] && !BleDevStD.btopenreq) || (BleDevStE.REQ_NAME[0] && !BleDevStE.btopenreq)) {
 	uint32_t duration = 0; //30
@@ -10835,7 +10858,7 @@ if (fdebug) {
 	StartStopScanReq = false;
 	if (param->scan_start_cmpl.status != ESP_BT_STATUS_SUCCESS) {
 	if (fdebug) ESP_LOGE(AP_TAG, "scan start failed, error status = 0x%X", param->scan_start_cmpl.status);
-//	if (ble_mon && !wf_retry_cnt && !f_update && !Isscanning) esp_restart();
+//	if (ble_mon && !(wf_retry_cnt && (wf_bits & 0x04)) && !f_update && !Isscanning) esp_restart();
 	break;
 	} 
 	if (fdebug) ESP_LOGI(AP_TAG, "Scan start success");
@@ -10892,11 +10915,19 @@ if (fdebug) {
 	break;
 	case 19:
 	if (!memcmp(&scan_result->scan_rst.ble_adv[0],"\x12\x16\x1a\x18",4)) id = 3;
+//12 16 95 fe 50 58 5b 05 ed 15 51 d8 38 c1 a4 0a 10 01 4b
+//                                             15
+	else if (!memcmp(&scan_result->scan_rst.ble_adv[1],"\x16\x95\xfe\x50\x58\x5b\x05",7)) id = 7;
 	break;
 	case 21:
 // 14 ff ff ff 80 08 a0 01 02 01 aa fb 00 f2 a5 0c 00 58 81 0a 14
 //  0        3    5              10       13             18    20
 	if (!(scan_result->scan_rst.bda[0] & 0x01) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x14\xff\xff\xff\x80",5)) id = 6;
+	break;
+	case 22:
+//15 16 95 fe 50 58 5b 05 fc 15 51 d8 38 c1 a4 0d 10 04 ce 00 b7 01
+//                                             15
+	if (!memcmp(&scan_result->scan_rst.ble_adv[1],"\x16\x95\xfe\x50\x58\x5b\x05",7)) id = 7;
 	break;
 	case 24:
 // 02 01 06 03 02 1b 18 10 16 1b 18 02 a4 e6 07 0a 12 08 26 27 fd ff c0 3f
@@ -10905,6 +10936,17 @@ if (fdebug) {
 	break;
 	case 27:
 	if (!memcmp(&scan_result->scan_rst.ble_adv[0],"\x1a\xff\x4c\x00\x02\x15",6)) id = 0x42;
+	break;
+	case 28:
+//02 01 06 03 02 1a 18 14 16 95 fe 70 20 5b 04 a4 7a 14 73 01 2e e7 09 06 10 02 08 02
+//                      7                         ma             ma    23
+	if (!memcmp(&scan_result->scan_rst.ble_adv[7],"\x14\x16\x95\xfe\x70\x20\x5b\x04",8)) id = 8;
+	break;
+	case 30:
+//02 01 06 1a 16 95 fe 58 58 5b 05 6d d7 e5 f9 38 c1 a4 b2 b8 fb 2e 4e 09 00 00 0d 5d 1b bc
+//          3
+	if (!memcmp(&scan_result->scan_rst.ble_adv[3],"\x1a\x16\x95\xfe\x58",5) &&
+		!memcmp(&scan_result->scan_rst.ble_adv[9],"\x5b\x05",2)) id = 9;
 	break;
 	case 31:
 // 02 01 06 03 02 1d 18 09 ff 57 01 c8 47 8c ef 9c 4c 0d 16 1d 18 02 20 44 b2 07 01 01 0d 0f 0e
@@ -11004,8 +11046,48 @@ if (fdebug) {
 	BleMX[i].par5 = BleMX[i].advdat[18] + (BleMX[i].advdat[19] << 8);
 	BleMX[i].par6 = BleMX[i].advdat[17];
 	if (BleMX[i].par6 > 100) BleMX[i].par6 = 100;
-//	} else if (id == 7) {
-
+	} else if (id == 7) {
+	if (!memcmp(&scan_result->scan_rst.ble_adv[15],"\x0d\x10\x04",3)) {
+	BleMX[i].par1 = BleMX[i].advdat[18] + (BleMX[i].advdat[19] << 8);
+	if (BleMX[i].par1 & 0x8000) {
+	BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+	BleMX[i].par1 = BleMX[i].par1 * 10;
+	BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+	} else BleMX[i].par1 = BleMX[i].par1 * 10;
+	BleMX[i].par2 = (BleMX[i].advdat[20] + (BleMX[i].advdat[21] << 8)) * 10;
+	} else if (!memcmp(&scan_result->scan_rst.ble_adv[15],"\x0a\x10\x01",3)) {
+	BleMX[i].par4 = BleMX[i].advdat[18];
+	}
+	} else if (id == 8) {
+	if (!memcmp(&scan_result->scan_rst.ble_adv[23],"\x04\x10\x02",3)) {
+	BleMX[i].par1 = BleMX[i].advdat[26] + (BleMX[i].advdat[27] << 8);
+	if (BleMX[i].par1 & 0x8000) {
+	BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+	BleMX[i].par1 = BleMX[i].par1 * 10;
+	BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+	} else BleMX[i].par1 = BleMX[i].par1 * 10;
+	} else if (!memcmp(&scan_result->scan_rst.ble_adv[23],"\x06\x10\x02",3)) {
+	BleMX[i].par2 = (BleMX[i].advdat[26] + (BleMX[i].advdat[27] << 8)) * 10;
+	} else if (!memcmp(&scan_result->scan_rst.ble_adv[23],"\x0a\x10\x01",3)) {
+	BleMX[i].par4 = BleMX[i].advdat[26];
+	}
+	} else if (id == 9) {
+	uint8_t dout[8];
+	if (xmadvdcrpt(dout, &BleMX[i].advdat[3], &BleMR[i].mac[8])) {
+	if (!memcmp(dout,"\x04\x10\x02",3)) {
+	BleMX[i].par1 = dout[3] + (dout[4] << 8);
+	if (BleMX[i].par1 & 0x8000) {
+	BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+	BleMX[i].par1 = BleMX[i].par1 * 10;
+	BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+	} else BleMX[i].par1 = BleMX[i].par1 * 10;
+	} else if (!memcmp(dout,"\x06\x10\x02",3)) {
+	BleMX[i].par2 = (dout[3] + (dout[4] << 8)) * 10;
+	}
+	} else {
+        BleMX[i].par1 = 0xffff;
+	BleMX[i].par2 = 0;
+	}
 	} else if (id == 0x44) {
 	BleMX[i].par1 = BleMX[i].advdat[11];
 	BleMX[i].par2 = BleMX[i].advdat[23];
@@ -11014,9 +11096,14 @@ if (fdebug) {
 	}
 	}
 	i++;
-	if ((id == 0x44) && !found && (i == BleMonNum)) {
+	if ((i == BleMonNum) && !found) {
+	if (id == 0x44) {
 	id = 0x04;
 	i = 0;
+	} else if (id == 9) {
+	id = 10;
+	i = 0;
+	}
 	}
 	}
 	i = 0;
@@ -11088,8 +11175,48 @@ if (fdebug) {
 	BleMX[i].par5 = BleMX[i].advdat[18] + (BleMX[i].advdat[19] << 8);
 	BleMX[i].par6 = BleMX[i].advdat[17];
 	if (BleMX[i].par6 > 100) BleMX[i].par6 = 100;
-//	} else if (id == 7) {
-
+	} else if (id == 7) {
+	if (!memcmp(&scan_result->scan_rst.ble_adv[15],"\x0d\x10\x04",3)) {
+	BleMX[i].par1 = BleMX[i].advdat[18] + (BleMX[i].advdat[19] << 8);
+	if (BleMX[i].par1 & 0x8000) {
+	BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+	BleMX[i].par1 = BleMX[i].par1 * 10;
+	BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+	} else BleMX[i].par1 = BleMX[i].par1 * 10;
+	BleMX[i].par2 = (BleMX[i].advdat[20] + (BleMX[i].advdat[21] << 8)) * 10;
+	} else if (!memcmp(&scan_result->scan_rst.ble_adv[15],"\x0a\x10\x01",3)) {
+	BleMX[i].par4 = BleMX[i].advdat[18];
+	}
+	} else if (id == 8) {
+	if (!memcmp(&scan_result->scan_rst.ble_adv[23],"\x04\x10\x02",3)) {
+	BleMX[i].par1 = BleMX[i].advdat[26] + (BleMX[i].advdat[27] << 8);
+	if (BleMX[i].par1 & 0x8000) {
+	BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+	BleMX[i].par1 = BleMX[i].par1 * 10;
+	BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+	} else BleMX[i].par1 = BleMX[i].par1 * 10;
+	} else if (!memcmp(&scan_result->scan_rst.ble_adv[23],"\x06\x10\x02",3)) {
+	BleMX[i].par2 = (BleMX[i].advdat[26] + (BleMX[i].advdat[27] << 8)) * 10;
+	} else if (!memcmp(&scan_result->scan_rst.ble_adv[23],"\x0a\x10\x01",3)) {
+	BleMX[i].par4 = BleMX[i].advdat[26];
+	}
+	} else if (id == 9) {
+	uint8_t dout[8];
+	if (xmadvdcrpt(dout, &BleMX[i].advdat[3], &BleMR[i].mac[8])) {
+	if (!memcmp(dout,"\x04\x10\x02",3)) {
+	BleMX[i].par1 = dout[3] + (dout[4] << 8);
+	if (BleMX[i].par1 & 0x8000) {
+	BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+	BleMX[i].par1 = BleMX[i].par1 * 10;
+	BleMX[i].par1 = (BleMX[i].par1  ^ 0x0ffff) + 1;
+	} else BleMX[i].par1 = BleMX[i].par1 * 10;
+	} else if (!memcmp(dout,"\x06\x10\x02",3)) {
+	BleMX[i].par2 = (dout[3] + (dout[4] << 8)) * 10;
+	}
+	} else {
+        BleMX[i].par1 = 0xffff;
+	BleMX[i].par2 = 0;
+	}
 	} else if (id == 0x44) {
 	BleMX[i].par1 = BleMX[i].advdat[11];
 	BleMX[i].par2 = BleMX[i].advdat[23];
@@ -11100,7 +11227,7 @@ if (fdebug) {
 	}
 //
 
-	if (!wf_retry_cnt && !f_update && !StartStopScanReq && !SetScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen) && (!BleDevStD.btopenreq || BleDevStD.btopen) && (!BleDevStE.btopenreq || BleDevStE.btopen)) {
+	if (!(wf_retry_cnt && (wf_bits & 0x04)) && !f_update && !StartStopScanReq && !SetScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen) && (!BleDevStD.btopenreq || BleDevStD.btopen) && (!BleDevStE.btopenreq || BleDevStE.btopen)) {
 	blenum = 0;
 	while (blenum < 5) {
 	switch (blenum) {
@@ -16060,7 +16187,7 @@ void MqSState() {
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	BleMX[i].ppar7 = BleMX[i].par7;
 	}
-	} else if (BleMR[i].id == 3) {
+	} else if ((BleMR[i].id == 3) || ((BleMR[i].id > 6) && (BleMR[i].id < 10))) {
 	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par1 != BleMX[i].ppar1)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
@@ -16083,6 +16210,7 @@ void MqSState() {
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	BleMX[i].ppar2 = BleMX[i].par2;
 	}
+	if (BleMR[i].id != 9) {
 	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par4 != BleMX[i].ppar4)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
@@ -16092,6 +16220,7 @@ void MqSState() {
 	itoa(BleMX[i].par4,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	BleMX[i].ppar4 = BleMX[i].par4;
+	}
 	}
 	} else if (BleMR[i].id == 5) {
 	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].par1 != BleMX[i].ppar1)) {
@@ -19796,15 +19925,18 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
 	if (BleMR[i].id == 2) strcat(llwtd,"Mi Scale");
-	else if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	else if (BleMR[i].id == 3) strcat(llwtd,"ATC/PVVX");
 	else if (BleMR[i].id == 5) strcat(llwtd,"Qingping Air Monitor Lite CGDN1");
 	else if (BleMR[i].id == 6) strcat(llwtd,"Elehant");
+	else if (BleMR[i].id == 7) strcat(llwtd,"ATC/PVVX");
+	else if (BleMR[i].id == 8) strcat(llwtd,"LYWSD02");
+	else if (BleMR[i].id == 9) strcat(llwtd,"LYWSD03MMC");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
 	else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
-	if (BleMR[i].id == 2) strcat(llwtd,"Xiaomi");
-	else if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	if ((BleMR[i].id == 2) || (BleMR[i].id == 8) || (BleMR[i].id == 9)) strcat(llwtd,"Xiaomi");
+	else if ((BleMR[i].id == 3) || (BleMR[i].id == 7)) strcat(llwtd,"Xiaomi & pvvx & atc1441");
 	else if (BleMR[i].id == 5) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 6) strcat(llwtd,"Elehant");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
@@ -19849,15 +19981,18 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
 	if (BleMR[i].id == 2) strcat(llwtd,"Mi Scale");
-	else if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	else if (BleMR[i].id == 3) strcat(llwtd,"ATC/PVVX");
 	else if (BleMR[i].id == 5) strcat(llwtd,"Qingping Air Monitor Lite CGDN1");
 	else if (BleMR[i].id == 6) strcat(llwtd,"Elehant");
+	else if (BleMR[i].id == 7) strcat(llwtd,"ATC/PVVX");
+	else if (BleMR[i].id == 8) strcat(llwtd,"LYWSD02");
+	else if (BleMR[i].id == 9) strcat(llwtd,"LYWSD03MMC");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
 	else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
-	if (BleMR[i].id == 2) strcat(llwtd,"Xiaomi");
-	else if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	if ((BleMR[i].id == 2) || (BleMR[i].id == 8) || (BleMR[i].id == 9)) strcat(llwtd,"Xiaomi");
+	else if ((BleMR[i].id == 3) || (BleMR[i].id == 7)) strcat(llwtd,"Xiaomi & pvvx & atc1441");
 	else if (BleMR[i].id == 5) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 6) strcat(llwtd,"Elehant");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
@@ -19901,15 +20036,18 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
 	if (BleMR[i].id == 2) strcat(llwtd,"Mi Scale");
-	else if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	else if (BleMR[i].id == 3) strcat(llwtd,"ATC/PVVX");
 	else if (BleMR[i].id == 5) strcat(llwtd,"Qingping Air Monitor Lite CGDN1");
 	else if (BleMR[i].id == 6) strcat(llwtd,"Elehant");
+	else if (BleMR[i].id == 7) strcat(llwtd,"ATC/PVVX");
+	else if (BleMR[i].id == 8) strcat(llwtd,"LYWSD02");
+	else if (BleMR[i].id == 9) strcat(llwtd,"LYWSD03MMC");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
 	else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
-	if (BleMR[i].id == 2) strcat(llwtd,"Xiaomi");
-	else if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	if ((BleMR[i].id == 2) || (BleMR[i].id == 8) || (BleMR[i].id == 9)) strcat(llwtd,"Xiaomi");
+	else if ((BleMR[i].id == 3) || (BleMR[i].id == 7)) strcat(llwtd,"Xiaomi & pvvx & atc1441");
 	else if (BleMR[i].id == 5) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 6) strcat(llwtd,"Elehant");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
@@ -19949,15 +20087,18 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
 	if (BleMR[i].id == 2) strcat(llwtd,"Mi Scale");
-	else if (BleMR[i].id == 3) strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	else if (BleMR[i].id == 3) strcat(llwtd,"ATC/PVVX");
 	else if (BleMR[i].id == 5) strcat(llwtd,"Qingping Air Monitor Lite CGDN1");
 	else if (BleMR[i].id == 6) strcat(llwtd,"Elehant");
+	else if (BleMR[i].id == 7) strcat(llwtd,"ATC/PVVX");
+	else if (BleMR[i].id == 8) strcat(llwtd,"LYWSD02");
+	else if (BleMR[i].id == 9) strcat(llwtd,"LYWSD03MMC");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"HA iBeacon");
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
 	else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"manufacturer\":\"");
-	if (BleMR[i].id == 2) strcat(llwtd,"Xiaomi");
-	else if (BleMR[i].id == 3) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	if ((BleMR[i].id == 2) || (BleMR[i].id == 8) || (BleMR[i].id == 9)) strcat(llwtd,"Xiaomi");
+	else if ((BleMR[i].id == 3) || (BleMR[i].id == 7)) strcat(llwtd,"Xiaomi & pvvx & atc1441");
 	else if (BleMR[i].id == 5) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 6) strcat(llwtd,"Elehant");
 	else if (BleMR[i].id == 0x42) strcat(llwtd,"Android / iOS");
@@ -20160,7 +20301,7 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 //
-	} else if (BleMR[i].id == 3) {
+	} else if ((BleMR[i].id == 3) || ((BleMR[i].id > 6) && (BleMR[i].id < 10))) {
 	strcpy(llwtt,"homeassistant/sensor/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/2x");
@@ -20182,9 +20323,12 @@ void HDiscBlemon(bool mqtttst)
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
-	strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	if ((BleMR[i].id == 3) || (BleMR[i].id == 7)) strcat(llwtd,"ATC/PVVX");
+	else if (BleMR[i].id == 9) strcat(llwtd,"LYWSD03MMC");
+	else strcat(llwtd,"LYWSD02");
 	strcat(llwtd,"\",\"manufacturer\":\"");
-	strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	if ((BleMR[i].id == 3) || (BleMR[i].id == 7)) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	else strcat(llwtd,"Xiaomi");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\"},\"device_class\":\"temperature\",\"state_class\":\"measurement\",\"state_topic\":\"");
@@ -20218,9 +20362,12 @@ void HDiscBlemon(bool mqtttst)
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
-	strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	if ((BleMR[i].id == 3) || (BleMR[i].id == 7)) strcat(llwtd,"ATC/PVVX");
+	else if (BleMR[i].id == 9) strcat(llwtd,"LYWSD03MMC");
+	else strcat(llwtd,"LYWSD02");
 	strcat(llwtd,"\",\"manufacturer\":\"");
-	strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	if ((BleMR[i].id == 3) || (BleMR[i].id == 7)) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	else strcat(llwtd,"Xiaomi");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\"},\"device_class\":\"humidity\",\"state_class\":\"measurement\",\"state_topic\":\"");
@@ -20233,6 +20380,7 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 //
+	if (BleMR[i].id != 9) {
 	strcpy(llwtt,"homeassistant/sensor/");
 	strcat(llwtt,MQTT_BASE_TOPIC);
 	strcat(llwtt,"/4x");
@@ -20254,9 +20402,12 @@ void HDiscBlemon(bool mqtttst)
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(llwtd,tmpvar);
 	strcat(llwtd,"\",\"model\":\"");
-	strcat(llwtd,"ATC_MiThermometer LYWSD03MMC");
+	if ((BleMR[i].id == 3) || (BleMR[i].id == 7)) strcat(llwtd,"ATC/PVVX");
+//	else if (BleMR[i].id == 9) strcat(llwtd,"LYWSD03MMC");
+	else strcat(llwtd,"LYWSD02");
 	strcat(llwtd,"\",\"manufacturer\":\"");
-	strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	if ((BleMR[i].id == 3) || (BleMR[i].id == 7)) strcat(llwtd,"Xiaomi & pvvx & atc1441");
+	else strcat(llwtd,"Xiaomi");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
 	strcat(llwtd,"\"},\"device_class\":\"battery\",\"state_class\":\"measurement\",\"state_topic\":\"");
@@ -20268,6 +20419,7 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
+	}
 //
 	} else if (BleMR[i].id == 5) {
 	strcpy(llwtt,"homeassistant/sensor/");
@@ -22679,6 +22831,7 @@ void wifi_init_sta(void)
 
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+//	ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
 
 	esp_event_handler_instance_t instance_any_id;
 	esp_event_handler_instance_t instance_got_ip;
@@ -22945,6 +23098,8 @@ uint8_t ReadNVS(){
 	if (nvtemp & 0x400000) ble_mon_refr = 1;
 	if (nvtemp & 0x800000) wf_bits |= 0x01;
 	if (nvtemp & 0x1000000) wf_bits |= 0x02;
+	if (nvtemp & 0x2000000) wf_bits |= 0x04;
+	if (nvtemp & 0x4000000) wf_bits |= 0x08;
 	nvtemp = 0;
 	nvs_get_u64(my_handle, "bhx1", &nvtemp);
 	bZeroHx6 = nvtemp & 0xffffffff;
@@ -23233,6 +23388,8 @@ void WriteNVS () {
 	if (ble_mon_refr) nvtemp = nvtemp | 0x400000;
 	if (wf_bits & 0x01) nvtemp = nvtemp | 0x800000;
 	if (wf_bits & 0x02) nvtemp = nvtemp | 0x1000000;
+	if (wf_bits & 0x04) nvtemp = nvtemp | 0x2000000;
+	if (wf_bits & 0x08) nvtemp = nvtemp | 0x4000000;
 	nvs_set_u64(my_handle, "cmbits", nvtemp);
 	nvtemp = bDivHx6;
 	nvtemp = (nvtemp << 32) | bZeroHx6;
@@ -25028,7 +25185,7 @@ static esp_err_t pcfgdev1_get_handler(httpd_req_t *req)
 	char *bsend = NULL;
 	bsend = malloc(13000);
 	if (bsend == NULL) {
-	if (fdebug) ESP_LOGE(AP_TAG, "Http devh1: No memory");
+	if (fdebug) ESP_LOGE(AP_TAG, "Http devh: No memory");
 	MemErr++;
 	if (!MemErr) MemErr--;
 	httpd_resp_set_status(req, "303 See Other");
@@ -25577,7 +25734,7 @@ static esp_err_t pcfgdev1ok_get_handler(httpd_req_t *req)
 	char *buf1 = NULL;
 	buf1 = malloc(512);
 	if (buf1 == NULL) {
-	if (fdebug) ESP_LOGE(AP_TAG, "Http blemon: No memory");
+	if (fdebug) ESP_LOGE(AP_TAG, "Http devh: No memory");
 	MemErr++;
 	if (!MemErr) MemErr--;
 	httpd_resp_set_status(req, "303 See Other");
@@ -25621,7 +25778,7 @@ static esp_err_t pcfgdev2_get_handler(httpd_req_t *req)
 	char *bsend = NULL;
 	bsend = malloc(13000);
 	if (bsend == NULL) {
-	if (fdebug) ESP_LOGE(AP_TAG, "Http devh2: No memory");
+	if (fdebug) ESP_LOGE(AP_TAG, "Http devh: No memory");
 	MemErr++;
 	if (!MemErr) MemErr--;
 	httpd_resp_set_status(req, "303 See Other");
@@ -25676,7 +25833,7 @@ static esp_err_t pcfgdev2ok_get_handler(httpd_req_t *req)
 	char *buf1 = NULL;
 	buf1 = malloc(512);
 	if (buf1 == NULL) {
-	if (fdebug) ESP_LOGE(AP_TAG, "Http blemon: No memory");
+	if (fdebug) ESP_LOGE(AP_TAG, "Http devh: No memory");
 	MemErr++;
 	if (!MemErr) MemErr--;
 	httpd_resp_set_status(req, "303 See Other");
@@ -25721,7 +25878,7 @@ static esp_err_t pcfgdev3_get_handler(httpd_req_t *req)
 	char *bsend = NULL;
 	bsend = malloc(13000);
 	if (bsend == NULL) {
-	if (fdebug) ESP_LOGE(AP_TAG, "Http devh3: No memory");
+	if (fdebug) ESP_LOGE(AP_TAG, "Http devh: No memory");
 	MemErr++;
 	if (!MemErr) MemErr--;
 	httpd_resp_set_status(req, "303 See Other");
@@ -25777,7 +25934,7 @@ static esp_err_t pcfgdev3ok_get_handler(httpd_req_t *req)
 	char *buf1 = NULL;
 	buf1 = malloc(512);
 	if (buf1 == NULL) {
-	if (fdebug) ESP_LOGE(AP_TAG, "Http blemon: No memory");
+	if (fdebug) ESP_LOGE(AP_TAG, "Http devh: No memory");
 	MemErr++;
 	if (!MemErr) MemErr--;
 	httpd_resp_set_status(req, "303 See Other");
@@ -25823,7 +25980,7 @@ static esp_err_t pcfgdev4_get_handler(httpd_req_t *req)
 	char *bsend = NULL;
 	bsend = malloc(13000);
 	if (bsend == NULL) {
-	if (fdebug) ESP_LOGE(AP_TAG, "Http devh4: No memory");
+	if (fdebug) ESP_LOGE(AP_TAG, "Http devh: No memory");
 	MemErr++;
 	if (!MemErr) MemErr--;
 	httpd_resp_set_status(req, "303 See Other");
@@ -25879,7 +26036,7 @@ static esp_err_t pcfgdev4ok_get_handler(httpd_req_t *req)
 	char *buf1 = NULL;
 	buf1 = malloc(512);
 	if (buf1 == NULL) {
-	if (fdebug) ESP_LOGE(AP_TAG, "Http blemon: No memory");
+	if (fdebug) ESP_LOGE(AP_TAG, "Http devh: No memory");
 	MemErr++;
 	if (!MemErr) MemErr--;
 	httpd_resp_set_status(req, "303 See Other");
@@ -25925,7 +26082,7 @@ static esp_err_t pcfgdev5_get_handler(httpd_req_t *req)
 	char *bsend = NULL;
 	bsend = malloc(13000);
 	if (bsend == NULL) {
-	if (fdebug) ESP_LOGE(AP_TAG, "Http devh5: No memory");
+	if (fdebug) ESP_LOGE(AP_TAG, "Http devh: No memory");
 	MemErr++;
 	if (!MemErr) MemErr--;
 	httpd_resp_set_status(req, "303 See Other");
@@ -25981,7 +26138,7 @@ static esp_err_t pcfgdev5ok_get_handler(httpd_req_t *req)
 	char *buf1 = NULL;
 	buf1 = malloc(512);
 	if (buf1 == NULL) {
-	if (fdebug) ESP_LOGE(AP_TAG, "Http blemon: No memory");
+	if (fdebug) ESP_LOGE(AP_TAG, "Http devh: No memory");
 	MemErr++;
 	if (!MemErr) MemErr--;
 	httpd_resp_set_status(req, "303 See Other");
@@ -26125,7 +26282,7 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	}
 	(i & 1)? strcat(bsend,"</td><td class='xbg' rowspan='2'>") : strcat(bsend,"</td><td rowspan='2'>");
 
-	if (BleMR[i].id == 0x04) {
+	if ((BleMR[i].id == 0x04) || (BleMR[i].id == 10)) {
 	strcat(bsend,"<input name=\"blmkey");
 	itoa(i,buff,10);
 	strcat(bsend,buff);
@@ -26180,11 +26337,19 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	if (BleMR[i].id == 2) {
 	strcat(bsend,"Mi Scale");	
 	} else if (BleMR[i].id == 3) {
-	strcat(bsend,"LYWSD03MMC");	
+	strcat(bsend,"ATC/PVVX");	
 	} else if (BleMR[i].id == 5) {
 	strcat(bsend,"CGDN1");	
 	} else if (BleMR[i].id == 6) {
 	strcat(bsend,"Elehant");	
+	} else if (BleMR[i].id == 7) {
+	strcat(bsend,"ATC/PVVX");	
+	} else if (BleMR[i].id == 8) {
+	strcat(bsend,"LYWSD02");	
+	} else if (BleMR[i].id == 9) {
+	strcat(bsend,"LYWSD03MMC");	
+	} else if (BleMR[i].id == 10) {
+	strcat(bsend,"LYWSD03MMC");	
 	} else if (BleMR[i].id == 0x42) {
 	strcat(bsend,"HA iBeacon");	
 	} else if (BleMR[i].id == 0x44) {
@@ -26210,12 +26375,11 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend,"<tr class=\"header\"><th align='left'></th><th align='left'><input type=\"checkbox\" name=\"blmarfr\" value=\"1\"");
 	if (ble_mon_refr & 1) strcat(bsend,"checked");
 	strcat(bsend,">Auto Refresh");
-	strcat(bsend,"</th><th align='left'>");
-        (ble_mon_refr & 2)?  strcat(bsend,"Page 2") : strcat(bsend,"Page 1");
+	strcat(bsend,"</th><th align='left'>Page ");
+        (ble_mon_refr & 2)?  strcat(bsend,"2") : strcat(bsend,"1");
 	strcat(bsend,"</th><th align='left'></th><th align='left'></th><th align='left'></th><th align='left'>");
-        (IsPassiveScan)? strcat(bsend,"Passive mode") : strcat(bsend,"Active mode");
-
-	strcat(bsend,"</th><th align='left''></tr>");
+        (IsPassiveScan)? strcat(bsend,"Pass") : strcat(bsend,"Act");
+	strcat(bsend,"ive mode</th><th align='left''></tr>");
 	strcat(bsend,"</table></br>");
 
 	strcat(bsend,"</form><form method=\"POST\" action=\"/setignore\">");
@@ -26302,11 +26466,20 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	strcat(buf2,buf3);
 	buf3[0] = 0;
 	parsuri(buf1,buf3,buf2,512,65,0);
-	if (buf3[0] && BleMX[i].advdatlen && (strlen(buf3) == 64)) {
+	if (buf3[0] && BleMX[i].advdatlen) {
+	if ((BleMR[i].id == 0x04) && (strlen(buf3) == 64)) {
 	if((hex2bin(buf3, buf4, 32)) && (vstsign(&BleMX[i].advdat[11], buf4))) {
 	memcpy(BleMR[i].mac, buf4, 32);
 	BleMR[i].id = 0x44;
 	fsave = 0;
+	}
+	} else if ((BleMR[i].id == 10) && (strlen(buf3) == 32)) {
+	uint8_t dout[8];
+	if((hex2bin(buf3, buf4, 16)) && xmadvdcrpt(dout, &BleMX[i].advdat[3], buf4)) {
+	memcpy(&BleMR[i].mac[8], buf4, 16);
+	BleMR[i].id = 9;
+	fsave = 0;
+	}
 	}
 	}
 
@@ -26554,7 +26727,9 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (wf_bits & 0x01) strcat(bsend,"checked");
 	strcat(bsend,"> Connect to this AP only&emsp;<input type=\"checkbox\" name=\"wfb2\" value=\"2\"");
 	if (wf_bits & 0x02) strcat(bsend,"checked");
-	strcat(bsend,"> Disable restart due WIFI loss</br><h3>MQTT Setting</h3><br/><input name=\"smqsrv\" value=\"");
+	strcat(bsend,"> Disable restart if WIFI loss&emsp;<input type=\"checkbox\" name=\"wfb4\" value=\"4\"");
+	if (wf_bits & 0x08) strcat(bsend,"checked");
+	strcat(bsend,"> Reconnect WIFI if Mqtt loss</br><h3>MQTT Setting</h3><br/><input name=\"smqsrv\" value=\"");
 	if (MQTT_SERVER[0]) strcat(bsend,MQTT_SERVER);
 	strcat(bsend,"\"size=\"25\">Server &emsp;<input name=\"smqprt\" type=\"number\" value=\"");
 	itoa(mqtt_port,buff,10);
@@ -26609,7 +26784,9 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 
 	strcat(bsend,"<input type=\"checkbox\" name=\"chk8\" value=\"8\"");
 	if (macauth) strcat(bsend,"checked");
-	strcat(bsend,"> Use MAC in BLE Authentication &emsp;<input type=\"checkbox\" name=\"chk9\" value=\"9\"");
+	strcat(bsend,"> Use MAC in BLE Authentication &emsp;<input type=\"checkbox\" name=\"wfb3\" value=\"3\"");
+	if (wf_bits & 0x04) strcat(bsend,"checked");
+	strcat(bsend,"> Disconnect BLE if no WIFI&emsp;<input type=\"checkbox\" name=\"chk9\" value=\"9\"");
 	if (volperc) strcat(bsend,"checked");
 	strcat(bsend,"> Volume in Percent &emsp;<input type=\"checkbox\" name=\"skpmd\" value=\"1\"");
 	if (fkpmd) strcat(bsend,"checked");
@@ -27152,6 +27329,17 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	parsuri(buf1,buf3,buf2,4096,2,0);
 	wf_bits &= 0xfd;
 	if (buf3[0] == 0x32) wf_bits |= 0x02;
+	buf3[0] = 0;
+	strcpy(buf2,"wfb3");
+	parsuri(buf1,buf3,buf2,4096,2,0);
+	wf_bits &= 0xfb;
+	if (buf3[0] == 0x33) wf_bits |= 0x04;
+	buf3[0] = 0;
+	buf3[0] = 0;
+	strcpy(buf2,"wfb4");
+	parsuri(buf1,buf3,buf2,4096,2,0);
+	wf_bits &= 0xf7;
+	if (buf3[0] == 0x34) wf_bits |= 0x08;
 	buf3[0] = 0;
 	strcpy(buf2,"chk1");
 	parsuri(buf1,buf3,buf2,4096,2,0);
@@ -28866,6 +29054,12 @@ void app_main(void)
 	if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 58)) BleDevStC.bProg = 255;
 	if ((BleDevStD.DEV_TYP > 15) && (BleDevStD.DEV_TYP < 58)) BleDevStD.bProg = 255;
 	if ((BleDevStE.DEV_TYP > 15) && (BleDevStE.DEV_TYP < 58)) BleDevStE.bProg = 255;
+//
+	if (strlen(BleDevStA.REQ_NAME) == 12 && hex2bin(BleDevStA.REQ_NAME, binblemac, 6)) strcpy(BleDevStA.tBLEAddr, BleDevStA.REQ_NAME);
+	if (strlen(BleDevStB.REQ_NAME) == 12 && hex2bin(BleDevStB.REQ_NAME, binblemac, 6)) strcpy(BleDevStB.tBLEAddr, BleDevStB.REQ_NAME);
+	if (strlen(BleDevStC.REQ_NAME) == 12 && hex2bin(BleDevStC.REQ_NAME, binblemac, 6)) strcpy(BleDevStC.tBLEAddr, BleDevStC.REQ_NAME);
+	if (strlen(BleDevStD.REQ_NAME) == 12 && hex2bin(BleDevStD.REQ_NAME, binblemac, 6)) strcpy(BleDevStD.tBLEAddr, BleDevStD.REQ_NAME);
+	if (strlen(BleDevStE.REQ_NAME) == 12 && hex2bin(BleDevStE.REQ_NAME, binblemac, 6)) strcpy(BleDevStE.tBLEAddr, BleDevStE.REQ_NAME);
 #ifdef USE_TFT
 	if ((PIN_NUM_MISO > 39) || (PIN_NUM_MOSI > 33) || (PIN_NUM_CLK > 33) || 
 	(PIN_NUM_CS > 33) || (PIN_NUM_DC > 33)) tft_conf = 0;
@@ -29194,6 +29388,7 @@ void app_main(void)
 	}
 
 	ESP_LOGI(AP_TAG,"Basic Auth string: %s",AUTH_BASIC);
+	memset(binblemac, 0, sizeof(binblemac));
 	esp_read_mac(binblemac, ESP_MAC_BT);
 	if (fdebug) {
 	ESP_LOGI(AP_TAG,"esp32 BLE MAC:");
@@ -29243,8 +29438,7 @@ void app_main(void)
 	fflush(stdout);
 	esp_restart();
 	}
-//	ret = esp_ble_gatt_set_local_mtu(BLE_INPUT_BUFFSIZE);
-	ret = esp_ble_gatt_set_local_mtu(512);
+	ret = esp_ble_gatt_set_local_mtu(BLE_INPUT_BUFFSIZE);
 	if (ret){
 	if (fdebug) ESP_LOGI(AP_TAG,"Set local  MTU failed, error code = 0x%X\n", ret);
 	}
@@ -29510,6 +29704,17 @@ void app_main(void)
 	fflush(stdout);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	floop = 0;
+	} else if (MQTT_SERVER[0] && (wf_bits & 0x08) && !wf_retry_cnt && !f_update) {
+	if (mqttConnected) {
+	if (floop < 32) floop = 32;
+	} else {
+	if (floop > 1) floop--;
+	else {
+	floop = 32;
+	esp_wifi_disconnect();
+	if (fdebug) ESP_LOGI(AP_TAG,"Mqtt not connected, try reconnect Wifi.");
+	}
+	}
 	}
 
 	} //inc

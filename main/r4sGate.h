@@ -43,6 +43,7 @@
 #include "driver/timer.h"
 #include "driver/ledc.h"
 #include "mbedtls/aes.h"
+#include "mbedtls/ccm.h"
 #include "esp_tls.h"
 #include "esp_crt_bundle.h"
 #include "phy_init_data.h"
