@@ -5,7 +5,8 @@ RUS | [ENG](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 > **[Скрипт на базе PHP сервера в локальной сети с доступом к интернету для показа погоды на экране шлюза](https://github.com/artt652/Weather-for-ESP32-R4S-gate).<br>**
 > **В версиях, начиная с 2022.06.03, изменены топики устройств в шлюзе в номером 0 с "r4s/#" на "r4s0/#". В новых версиях топики в "r4s/#" используются для отслеживания меток несколькими шлюзами. При обновлении со старых версий нужно включить BLE Monitor в настройках (шлюз удаляет содержимое "r4s/#" только при включенном мониторе), выбрав Passive, Active или Auto, отметить пункты Hass Discovery и Delete Mqtt Topics и сохранить настройки. После перезагрузки шлюз удалит лишние топики и создаст их заново. Затем, при необходимости, BLE Monitor можно отключить. После чего поправить устройства в автоматизациях, скриптах и т.п.<br>**
 
-#### Текущая версия 2023.12.06 для [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) и [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin).
+#### Текущая версия 2023.12.23 для [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) и [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin).
+* 2023.12.23. В BLE монитор шлюза добавлена поддержка часов с термометром LYWSD02 и термометров LYWSD03MMC с оригинальной прошивкой. Ключи для LYWSD03MMC версии 2.1.1_0159 брал из [облака Xiaomi](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor?tab=readme-ov-file). 
 * 2023.12.06. Добавлена возможность запрета AP по умолчанию **r4s** и перезагрузки шлюза при пропадании wifi. Добавлена поддержка протоколов Tx RF433 Livolo и RCswitch.
 * 2023.11.12. Проект собран с использованием esp-idf версии 4.4.6. Добавлена поддержка Delonghi ECAM650.75. Мелкие исправления.
 * 2023.10.05. Поле Mqtt сервера увеличено до 64 символов.
