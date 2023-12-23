@@ -235,9 +235,10 @@ RUS | [ENG](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 &emsp;Монитор позволяет отслеживать метки(маяки) со статическими MAC адресами. Выводится наличие/отсутствие метки(маяка) и rssi.<br>
 **Дополнительно поддерживаются:**
 * BLE маяки приложения Home Assistant на смартфонах (привязка по uuid, тайм-аут у меня 60 секунд)
-* Термометры Xiaomi Mijia 2 с [прошивкой от atc1441 в режиме custom](https://github.com/atc1441/ATC_MiThermometer) и [прошивкой от pvvx в режиме custom](https://github.com/pvvx/ATC_MiThermometer) (400 секунд)
+* Термометры Xiaomi LYWSD03MMC с оригинальной прошивкой, [прошивкой от atc1441 в режиме custom](https://github.com/atc1441/ATC_MiThermometer) и [прошивкой от pvvx в режиме custom и Mijia](https://github.com/pvvx/ATC_MiThermometer) часов с термометром LYWSD02 и термометров LYWSD03MMC с оригинальной прошивкой. Ключи для LYWSD03MMC оригинальной версии брал из [облака Xiaomi](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor?tab=readme-ov-file). (400 секунд)
+* Часы с термометром Xiaomi LYWSD02 (400 секунд) 
 * Весы Xiaomi Mi Scale  (400 секунд)
-* Qingping Air Monitor Lite(CGDN1)  (400 секунд)
+* Qingping Air Monitor Lite(CGDN1) (400 секунд)
 * Счетчики воды и газа Elehant  (400 секунд)
 * Samsung Smart Tag (120 секунд).
      
