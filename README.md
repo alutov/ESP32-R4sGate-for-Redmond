@@ -317,12 +317,6 @@ RUS | [ENG](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
      
 ## 7. Сборка проекта и лицензия
 &emsp; Для сборки бинарных файлов использовал [Espressif IoT Development Framework.](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/). 
-<details>
-<summary>Подробнее...</summary>
-
-&emsp; Пока использую версию [esp-idf версии 4.4](https://github.com/espressif/idf-installer/releases/download/offline-4.4/esp-idf-tools-setup-offline-4.4.exe). Особых проблем не замечал пока, кроме [I2C](https://github.com/espressif/esp-idf/commit/0b00831703ec351c4c3b1040b004b358e4396067), которую закрыли в версии 4.4.2. Однако, собрав проект в версии 4.4.2 обнаружил, что при прочих равных условиях свободной оперативной памяти стало меньше на 3.5-4 килобайта (68к против 71-72к). В версии 4.4.3 памяти стало еще на 2к меньше (66к). Потому остановился на версии 4.4, поправив в ней 2 файла(для ESP32 и ESP32C3): **..\Espressif\frameworks\esp-idf-v4.4\components\driver\i2c.c** и **..\Espressif\frameworks\esp-idf-v4.4\components\soc\esp32c3\include\soc\soc_caps.h** Файлы вместе с оригинальными версиями в [архиве](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/utils/i2c44p.zip). Для сборки проекта под ESP32C3 используются файлы sdkconfig и partition.bin из папки C3.
-</details>
-     
 &emsp; Добавлена лицензия MIT. Добавлена конфигурация для сборки в среде PlatformIO, спасибо [bvp](https://github.com/bvp),  его сообщение [здесь](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/89).
 <details>
 <summary>Подробнее...</summary>
