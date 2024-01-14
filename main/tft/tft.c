@@ -1481,7 +1481,7 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	gpio_set_level(PIN_NUM_PWR, 1);
 	} else i2c_axpin_set (&f_i2cdev, PIN_NUM_PWR, 255);
 	}
-	vTaskDelay(200 / portTICK_RATE_MS);
+	vTaskDelay(200 / portTICK_PERIOD_MS);
 	bStateS = 0;
 //Init backlight
 	if (PIN_NUM_BCKL) {	
@@ -1498,30 +1498,30 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	gpio_set_direction(PIN_NUM_RST, GPIO_MODE_OUTPUT);
 	mygp_iomux_out(PIN_NUM_RST);
 	gpio_set_level(PIN_NUM_RST, 1);
-	vTaskDelay(100 / portTICK_RATE_MS);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 	gpio_set_level(PIN_NUM_RST, 0);
-	vTaskDelay(100 / portTICK_RATE_MS);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 	gpio_set_level(PIN_NUM_RST, 1);
-	vTaskDelay(200 / portTICK_RATE_MS);
+	vTaskDelay(200 / portTICK_PERIOD_MS);
 	} else {
 	i2c_axpin_set (&f_i2cdev, PIN_NUM_RST, 255);
-	vTaskDelay(100 / portTICK_RATE_MS);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 	i2c_axpin_set (&f_i2cdev, PIN_NUM_RST, 0);
-	vTaskDelay(100 / portTICK_RATE_MS);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 	i2c_axpin_set (&f_i2cdev, PIN_NUM_RST, 255);
-	vTaskDelay(200 / portTICK_RATE_MS);
+	vTaskDelay(200 / portTICK_PERIOD_MS);
 	}
-	} else vTaskDelay(700 / portTICK_RATE_MS);
+	} else vTaskDelay(700 / portTICK_PERIOD_MS);
     //detect LCD type
 	lcd_id = lcd_get_dd(spi, 0x04, 3);
-	if (fdebug) ESP_LOGI(AP_TAG,"Display identification information (0x04h) = %x", lcd_id);
+	if (fdebug) ESP_LOGI(AP_TAG,"Display identification information (0x04h) = %"PRIx32, lcd_id);
 	if (lcd_id == 0x0000) {         //0x0, ili9341
     //Send all the commands
 	while (ili9341_init_cmds[cmd].databytes!=0xff) {
 	lcd_cmd(spi, ili9341_init_cmds[cmd].cmd);
 	lcd_data(spi, ili9341_init_cmds[cmd].data, ili9341_init_cmds[cmd].databytes&0x1F);
 	if (ili9341_init_cmds[cmd].databytes&0x80) {
-	vTaskDelay(100 / portTICK_RATE_MS);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 	}
 	cmd++;
 	}
@@ -1530,9 +1530,9 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	lcd_cmd(spi, ili9341_init1_cmds[0].cmd);
 	lcd_data(spi, ili9341_init1_cmds[0].data, ili9341_init1_cmds[0].databytes&0x1F);
 	}
-	vTaskDelay(100 / portTICK_RATE_MS);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 	lcd_id = lcd_get_dd(spi, 0x0a, 1);
-	if (fdebug) ESP_LOGI(AP_TAG,"Display Power Mode (0x0ah) = %x", lcd_id);
+	if (fdebug) ESP_LOGI(AP_TAG,"Display Power Mode (0x0ah) = %"PRIx32, lcd_id);
 	if ((lcd_id & 0x08) == 0x08) {
 	///Enable backlight
 	fillScreen(0);
@@ -1559,7 +1559,7 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	lcd_cmd(spi, ili9342_init_cmds[cmd].cmd);
 	lcd_data(spi, ili9342_init_cmds[cmd].data, ili9342_init_cmds[cmd].databytes&0x1F);
 	if (ili9342_init_cmds[cmd].databytes&0x80) {
-	vTaskDelay(100 / portTICK_RATE_MS);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 	}
 	cmd++;
 	}
@@ -1568,9 +1568,9 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	lcd_cmd(spi, ili9342_init1_cmds[0].cmd);
 	lcd_data(spi, ili9342_init1_cmds[0].data, ili9342_init1_cmds[0].databytes&0x1F);
 	}
-	vTaskDelay(100 / portTICK_RATE_MS);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 	lcd_id = lcd_get_dd(spi, 0x0a, 1);
-	if (fdebug) ESP_LOGI(AP_TAG,"Display Power Mode (0x0ah) = %x", lcd_id);
+	if (fdebug) ESP_LOGI(AP_TAG,"Display Power Mode (0x0ah) = %"PRIx32, lcd_id);
 	if ((lcd_id & 0x08) == 0x08) {
 	///Enable backlight
 	fillScreen(0);
@@ -1597,7 +1597,7 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	lcd_cmd(spi, st7789_init_cmds[cmd].cmd);
 	lcd_data(spi, st7789_init_cmds[cmd].data, st7789_init_cmds[cmd].databytes&0x1F);
 	if (st7789_init_cmds[cmd].databytes&0x80) {
-	vTaskDelay(100 / portTICK_RATE_MS);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 	}
 	cmd++;
 	}
@@ -1606,9 +1606,9 @@ uint8_t lcd_init(spi_device_handle_t spi)
 	lcd_cmd(spi, st7789_init1_cmds[0].cmd);
 	lcd_data(spi, st7789_init1_cmds[0].data, st7789_init1_cmds[0].databytes&0x1F);
 	}
-	vTaskDelay(100 / portTICK_RATE_MS);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 	lcd_id = lcd_get_dd(spi, 0x0a, 1);
-	if (fdebug) ESP_LOGI(AP_TAG,"Display Power Mode (0x0ah) = %x", lcd_id);
+	if (fdebug) ESP_LOGI(AP_TAG,"Display Power Mode (0x0ah) = %"PRIx32, lcd_id);
 	if ((lcd_id & 0x80) == 0x80) {
 	///Enable backlight
 	fillScreen(0);
@@ -2020,7 +2020,7 @@ void tfblestate(uint8_t tmr)
 	itoa(ptr->bHtemp,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
 	}
-	} else if (ptr->DEV_TYP < 16) {
+	} else if (ptr->DEV_TYP < 15) {
 	sumx += drawString(" Lock: ", sumx, 224, 2);
 	if (ptr->bLock) {
         setTextColor(TFT_RED, TFT_BLACK);
@@ -2031,6 +2031,26 @@ void tfblestate(uint8_t tmr)
         setTextColor(TFT_RED, TFT_BLACK);
 	sumx += drawString("On", sumx, 224, 2);
 	} else sumx += drawString("Off", sumx, 224, 2);
+	} else if (ptr->DEV_TYP == 15) {
+	sumx += drawString(" Pr/St/Ct: ", sumx, 224, 2);
+	switch (ptr->bModProg) {
+	case 0:
+	sumx += drawString("Sm", sumx, 224, 2);
+	break;
+	case 1:
+	sumx += drawString("Hi", sumx, 224, 2);
+	break;
+	case 2:
+	sumx += drawString("AF", sumx, 224, 2);
+	break;
+	}
+	sumx += drawString("/", sumx, 224, 2);
+	itoa(ptr->bHtemp,buff,10);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("'/", sumx, 224, 2);
+	itoa(ptr->bCtemp,buff,10);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("'", sumx, 224, 2);
 	} else if (ptr->DEV_TYP < 60) {
 	sumx += drawString(" P: ", sumx, 224, 2);
 	itoa(ptr->bProg,buff,10);
@@ -2209,6 +2229,10 @@ esp_err_t _http_event_handle(esp_http_client_event_t *evt)
 	MyJPGbufidx = -1;
             if (fdebug) ESP_LOGI(AP_TAG, "HTTP_EVENT_ERROR");
             break;
+        case HTTP_EVENT_REDIRECT:
+	MyJPGbufidx = -1;
+            if (fdebug) ESP_LOGI(AP_TAG, "HTTP_EVENT_REDIRECT");
+            break;
         case HTTP_EVENT_ON_CONNECTED:
 	MyJPGbufidx = 0;
             if (fdebug) ESP_LOGI(AP_TAG, "HTTP_EVENT_ON_CONNECTED");
@@ -2376,6 +2400,19 @@ static uint16_t outfunc(JDEC *decoder, void *bitmap, JRECT *rect)
     return result;
 }
 
+void MyHttpUri_inc() {
+	uint8_t olduri = MyHttpUridx;
+	uint8_t i = 0;
+	while (i < 4) {
+	MyHttpUridx = (MyHttpUridx + 1) & 3;
+	if ((MyHttpUridx == 0) && MyHttpUri1[0]) i = 4;
+	if ((MyHttpUridx == 1) && MyHttpUri2[0]) i = 4;
+	if ((MyHttpUridx == 2) && MyHttpUri3[0]) i = 4;
+	if ((MyHttpUridx == 3) && MyHttpUri4[0]) i = 4;
+	i++;
+	}
+	if (MyHttpUridx != olduri) MyHttpMqtt = MyHttpMqtt | 0x40;
+}
 
 
 
@@ -2386,11 +2423,26 @@ bool tftjpg()
 {
 	bool result = false;
 	MyJPGbuf = NULL;
+	char *MyHttpUri = NULL;
 	char *JpHttpUri = NULL;
 	int  jstat = 0;
 	int  jlen = 0;
 	xoffs = 0;
 	MyJPGbufidx = 0;
+	switch (MyHttpUridx & 0x03) {
+	case 1:
+	MyHttpUri = MyHttpUri2;
+	break;
+	case 2:
+	MyHttpUri = MyHttpUri3;
+	break;
+	case 3:
+	MyHttpUri = MyHttpUri4;
+	break;
+	default:
+	MyHttpUri = MyHttpUri1;
+	break;
+	}
 	if (MyHttpUri[0] && jpg_time && (parsoff(MyHttpUri, "http://", 9) || parsoff(MyHttpUri, "https://", 10))) {
 	MyJPGbuf = malloc(MyJPGbuflen);
 	if (MyJPGbuf == NULL) {
@@ -2421,7 +2473,7 @@ bool tftjpg()
 	if (err == ESP_OK) {
 	jstat = esp_http_client_get_status_code(client);
 	jlen = esp_http_client_get_content_length(client);
-	if (fdebug) ESP_LOGI(AP_TAG, "Status = %d, content_length = %d, offset_length = %d",
+	if (fdebug) ESP_LOGI(AP_TAG, "Status = %d, content_length = %d, offset_length = %"PRIu32,
            jstat,  jlen, MyJPGbufidx);
 	}
 	esp_http_client_cleanup(client);
@@ -2561,6 +2613,7 @@ bool tftjpg()
        	drawString(MyHttpUri , 0, 60, 2);
 	result = true;
 }        //uri&time
+	MyHttpUri_inc();
 	return result;
 }
 

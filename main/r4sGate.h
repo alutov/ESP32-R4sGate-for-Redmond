@@ -16,7 +16,7 @@
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_log.h"
-#include "esp_spi_flash.h"
+#include "spi_flash_mmap.h"
 #include "nvs_flash.h"
 #include "nvs.h"
 
@@ -40,7 +40,8 @@
 #include "esp_ota_ops.h"
 #include "esp_sntp.h"
 #include "esp_timer.h"
-#include "driver/timer.h"
+//#include "driver/timer.h"
+#include "driver/gptimer.h"
 #include "driver/ledc.h"
 #include "mbedtls/aes.h"
 #include "mbedtls/ccm.h"
@@ -50,6 +51,11 @@
 #include "soc/efuse_reg.h"
 #include "driver/rmt.h"
 #include "driver/i2c.h"
+
+//5.0
+#include "hal/gpio_hal.h"
+#include "esp_mac.h"
+#include "esp_chip_info.h"
 
 //*** define ***
 //*** common ***
@@ -387,7 +393,11 @@ uint8_t  MyHttpMqtt = 0;
 int32_t MyJPGbufidx = 0;
 uint32_t JpgLoad = 0;
 uint32_t JpgLoadErr = 0;
-char MyHttpUri[390];
+char MyHttpUri1[390];
+char MyHttpUri2[390];
+char MyHttpUri3[390];
+char MyHttpUri4[390];
+uint8_t MyHttpUridx = 0;
 char *MyJPGbuf;
 
 char MQTT_TOPP1[33];
