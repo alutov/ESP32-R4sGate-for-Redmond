@@ -316,8 +316,7 @@ RUS | [ENG](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
      
      
 ## 7. Сборка проекта и лицензия
-&emsp; Для сборки бинарных файлов использовал [Espressif IoT Development Framework.](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/). 
-&emsp; Добавлена лицензия MIT. Добавлена конфигурация для сборки в среде PlatformIO, спасибо [bvp](https://github.com/bvp),  его сообщение [здесь](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/89).
+&emsp; Для сборки бинарных файлов использовал [Espressif IoT Development Framework.](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/). Добавлена лицензия MIT. Добавлена конфигурация для сборки в среде PlatformIO, спасибо [bvp](https://github.com/bvp),  его сообщение [здесь](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/89).
 <details>
 <summary>Подробнее...</summary>
 
