@@ -1841,7 +1841,7 @@ void tfblestate(uint8_t tmr)
   	uint32_t sumx = 0;
 	uint32_t sumy = 0;
 	uint32_t sumz = 0;
-	int  mpos = 214;
+	int  mpos = 212;
 	sumx = 250;
 	uint16_t sym;
 	uint16_t bkg;
@@ -1881,7 +1881,7 @@ void tfblestate(uint8_t tmr)
 	}
 
 	if (tmr < 41) {
-	if (f_update || BleDevStA.REQ_NAME[0] || BleDevStB.REQ_NAME[0] || BleDevStC.REQ_NAME[0] || BleDevStD.REQ_NAME[0] || BleDevStE.REQ_NAME[0]) mpos = 198;
+	if (f_update || BleDevStA.REQ_NAME[0] || BleDevStB.REQ_NAME[0] || BleDevStC.REQ_NAME[0] || BleDevStD.REQ_NAME[0] || BleDevStE.REQ_NAME[0]) mpos = 196;
 	if (!wf_retry_cnt && (MQTT_VALP1[0] || MQTT_VALP4[0] || MQTT_VALP6[0])) {
 	setTextColor(TFT_GREEN, TFT_BLACK);
   	sumx = 0;
@@ -1889,6 +1889,7 @@ void tfblestate(uint8_t tmr)
 	sumx += drawString(MQTT_VALP1, 0, mpos, 4);
 	if (MQTT_VALP2[0] || MQTT_VALP3[0]) sumx += drawString("'/", sumx, mpos, 4);
 	else sumx += drawString("' ", sumx, mpos, 4);
+	fillRect(0, mpos+26,sumx,2,TFT_BLACK);
 	}
 	sumy = sumx;
 	sumz = sumx;
@@ -1902,7 +1903,7 @@ void tfblestate(uint8_t tmr)
         sumz += drawString(MQTT_VALP3,sumz,mpos+13,2);
   	sumz += drawString("A", sumz, mpos+13, 2);
 	}
-	if (sumx > sumz) fillRect(sumz, mpos+13,sumx-sumz,13,TFT_BLACK);
+	if (sumx > sumz) fillRect(sumz, mpos+13,sumx-sumz,15,TFT_BLACK);
 
 	if (MQTT_VALP4[0]) {
 	if (!MQTT_VALP5[0]) setTextColor(TFT_GREEN, TFT_BLACK);
@@ -1924,7 +1925,8 @@ void tfblestate(uint8_t tmr)
 	fillRect(sumy, mpos+16,sumx-sumy,10,TFT_BLACK);
 	} else sumx += drawString("' ", sumx, mpos, 4);
 	}
-	fillRect(sumx, mpos,320-sumx,26,TFT_BLACK);
+	if (sumx > sumz) fillRect(sumz, mpos+26,sumx-sumz,2,TFT_BLACK);
+	if (sumx < 320) fillRect(sumx, mpos,320-sumx,28,TFT_BLACK);
 	}
 	if (mqttConnected) setTextColor(TFT_GREEN, TFT_BLACK);
 	else if (!wf_retry_cnt) {
@@ -2328,7 +2330,7 @@ static uint16_t outfunc(JDEC *decoder, void *bitmap, JRECT *rect)
         }
     }
 
-	if (result) {
+	if (result && (rect->top < 188)) {
 	int j = i;
   	uint8_t *bufp = (uint8_t*)buf;
 	swdata[0] = 0x2a;
