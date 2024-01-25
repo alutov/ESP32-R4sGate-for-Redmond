@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2024.01.22"
+#define AP_VER "2024.01.25"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -3910,6 +3910,7 @@ static IRAM_ATTR bool hw_timer_callback(gptimer_handle_t timer, const gptimer_al
 	BleMX[i].advdatlen = 0;
 	BleMX[i].scrsplen = 0;
 	BleMX[i].state = 0;
+	if (!FDHass) {
 	if (BleMR[i].id != 2) {
 	BleMX[i].rssi = 0;
 	BleMX[i].par1 = -1;
@@ -3922,6 +3923,7 @@ static IRAM_ATTR bool hw_timer_callback(gptimer_handle_t timer, const gptimer_al
 	BleMX[i].par7 = 0;
 	}
 	BleMX[i].par6 = 0;
+	}
 	} else {
 	memset(&BleMR[i],0,sizeof(BleMR[i]));
 	memset(&BleMX[i],0,sizeof(BleMX[i]));
@@ -12082,8 +12084,7 @@ if (fdebug) {
       	if (((id < 0x40) && !memcmp(BleMR[i].mac, scan_result->scan_rst.bda, 6)) ||
  		((id == 0x42) && !memcmp(BleMR[i].mac, &scan_result->scan_rst.ble_adv[6], 16)) ||
  		((id == 0x44) && vstsign(&scan_result->scan_rst.ble_adv[11],BleMR[i].mac))) {
-	BleMX[i].state = 1;
-	if (!BleMX[i].ttick) t_lasts = 0;
+	uint16_t tmtick = BleMX[i].ttick;
 	if (BleMR[i].sto) {
 	BleMX[i].mto = BleMR[i].sto - BleMX[i].ttick;
 	BleMX[i].ttick = BleMR[i].sto;
@@ -12228,6 +12229,8 @@ if (fdebug) {
 	BleMX[i].par1 = BleMX[i].advdat[11];
 	BleMX[i].par2 = BleMX[i].advdat[23];
 	}
+	BleMX[i].state = 1;
+	if (!tmtick) t_lasts = 0;
 	found = 1;
 	}
 	}
@@ -12245,8 +12248,6 @@ if (fdebug) {
 	i = 0;
 	while ((i < BleMonNum) && (!found)) {
       	if (!BleMR[i].sto && !BleMX[i].ttick) {
-	BleMX[i].state = 1;
-	t_lasts = 0;
 	BleMX[i].mto = 0;
 	BleMX[i].ttick = BleMonDefTO;
 	BleMX[i].rssi = scan_result->scan_rst.rssi;
@@ -12376,6 +12377,8 @@ if (fdebug) {
 	BleMX[i].par1 = BleMX[i].advdat[11];
 	BleMX[i].par2 = BleMX[i].advdat[23];
 	}
+	BleMX[i].state = 1;
+	t_lasts = 0;
 	}
 	i++;
 	}
@@ -17069,7 +17072,7 @@ void msStatus(uint8_t blenum) {
 	retc = ecamCommand(blenum, 0x0fa2, buf, 3);	
         if (retc == 30) {
 	ecamStPar(0x0b, 0xb8, &ptr->readData[4], buf[2], &ptr->bSEnergy);  //tot.coffee 3000
-	ecamStPar(0x0b, 0xbb, &ptr->readData[4], buf[2], &ptr->bS1Energy); //tot.milk 3003
+	ecamStPar(0x0b, 0xb9, &ptr->readData[4], buf[2], &ptr->bS1Energy); //tot.milk 3001
 	buf[0] = 0x0b;
 	buf[1] = 0xcd;
 	buf[2] = 0x05;
@@ -17207,15 +17210,14 @@ void MqSState() {
 
 	if (ble_mon) for (int i = 0; i < BleMonNum; i++) {
 	tgtnum = BleMX[i].gtnum;
-	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].state != BleMX[i].prstate)) {
+	if  ((mqttConnected) && BleMR[i].sto && !BleMX[i].state && (BleMX[i].state != BleMX[i].prstate)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
 	if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
 	else bin2hex(BleMR[i].mac,tmpvar,6,0);
 	strcat(ldata,tmpvar);
 	strcat(ldata,"/state");
-	if (!BleMX[i].state) esp_mqtt_client_publish(mqttclient, ldata, "offline", 0, 1, 1);
-	else esp_mqtt_client_publish(mqttclient, ldata, "online", 0, 1, 1);
+	esp_mqtt_client_publish(mqttclient, ldata, "offline", 0, 1, 1);
 	BleMX[i].prstate = BleMX[i].state;
 	}
 	if  ((mqttConnected) && BleMR[i].sto && (BleMX[i].rssi != BleMX[i].prrssi)) {
@@ -17613,6 +17615,16 @@ void MqSState() {
 	BleMX[i].ppar2 = BleMX[i].par2;
 	}
 
+	}
+	if  ((mqttConnected) && BleMR[i].sto && BleMX[i].state && (BleMX[i].state != BleMX[i].prstate)) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	if ((BleMR[i].id > 0x40) && (BleMR[i].id < 0x50)) bin2hex(BleMR[i].mac,tmpvar,16,0); 
+	else bin2hex(BleMR[i].mac,tmpvar,6,0);
+	strcat(ldata,tmpvar);
+	strcat(ldata,"/state");
+	esp_mqtt_client_publish(mqttclient, ldata, "online", 0, 1, 1);
+	BleMX[i].prstate = BleMX[i].state;
 	}
 	}
 
@@ -31639,7 +31651,7 @@ void app_main(void)
 	fflush(stdout);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	floop = 0;
-	} else if (MQTT_SERVER[0] && (wf_bits & 0x08) && !wf_retry_cnt && !f_update) {
+	} else if (floop && MQTT_SERVER[0] && (wf_bits & 0x08) && !wf_retry_cnt && !f_update) {
 	if (mqttConnected) {
 	if (floop < 32) floop = 32;
 	} else {
