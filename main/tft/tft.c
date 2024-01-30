@@ -2448,7 +2448,7 @@ bool tftjpg()
 	if (MyHttpUri[0] && jpg_time && (parsoff(MyHttpUri, "http://", 9) || parsoff(MyHttpUri, "https://", 10))) {
 	MyJPGbuf = malloc(MyJPGbuflen);
 	if (MyJPGbuf == NULL) {
-        if (fdebug) ESP_LOGE(AP_TAG, "Tftjpg: No memory");
+	if (fdebug) ESP_LOGE(AP_TAG, "Tftjpg: No memory");
 	MemErr++;
 	if (!MemErr) MemErr--;
 	} else {	
@@ -2475,7 +2475,7 @@ bool tftjpg()
 	if (err == ESP_OK) {
 	jstat = esp_http_client_get_status_code(client);
 	jlen = esp_http_client_get_content_length(client);
-	if (fdebug) ESP_LOGI(AP_TAG, "Status = %d, content_length = %d, offset_length = %"PRIu32,
+	if (fdebug) ESP_LOGI(AP_TAG, "Status = %d, content_length = %d, offset_length = %"PRIi32,
            jstat,  jlen, MyJPGbufidx);
 	}
 	esp_http_client_cleanup(client);
@@ -2483,9 +2483,15 @@ bool tftjpg()
 	JpgLoad++;
 	} else MyJPGbufidx = -1;
 	if ((err != ESP_OK) || (jlen == -1)) {
+  	uint32_t sumx;
+	char buf[16];
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
-       	drawString("HTTP(S) connection error", 8, 60, 4);
+	sumx = 8;
+       	sumx += drawString("Url ", sumx, 60, 4);
+	itoa(MyHttpUridx + 1,buf,10);
+       	sumx += drawString(buf, sumx, 60, 4);
+       	sumx += drawString(" connection error", sumx, 60, 4);
         MyHttpMqtt = MyHttpMqtt | 0x40;
 	JpgLoadErr++;
 	result = true;
@@ -2495,20 +2501,28 @@ bool tftjpg()
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
 	itoa(jlen,buf,10);
-       	drawString("Not enough memory:", 8, 60, 4);
+       	drawString("Not enough JPG memory:", 8, 60, 4);
 	sumx = 40;
        	sumx += drawString(buf, sumx, 90, 4);
        	sumx += drawString(" -> ", sumx, 90, 4);
 	itoa(MyJPGbuflen,buf,10);
        	sumx += drawString(buf, sumx, 90, 4);
+	if (MyJPGbufadj) {
+	if (jlen < 65279) MyJPGbuflen = jlen + 256;
+	else MyJPGbuflen = 65535;
+        setTextColor(TFT_GREEN, TFT_BLACK);
+	sumx = 40;
+       	sumx += drawString("Adjusted:", sumx, 120, 4);
+	itoa(MyJPGbuflen,buf,10);
+       	sumx += drawString(buf, sumx, 120, 4);
+	} else JpgLoadErr++;
         MyHttpMqtt = MyHttpMqtt | 0x40;
-	JpgLoadErr++;
 	result = true;
 	} else if ((err == ESP_OK) && jstat && (jstat != 200)) {
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
 	strcpy(MyJPGbuf,"Status:  ");
-	itoa(jstat,MyJPGbuf+8,10);
+	itoa(jstat,MyJPGbuf + 8,10);
        	drawString(MyJPGbuf, 8, 60, 4);
         MyHttpMqtt = MyHttpMqtt | 0x40;
 	JpgLoadErr++;
@@ -2527,7 +2541,7 @@ bool tftjpg()
         ret = ESP_ERR_NO_MEM;
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
-       	drawString("JPEG: no memory", 8, 60, 4);
+       	drawString("JPG: no memory", 8, 60, 4);
         MyHttpMqtt = MyHttpMqtt | 0x40;
 	MemErr++;
 	if (!MemErr) MemErr--;
@@ -2545,7 +2559,7 @@ bool tftjpg()
         if (fdebug) ESP_LOGE(AP_TAG, "Image decoder: jd_prepare failed (%d)", ret);
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
-       	drawString("JPEG: not supported", 8, 60, 4);
+       	drawString("JPG: not supported", 8, 60, 4);
         MyHttpMqtt = MyHttpMqtt | 0x40;
 	result = true;
 	} else {
@@ -2567,8 +2581,14 @@ bool tftjpg()
 	ret = jd_decomp(&decoder, outfunc, scale);
 	if (ret != JDR_OK) {
         if (fdebug) ESP_LOGE(AP_TAG, "Image decoder: jd_decode failed (%d)", ret);
+	if (MyJPGbufadj && (ret == JDR_INP) && ((MyJPGbuflen - jlen) < 512) && (MyJPGbuflen < 65407)) {
+        MyJPGbuflen = MyJPGbuflen + 128;
+        setTextColor(TFT_GREEN, TFT_BLACK);
+       	drawString("JPG: Adjust memory", 0, 52, 2);
+	} else {
 	setTextColor(TFT_YELLOW, TFT_BLACK);
-       	drawString("JPEG: decoder error", 8, 60, 4);
+       	drawString("JPG: decoder error", 0, 52, 2);
+	}
         MyHttpMqtt = MyHttpMqtt | 0x40;
 	result = true;
 	} else {

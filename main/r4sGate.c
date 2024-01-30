@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2024.01.25"
+#define AP_VER "2024.01.30"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -17197,9 +17197,9 @@ void MqSState() {
 	char tmpvar[64]; 
 	char tmpvar1[32]; 
 	wifi_ap_record_t wifidata;
-	if (mqttConnected && (esp_wifi_sta_get_ap_info(&wifidata)==0)){
+	if (!esp_wifi_sta_get_ap_info(&wifidata)) {
 	iRssiESP = wifidata.rssi;
-	if  (iprevRssiESP != iRssiESP) {
+	if  (mqttConnected && (iprevRssiESP != iRssiESP)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/rssi");
 	itoa(iRssiESP,tmpvar,10);
@@ -22584,7 +22584,7 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	char tbuff[8];
 	esp_netif_ip_info_t ipInfo;
 	esp_netif_t* netif = NULL;
-        netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+	netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
 //	char wbuff[256];
 	char wbuff[32];
 	memset(wbuff,0,32);
@@ -23054,7 +23054,7 @@ void MqtDevInit(bool mqtttst) {
 	esp_mqtt_client_publish(mqttclient, llwtt, "online", 0, 1, 1);
 	esp_netif_ip_info_t ipInfo;
 	esp_netif_t* netif = NULL;
-        netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+	netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
 	char wbuff[32];
 	memset(wbuff,0,32);
 	esp_netif_get_ip_info(netif, &ipInfo);
@@ -24617,8 +24617,9 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 	if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
 	esp_wifi_connect();
 	} else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+	wifi_event_sta_disconnected_t* event = (wifi_event_sta_disconnected_t*) event_data;
 //	if (floop && mqttConnected) esp_mqtt_client_disconnect(mqttclient);
-	if (fdebug) ESP_LOGI(AP_TAG,"AP disconnected");
+	if (fdebug) ESP_LOGI(AP_TAG,"AP disconnected, reason: %d", event->reason);
 	if ((!floop && (wf_retry_cnt < WIFI_MAXIMUM_RETRY)) || (floop && (wf_retry_cnt < (WIFI_MAXIMUM_RETRY << 6)))) {
 	esp_wifi_connect();
 	if (fdebug) ESP_LOGI(AP_TAG, "Retry %d to connect to the AP",wf_retry_cnt);
@@ -24665,6 +24666,7 @@ void wifi_init_sta(void)
 
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+	ESP_ERROR_CHECK(esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B|WIFI_PROTOCOL_11G|WIFI_PROTOCOL_11N));
 //	ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
 
 	esp_event_handler_instance_t instance_any_id;
@@ -24703,6 +24705,7 @@ void wifi_init_sta(void)
 	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
 	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
 	ESP_ERROR_CHECK(esp_wifi_start() );
+	ESP_ERROR_CHECK(esp_wifi_set_dynamic_cs(true));
 #ifdef USE_TFT
 	if (tft_conn) tfststr("Connecting to AP ",WIFI_SSID," ..."); 
 #endif
@@ -24750,6 +24753,7 @@ void wifi_init_sta(void)
 
 	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
 	ESP_ERROR_CHECK(esp_wifi_start() );
+	ESP_ERROR_CHECK(esp_wifi_set_dynamic_cs(true));
 #ifdef USE_TFT
 	if (tft_conn) tfststr("Connecting to AP ",DEFWFSSID," ..."); 
 #endif
@@ -24805,7 +24809,7 @@ uint8_t ReadNVS(){
 #ifdef USE_TFT
 	nvs_get_u16(my_handle, "sjpgtim", &jpg_time);
 	nvs_get_u16(my_handle, "sjpgbuf", &MyJPGbuflen);
-	if (MyJPGbuflen < 20000) MyJPGbuflen = 20000;
+	if (MyJPGbuflen < 10000) MyJPGbuflen = 10000;
 #endif
 	nvs_get_u16(my_handle, "smqprt", &mqtt_port);
 //
@@ -24915,8 +24919,10 @@ uint8_t ReadNVS(){
 #ifdef USE_TFT
 	tft_conf = 0;
 	tft_flip = 0;
+	MyJPGbufadj = 0;
 	if (nvtemp & 0x100) tft_conf = 1;
 	if (nvtemp & 0x200) tft_flip = 1;
+	if (nvtemp & 0x10000000) MyJPGbufadj = 1;
 #endif
 	if (nvtemp & 0x400) fmssl = 1;
 	if (nvtemp & 0x800) fmsslbundle = 1;
@@ -25208,6 +25214,7 @@ void WriteNVS () {
 #ifdef USE_TFT
 	if (tft_conf) nvtemp = nvtemp | 0x100;
 	if (tft_flip) nvtemp = nvtemp | 0x200;
+	if (MyJPGbufadj) nvtemp = nvtemp | 0x10000000;
 #endif
 	if (fmssl) nvtemp = nvtemp | 0x400;
 	if (fmsslbundle) nvtemp = nvtemp | 0x800;
@@ -26196,7 +26203,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
         (mqttConnected)? strcat(bsend,"Connected") : strcat(bsend,"Disconnected");
 #ifdef USE_TFT
 	strcat(bsend,"</td></tr>");
-	strcat(bsend,"<tr><td>LCD / JPEG loads / errors</td><td>");
+	strcat(bsend,"<tr><td>LCD / JPG loads / errors / size</td><td>");
 	if (!tft_conf) strcat(bsend,"Not defined");
 	else switch (tft_conn) {
 	case 0:
@@ -26218,6 +26225,10 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend," / ");
 	itoa(JpgLoadErr,buff,10);
 	strcat(bsend,buff);
+	strcat(bsend," / ");
+	itoa(MyJPGbuflen,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend," bytes");
 #endif
 	strcat(bsend,"</td></tr></table>");
 /*
@@ -28743,7 +28754,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"> Uart Debug<br/>");
 	strcat(bsend,"<input name=\"sntp\" value=\"");
 	if (NTP_SERVER[0]) strcat(bsend,NTP_SERVER);
-	strcat(bsend,"\"size=\"15\">NTP&emsp;");
+	strcat(bsend,"\"size=\"14\">NTP&emsp;");
 #ifdef USE_TFT
 // read nvs
 	nvs_handle_t my_handle;
@@ -28756,13 +28767,16 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	}
 	strcat(bsend,"<input name=\"smjpuri\" value=\"");
 	if (buff[0]) strcat(bsend,buff);
-	strcat(bsend,"\"size=\"60\">JPEG Url&emsp;<input name=\"sjpgtim\" type=\"number\" value=\"");
+	strcat(bsend,"\"size=\"58\">JPG Url&emsp;<input name=\"sjpgtim\" type=\"number\" value=\"");
 	itoa(jpg_time,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"65535\" size=\"5\">JPEG Time(s)&emsp;<input name=\"sjpgbuf\" type=\"number\" value=\"");
+	strcat(bsend,"\" min=\"0\" max=\"65535\" size=\"5\">JPG Time(s)&emsp;<input name=\"sjpgbuf\" type=\"number\" value=\"");
 	itoa(MyJPGbuflen,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"20000\" max=\"65535\" size=\"5\">JPEG Memory<br/>");
+	strcat(bsend,"\" min=\"10000\" max=\"65535\" size=\"5\">JPG Memory&emsp;");
+	strcat(bsend,"<input type=\"checkbox\" name=\"sjpadj\" value=\"1\"");
+	if (MyJPGbufadj) strcat(bsend,"checked");
+	strcat(bsend,"> Adjust<br/>");
 	strcat(bsend,"<input type=\"checkbox\" name=\"chk6\" value=\"6\"");
 	if (tft_conf) strcat(bsend,"checked");
 	strcat(bsend,"> LCD: <input type=\"checkbox\" name=\"chk4\" value=\"4\"");
@@ -29206,6 +29220,14 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	strcpy(buf2,"sjpgbuf");
 	parsuri(buf1,buf3,buf2,4096,8,0);
 	if (buf3[0]) MyJPGbuflen = atoi(buf3);
+	buf3[0] = 0;
+	strcpy(buf2,"sjpadj");
+	parsuri(buf1,buf3,buf2,4096,2,0);
+	MyJPGbufadj = 0;
+	if (buf3[0] == 0x31) {
+	MyJPGbufadj = 1;
+//	MyJPGbuflen = 10000;
+	}
 #endif
 	buf3[0] = 0;
 	strcpy(buf2,"smqprt");
@@ -30897,6 +30919,7 @@ void app_main(void)
 	MyHttpUridx = 0;
 	MyHttpMqtt = 0;
 	MyJPGbuflen  = 32768;
+	MyJPGbufadj  = 0;
 	JpgLoad = 0;
 	JpgLoadErr = 0;
 #endif

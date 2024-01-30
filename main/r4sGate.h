@@ -40,7 +40,6 @@
 #include "esp_ota_ops.h"
 #include "esp_sntp.h"
 #include "esp_timer.h"
-//#include "driver/timer.h"
 #include "driver/gptimer.h"
 #include "driver/ledc.h"
 #include "mbedtls/aes.h"
@@ -394,6 +393,7 @@ uint16_t t_ppcons = 0;
 //tft
 uint16_t xoffs  = 0;
 uint16_t MyJPGbuflen  = 32768;
+uint8_t MyJPGbufadj  = 0;
 uint16_t jpg_time  = 32;
 uint8_t tft_conn = 0;
 uint8_t tft_conf = 0;
