@@ -392,7 +392,10 @@ uint16_t t_ppcons = 0;
 #ifdef USE_TFT
 //tft
 uint16_t xoffs  = 0;
-uint16_t MyJPGbuflen  = 32768;
+uint16_t MyJPGbuflen1  = 32768;
+uint16_t MyJPGbuflen2  = 32768;
+uint16_t MyJPGbuflen3  = 32768;
+uint16_t MyJPGbuflen4  = 32768;
 uint8_t MyJPGbufadj  = 0;
 uint16_t jpg_time  = 32;
 uint8_t tft_conn = 0;

@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2024.01.30"
+#define AP_VER "2024.02.02"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -623,6 +623,7 @@ void b2slrr(char *slrr, uint8_t blrr)
 
 void ecmmb2st(char *smd, uint8_t bst, uint8_t bmd)
 {
+	char buf[8];
 	switch (bst) {
 	case 0:
 	strcat(smd,"Power off");
@@ -634,7 +635,34 @@ void ecmmb2st(char *smd, uint8_t bst, uint8_t bmd)
 	strcat(smd,"Power down");
 	break;
 	case 4:
-	strcat(smd,"Descaling");
+	strcat(smd,"Descaling(");
+	itoa(bmd,buf,10);
+	strcat(smd,buf);
+	strcat(smd,")");
+	break;
+	case 10:
+	switch (bmd) {
+	case 1:
+	case 2:
+	strcat(smd,"Water heating");
+	break;
+	case 4:
+	strcat(smd,"Milk delivery");
+	break;
+	case 6:
+	case 7:
+	strcat(smd,"Grinding");
+	break;
+	default:
+	strcat(smd,"Unknown(10-");
+	itoa(bmd,buf,10);
+	strcat(smd,buf);
+	strcat(smd,")");
+	break;
+	}
+	break;
+	case 12:
+	strcat(smd,"Milk cleaning");
 	break;
 	case 7:
 	switch (bmd) {
@@ -670,9 +698,8 @@ void ecmmb2st(char *smd, uint8_t bst, uint8_t bmd)
 	strcat(smd,"Moving infuser");
 	break;
 	default:
-	strcat(smd,"Unknown(");
-	char buf[8];
-	itoa(bst,buf,10);
+	strcat(smd,"Unknown(7-");
+	itoa(bmd,buf,10);
 	strcat(smd,buf);
 	strcat(smd,")");
 	break;
@@ -680,7 +707,6 @@ void ecmmb2st(char *smd, uint8_t bst, uint8_t bmd)
 	break;
 	default:
 	strcat(smd,"Unknown(");
-	char buf[8];
 	itoa(bst,buf,10);
 	strcat(smd,buf);
 	strcat(smd,")");
@@ -805,7 +831,7 @@ void ecmsb2st(char *smd, uint8_t bmd)
 }
 uint8_t ecmab2st(char *smd, uint32_t bmd, uint8_t idx)
 {
-	uint32_t btmsk = (bmd  & 0xffffff58) & (1 << (idx & 0x1f));
+	uint32_t btmsk = (bmd  & 0xfffff858) & (1 << (idx & 0x1f));
 	if (!btmsk) return 0;
 	switch (btmsk) {
 	case 0x08:
@@ -817,12 +843,17 @@ uint8_t ecmab2st(char *smd, uint32_t bmd, uint8_t idx)
 	case 0x40:
 	strcat(smd,"Water level low");
 	break;
+/*
 	case 0x100:
-	strcat(smd,"Milk container absent");
+	strcat(smd,"Milk tank");
 	break;
 	case 0x200:
-	strcat(smd,"Chocolate container absent");
+	strcat(smd,"Chocolate tank");
 	break;
+	case 0x400:
+	strcat(smd,"Clean knob");
+	break;
+*/
 	case 0x2000:
 	strcat(smd,"Door open");
 	break;
@@ -9311,7 +9342,7 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(buft,ptr->tBLEAddr);
 	strcat(buft,"/config");
 	strcpy(bufd,"{\"name\":\"");
-	strcat(bufd,"spout\",\"icon\":\"mdi:watering-can-outline\",\"uniq_id\":\"spt_");
+	strcat(bufd,"nozzle\",\"icon\":\"mdi:watering-can-outline\",\"uniq_id\":\"nzzl_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\",\"dev\":{\"ids\":[\"Coffee_");
 	strcat(bufd,ptr->tBLEAddr);
@@ -9332,7 +9363,7 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
 	if (!fcommtp) strcat(bufd,"/rsp");
-	strcat(bufd,"/spout\",\"avty\":[{\"t\":\"");
+	strcat(bufd,"/nozzle\",\"avty\":[{\"t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -17030,7 +17061,7 @@ void msStatus(uint8_t blenum) {
 	ptr->bModProg = 0;
 	ptr->bStBp = 0;
 	}
-	ptr->bStBl = ptr->readData[4];      //spout
+	ptr->bStBl = ptr->readData[4];      //nozzle
 	ptr->bSHum = ptr->readData[5] | (ptr->readData[6] << 8) |
 		(ptr->readData[7] << 16) | (ptr->readData[8] << 24);     //alarms
 
@@ -17128,7 +17159,7 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,",\"par\":0x");
 	itoa(ptr->bProg,tmpvar,16);
 	strcat(ptr->cStatus,tmpvar);
-	strcat(ptr->cStatus,",\"spout\":");
+	strcat(ptr->cStatus,",\"nozzle\":");
 	itoa(ptr->bStBl,tmpvar,10);
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,",\"bev\":");
@@ -19699,6 +19730,7 @@ void MqState(uint8_t blenum) {
 	else esp_mqtt_client_publish(mqttclient, ldata, strON, 0, 1, 1);
 	ptr->r4sppcom = 30;
 	ptr->bprevState = ptr->bState;
+	ptr->bprevModProg = ~ptr->bModProg;
 	}
 	if  (ptr->bprevProg != ptr->bProg) {
 	uint8_t var = ptr->bprevProg ^ ptr->bProg;
@@ -19779,14 +19811,14 @@ void MqState(uint8_t blenum) {
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	ptr->bprevStBp = ptr->bStBp;
 	}
-	if  ((ptr->bprevSHum != ptr->bSHum) || (ptr->bSHum & 0xffffff58)) {
+	if  ((ptr->bprevSHum != ptr->bSHum) || (ptr->bSHum & 0xfffff858)) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
 	strcat(ldata,ptr->tBLEAddr);
 	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/alarm");
 	tmpvar[0] = 0;
-	if (!(ptr->bSHum & 0xffffff58)) strcat(tmpvar,"None");
+	if (!(ptr->bSHum & 0xfffff858)) strcat(tmpvar,"None");
 	else {
 	while (!ecmab2st(tmpvar, ptr->bSHum, ptr->bCVol)) ptr->bCVol++;
 	ptr->bCVol++;
@@ -19912,7 +19944,7 @@ void MqState(uint8_t blenum) {
 	strcat(ldata,"/");
 	strcat(ldata,ptr->tBLEAddr);
 	if (!fcommtp) strcat(ldata,"/rsp");
-	strcat(ldata,"/spout");
+	strcat(ldata,"/nozzle");
 	tmpvar[0] = 0;
 	ecmsb2st(tmpvar, ptr->bStBl);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
@@ -24430,8 +24462,11 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	uint16_t tmp = jpg_time;
 	jpg_time = 0;
 	vTaskDelay(40 / portTICK_PERIOD_MS);
-	if ((event->data_len == 1) && (event->data[0] == 0x24)) memset (MyHttpUri1,0,sizeof(MyHttpUri1));
-	else mystrcpy(MyHttpUri1, event->data, event->data_len);
+	if (event->data_len && (event->data[0] == 0x23)) memset (MyHttpUri1,0,sizeof(MyHttpUri1));
+	else {
+	mystrcpy(MyHttpUri1, event->data, event->data_len);
+	MyHttpUridx = 0;
+	}
 	jpg_time = tmp;
 	if (MyHttpMqtt & 0x20) t_jpg = 0;	
 	MyHttpMqtt = MyHttpMqtt | 0x41;
@@ -24442,8 +24477,11 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	uint16_t tmp = jpg_time;
 	jpg_time = 0;
 	vTaskDelay(40 / portTICK_PERIOD_MS);
-	if ((event->data_len == 1) && (event->data[0] == 0x23)) memset (MyHttpUri2,0,sizeof(MyHttpUri2));
-	else mystrcpy(MyHttpUri2, event->data, event->data_len);
+	if (event->data_len && (event->data[0] == 0x23)) memset (MyHttpUri2,0,sizeof(MyHttpUri2));
+	else {
+	mystrcpy(MyHttpUri2, event->data, event->data_len);
+	MyHttpUridx = 1;
+	}
 	jpg_time = tmp;
 	if (MyHttpMqtt & 0x20) t_jpg = 0;	
 	MyHttpMqtt = MyHttpMqtt | 0x42;
@@ -24454,8 +24492,11 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	uint16_t tmp = jpg_time;
 	jpg_time = 0;
 	vTaskDelay(40 / portTICK_PERIOD_MS);
-	if ((event->data_len == 1) && (event->data[0] == 0x23)) memset (MyHttpUri3,0,sizeof(MyHttpUri3));
-	else mystrcpy(MyHttpUri3, event->data, event->data_len);
+	if (event->data_len && (event->data[0] == 0x23)) memset (MyHttpUri3,0,sizeof(MyHttpUri3));
+	else {
+	mystrcpy(MyHttpUri3, event->data, event->data_len);
+	MyHttpUridx = 2;
+	}
 	jpg_time = tmp;
 	if (MyHttpMqtt & 0x20) t_jpg = 0;	
 	MyHttpMqtt = MyHttpMqtt | 0x44;
@@ -24466,8 +24507,11 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	uint16_t tmp = jpg_time;
 	jpg_time = 0;
 	vTaskDelay(40 / portTICK_PERIOD_MS);
-	if ((event->data_len == 1) && (event->data[0] == 0x23)) memset (MyHttpUri4,0,sizeof(MyHttpUri4));
-	else mystrcpy(MyHttpUri4, event->data, event->data_len);
+	if (event->data_len && (event->data[0] == 0x23)) memset (MyHttpUri4,0,sizeof(MyHttpUri4));
+	else {
+	mystrcpy(MyHttpUri4, event->data, event->data_len);
+	MyHttpUridx = 3;
+	}
 	jpg_time = tmp;
 	if (MyHttpMqtt & 0x20) t_jpg = 0;	
 	MyHttpMqtt = MyHttpMqtt | 0x48;
@@ -24806,11 +24850,6 @@ uint8_t ReadNVS(){
 	if (ret == ESP_OK) {
 	uint64_t nvtemp = 0xffffffffffffffff;
 	uint16_t nvsver = 0;
-#ifdef USE_TFT
-	nvs_get_u16(my_handle, "sjpgtim", &jpg_time);
-	nvs_get_u16(my_handle, "sjpgbuf", &MyJPGbuflen);
-	if (MyJPGbuflen < 10000) MyJPGbuflen = 10000;
-#endif
 	nvs_get_u16(my_handle, "smqprt", &mqtt_port);
 //
 	ret = nvs_get_u64(my_handle,  "sreqtp", &nvtemp);
@@ -24907,7 +24946,7 @@ uint8_t ReadNVS(){
 	lvout4 = 0;
 	lvout5 = 0;
 	fdebug = 0;
-        ble_mon =  nvtemp & 0x03;
+	ble_mon =  nvtemp & 0x03;
 	ble_mon_refr = 0;
 	wf_bits = 0;
 	if (nvtemp & 0x04) FDHass = 1;
@@ -24948,7 +24987,7 @@ uint8_t ReadNVS(){
 	bDivHx6 =  nvtemp >> 32;
 	nvtemp = 0;
 	nvs_get_u64(my_handle, "btvc1", &nvtemp);
-        i2c58blco2 = nvtemp & 0xffff;
+	i2c58blco2 = nvtemp & 0xffff;
 	i2c58bltvoc = (nvtemp >> 16) & 0xffff;
 	size_t nvsize = 20;
 	nvs_get_blob(my_handle,"pnpsw", tmpbuf, &nvsize);
@@ -25040,6 +25079,7 @@ uint8_t ReadNVS(){
 	nvs_get_u8(my_handle, "chk7",   &foffln);
 	nvs_get_u8(my_handle, "chk8",   &macauth);
 	nvs_get_u8(my_handle, "chk9",   &volperc);
+	MyJPGbufadj = 0;
 	}
 	BleDevStA.PRgbR = ~BleDevStA.RgbR;
 	BleDevStA.PRgbG = ~BleDevStA.RgbG;
@@ -25105,6 +25145,12 @@ uint8_t ReadNVS(){
 	nvs_get_str(my_handle,"smtopp7", MQTT_TOPP7,&nvsize);
 	nvsize = 128;
 	nvs_get_str(my_handle,"smjpuri", MyHttpUri1,&nvsize);
+	nvs_get_u16(my_handle, "sjpgtim", &jpg_time);
+	nvs_get_u16(my_handle, "sjpgbuf", &MyJPGbuflen1);
+	if (MyJPGbufadj) MyJPGbuflen1 = 0;
+	MyJPGbuflen2 = MyJPGbuflen1;
+	MyJPGbuflen3 = MyJPGbuflen1;
+	MyJPGbuflen4 = MyJPGbuflen1;
 #endif
 	memset (bufcert,0,sizeof(bufcert));
 	strcpy(bufcert,"-----BEGIN CERTIFICATE-----\n");
@@ -25153,7 +25199,7 @@ void WriteNVS () {
 	nvs_set_u16(my_handle, "nvsid", defnvs);
 #ifdef USE_TFT
 	nvs_set_u16(my_handle, "sjpgtim", jpg_time);
-	nvs_set_u16(my_handle, "sjpgbuf", MyJPGbuflen);
+	nvs_set_u16(my_handle, "sjpgbuf", MyJPGbuflen1);
 #endif
 	nvs_set_u16(my_handle, "smqprt", mqtt_port);
 
@@ -25663,7 +25709,7 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	itoa(ptr->bLock,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,", Alarm: ");
-	if (!(ptr->bSHum & 0xffffff58)) strcat(bsend,"None");
+	if (!(ptr->bSHum & 0xfffff858)) strcat(bsend,"None");
 	else {
 	while (!ecmab2st(bsend, ptr->bSHum, ptr->bCVoll)) ptr->bCVoll++;
 	ptr->bCVoll++;
@@ -26203,7 +26249,9 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
         (mqttConnected)? strcat(bsend,"Connected") : strcat(bsend,"Disconnected");
 #ifdef USE_TFT
 	strcat(bsend,"</td></tr>");
-	strcat(bsend,"<tr><td>LCD / JPG loads / errors / size</td><td>");
+	strcat(bsend,"<tr><td>LCD / JPG loads / errors / size");
+	if (MyJPGbufadj) strcat(bsend," 1 / 2 / 3 / 4");
+	strcat(bsend,"</td><td>");
 	if (!tft_conf) strcat(bsend,"Not defined");
 	else switch (tft_conn) {
 	case 0:
@@ -26226,8 +26274,19 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	itoa(JpgLoadErr,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend," / ");
-	itoa(MyJPGbuflen,buff,10);
+	itoa(MyJPGbuflen1,buff,10);
 	strcat(bsend,buff);
+	if (MyJPGbufadj) {
+	strcat(bsend," / ");
+	itoa(MyJPGbuflen2,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend," / ");
+	itoa(MyJPGbuflen3,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend," / ");
+	itoa(MyJPGbuflen4,buff,10);
+	strcat(bsend,buff);
+	}
 	strcat(bsend," bytes");
 #endif
 	strcat(bsend,"</td></tr></table>");
@@ -28771,12 +28830,13 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	itoa(jpg_time,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"65535\" size=\"5\">JPG Time(s)&emsp;<input name=\"sjpgbuf\" type=\"number\" value=\"");
-	itoa(MyJPGbuflen,buff,10);
+	if (MyJPGbufadj) itoa(0,buff,10);
+	else itoa(MyJPGbuflen1,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"10000\" max=\"65535\" size=\"5\">JPG Memory&emsp;");
+	strcat(bsend,"\" min=\"1024\" max=\"65535\" size=\"5\">JPG Memory&emsp;");
 	strcat(bsend,"<input type=\"checkbox\" name=\"sjpadj\" value=\"1\"");
 	if (MyJPGbufadj) strcat(bsend,"checked");
-	strcat(bsend,"> Adjust<br/>");
+	strcat(bsend,"> Auto<br/>");
 	strcat(bsend,"<input type=\"checkbox\" name=\"chk6\" value=\"6\"");
 	if (tft_conf) strcat(bsend,"checked");
 	strcat(bsend,"> LCD: <input type=\"checkbox\" name=\"chk4\" value=\"4\"");
@@ -29219,14 +29279,14 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	buf3[0] = 0;
 	strcpy(buf2,"sjpgbuf");
 	parsuri(buf1,buf3,buf2,4096,8,0);
-	if (buf3[0]) MyJPGbuflen = atoi(buf3);
+	if (buf3[0]) MyJPGbuflen1 = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"sjpadj");
 	parsuri(buf1,buf3,buf2,4096,2,0);
 	MyJPGbufadj = 0;
 	if (buf3[0] == 0x31) {
 	MyJPGbufadj = 1;
-//	MyJPGbuflen = 10000;
+	MyJPGbuflen1 = 0;
 	}
 #endif
 	buf3[0] = 0;
@@ -30918,7 +30978,10 @@ void app_main(void)
 	memset (MyHttpUri4,0,sizeof(MyHttpUri4));
 	MyHttpUridx = 0;
 	MyHttpMqtt = 0;
-	MyJPGbuflen  = 32768;
+	MyJPGbuflen1  = 32768;
+	MyJPGbuflen2  = 32768;
+	MyJPGbuflen3  = 32768;
+	MyJPGbuflen4  = 32768;
 	MyJPGbufadj  = 0;
 	JpgLoad = 0;
 	JpgLoadErr = 0;
@@ -31490,7 +31553,7 @@ void app_main(void)
 #ifdef USE_TFT
 	if (!wf_retry_cnt && !f_update && tft_conn && jpg_time && !t_jpg) {
 	ret = tftjpg();
-	if (ret) {
+	if (!ret) {
 	MyHttpMqtt |= 0x20;
 	if (!(f_rmds & 0x01) && (bgpio5 > 191) && (bgpio6 > 127) && (bgpio6 < (MxPOutP + 128))) {
 	readHx(0, &bStatHx6);
@@ -31532,8 +31595,11 @@ void app_main(void)
 	MyHttpMqtt |= 0x40;
 	}
 	}
-	if (ret) t_jpg = jpg_time * 10;	
-	else t_jpg = jpg_time * 10 + ((R4SNUM & 0x0f) + 1);	
+	if (ret < 2) t_jpg = jpg_time * 10;	
+	else if (ret == 2) t_jpg = jpg_time * 10 + ((R4SNUM & 0x0f) + 1);	
+	else if (ret == 3) {
+	t_jpg = 40;	
+	}
 	} else if (!wf_retry_cnt && !f_update && tft_conn && !jpg_time && ((MyHttpMqtt & 0x80) == 0x80)) {
 	pushImage(0, 52, 320, 240, wallpaper);
 	MyHttpMqtt = MyHttpMqtt & 0x7f;

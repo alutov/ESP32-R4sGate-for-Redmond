@@ -1721,26 +1721,26 @@ void tftclock()
 	struct tm timeinfo;
 	time(&now);
 	localtime_r(&now, &timeinfo);
-       	itoa(timeinfo.tm_hour,buff,10);
-       	if(timeinfo.tm_hour < 10) strcat(stime,"0");
+	itoa(timeinfo.tm_hour,buff,10);
+	if(timeinfo.tm_hour < 10) strcat(stime,"0");
 	strcat(stime,buff);
 	strcat(stime,":");
-       	itoa(timeinfo.tm_min,buff,10);
-       	if(timeinfo.tm_min < 10) strcat(stime,"0");
+	itoa(timeinfo.tm_min,buff,10);
+	if(timeinfo.tm_min < 10) strcat(stime,"0");
 	strcat(stime,buff);
 	strcat(stime,":");
-       	itoa(timeinfo.tm_sec,buff,10);
-       	if(timeinfo.tm_sec < 10) strcat(stime,"0");
+	itoa(timeinfo.tm_sec,buff,10);
+	if(timeinfo.tm_sec < 10) strcat(stime,"0");
 	strcat(stime,buff);
 	tmp = timeinfo.tm_year;
 	while (tmp > 100) tmp = tmp - 100;
 	itoa(tmp,buff,10);
-       	if(tmp < 10) strcat(sdate,"0");
+	if(tmp < 10) strcat(sdate,"0");
 	strcat(sdate,buff);
 	strcat(sdate,"/");
 	tmp = timeinfo.tm_mon + 1;
 	itoa(tmp,buff,10);
-       	if(tmp < 10) strcat(sdate,"0");
+	if(tmp < 10) strcat(sdate,"0");
 	strcat(sdate,buff);
 	strcat(sdate,"/");
 	itoa(timeinfo.tm_mday,buff,10);
@@ -1773,10 +1773,10 @@ void tftclock()
 	drawString(stime,0,0,7);
 	setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx = 220;
-        if (timeinfo.tm_year > 100) sumx += drawString(sday,sumx,26,4);
+	if (timeinfo.tm_year > 100) sumx += drawString(sday,sumx,26,4);
 	fillRect(sumx, 26,250-sumx,26,TFT_BLACK);
 	sumx = 220;
-        if (timeinfo.tm_year > 100) sumx += drawString(sdate,sumx,0,4);
+	if (timeinfo.tm_year > 100) sumx += drawString(sdate,sumx,0,4);
 	setTextColor(TFT_WHITE, TFT_BLACK);
 }
 
@@ -1817,8 +1817,8 @@ void tfststr(char* in1, char* in2, char* in3)
 void tfblestate(uint8_t tmr)
 {
 	uint8_t blstnum1 = blstnum + 1;
-        struct BleDevSt *ptr;
-        struct BleDevSt *lptr;
+	struct BleDevSt *ptr;
+	struct BleDevSt *lptr;
 	switch (blstnum) {
 	case 1:
 	ptr = &BleDevStB;
@@ -1877,7 +1877,7 @@ void tfblestate(uint8_t tmr)
 	else sym = TFT_RED;
 	setTextColor(sym, bkg);
 	itoa(i + 1,buff,10);
-        sumx += drawString(buff,sumx,26,4);
+	sumx += drawString(buff,sumx,26,4);
 	}
 
 	if (tmr < 41) {
@@ -1895,32 +1895,32 @@ void tfblestate(uint8_t tmr)
 	sumz = sumx;
 	if (MQTT_VALP2[0] || MQTT_VALP3[0]) sumx = sumx + 54;
 	if (MQTT_VALP2[0]) {
-        sumy += drawString(MQTT_VALP2,sumy,mpos,2);
+	sumy += drawString(MQTT_VALP2,sumy,mpos,2);
   	sumy += drawString("V", sumy, mpos, 2);
 	}
 	if (sumx > sumy) fillRect(sumy, mpos,sumx-sumy,13,TFT_BLACK);
 	if (MQTT_VALP3[0]) {
-        sumz += drawString(MQTT_VALP3,sumz,mpos+13,2);
+	sumz += drawString(MQTT_VALP3,sumz,mpos+13,2);
   	sumz += drawString("A", sumz, mpos+13, 2);
 	}
 	if (sumx > sumz) fillRect(sumz, mpos+13,sumx-sumz,15,TFT_BLACK);
 
 	if (MQTT_VALP4[0]) {
 	if (!MQTT_VALP5[0]) setTextColor(TFT_GREEN, TFT_BLACK);
-        else if ((!incascmp("0",MQTT_VALP5,1)) || (!incascmp("off",MQTT_VALP5,3))||
+	else if ((!incascmp("0",MQTT_VALP5,1)) || (!incascmp("off",MQTT_VALP5,3))||
         (!incascmp("false",MQTT_VALP5,5))) {
 	setTextColor(TFT_BLUE, TFT_BLACK);
 	} else setTextColor(TFT_RED, TFT_BLACK);
-        sumx += drawString(MQTT_VALP4,sumx, mpos,4);
+	sumx += drawString(MQTT_VALP4,sumx, mpos,4);
   	sumx += drawString("'  ", sumx, mpos, 4);
 	}
 	if (MQTT_VALP6[0]) {
 	setTextColor(TFT_YELLOW, TFT_BLACK);
-        sumx += drawString(MQTT_VALP6,sumx,mpos,4);
+	sumx += drawString(MQTT_VALP6,sumx,mpos,4);
 	if (MQTT_VALP7[0]) {
   	sumx += drawString("'/", sumx, mpos, 4);
 	sumy = sumx;
-        sumx += drawString(MQTT_VALP7,sumx, mpos,2);
+	sumx += drawString(MQTT_VALP7,sumx, mpos,2);
   	sumx += drawString("%", sumx, mpos, 2);
 	fillRect(sumy, mpos+16,sumx-sumy,10,TFT_BLACK);
 	} else sumx += drawString("' ", sumx, mpos, 4);
@@ -1962,7 +1962,7 @@ void tfblestate(uint8_t tmr)
 	else setTextColor(TFT_RED, TFT_BLACK);
 	sumx += drawString(ptr->DEV_NAME, sumx, 224, 2);
 	sumx += drawString(":", sumx, 224, 2);
-        setTextColor(TFT_GREEN, TFT_BLACK);
+	setTextColor(TFT_GREEN, TFT_BLACK);
 	if (!ptr->DEV_TYP) {
 	sumx += drawString(" Not Defined, ", sumx, 224, 2);
 	} else if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73))) {
@@ -1973,7 +1973,7 @@ void tfblestate(uint8_t tmr)
 	itoa(ptr->bCtemp,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("'", sumx, 224, 2);
-        setTextColor(TFT_GREEN, TFT_BLACK);
+	setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString("/", sumx, 224, 2);
 	if (ptr->bHtemp > 84) setTextColor(TFT_WHITE, TFT_BLACK);
 	else if (ptr->bHtemp > 39) setTextColor(TFT_YELLOW, TFT_BLACK);
@@ -1981,7 +1981,7 @@ void tfblestate(uint8_t tmr)
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("'", sumx, 224, 2);
 	if (ptr->DEV_TYP > 3) {
-        setTextColor(TFT_GREEN, TFT_BLACK);
+	setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString(", V: ", sumx, 224, 2);
 	if (ptr->bCVol < 250) {
 	if (!volperc) {
@@ -2014,10 +2014,10 @@ void tfblestate(uint8_t tmr)
 	} else if (ptr->DEV_TYP < 12) {
 	sumx += drawString(" Lock: ", sumx, 224, 2);
 	if (ptr->bLock) {
-        setTextColor(TFT_RED, TFT_BLACK);
+	setTextColor(TFT_RED, TFT_BLACK);
 	sumx += drawString("On", sumx, 224, 2);
 	} else sumx += drawString("Off", sumx, 224, 2);
-        if (ptr->DEV_TYP == 11) {
+	if (ptr->DEV_TYP == 11) {
 	sumx += drawString(", Pwr: ", sumx, 224, 2);
 	itoa(ptr->bHtemp,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
@@ -2025,12 +2025,12 @@ void tfblestate(uint8_t tmr)
 	} else if (ptr->DEV_TYP < 15) {
 	sumx += drawString(" Lock: ", sumx, 224, 2);
 	if (ptr->bLock) {
-        setTextColor(TFT_RED, TFT_BLACK);
+	setTextColor(TFT_RED, TFT_BLACK);
 	sumx += drawString("On", sumx, 224, 2);
 	} else sumx += drawString("Off", sumx, 224, 2);
 	sumx += drawString(", Strength: ", sumx, 224, 2);
 	if (ptr->bAwarm) {
-        setTextColor(TFT_RED, TFT_BLACK);
+	setTextColor(TFT_RED, TFT_BLACK);
 	sumx += drawString("On", sumx, 224, 2);
 	} else sumx += drawString("Off", sumx, 224, 2);
 	} else if (ptr->DEV_TYP == 15) {
@@ -2078,10 +2078,10 @@ void tfblestate(uint8_t tmr)
 	} else if (ptr->DEV_TYP == 60) {
 	sumx += drawString(" Lock: ", sumx, 224, 2);
 	if (ptr->bLock) {
-        setTextColor(TFT_RED, TFT_BLACK);
+	setTextColor(TFT_RED, TFT_BLACK);
 	sumx += drawString("On", sumx, 224, 2);
 	} else sumx += drawString("Off", sumx, 224, 2);
-        setTextColor(TFT_GREEN, TFT_BLACK);
+	setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString(", Pos: ", sumx, 224, 2);
 	switch (ptr->bModProg) {
 	case 0:
@@ -2114,7 +2114,7 @@ void tfblestate(uint8_t tmr)
 	setTextColor(TFT_RED, TFT_BLACK);
 	if (ptr->DEV_TYP == 61) sumx += drawString("Open", sumx, 224, 2);
 	else sumx += drawString("Smoke", sumx, 224, 2);
-        setTextColor(TFT_GREEN, TFT_BLACK);
+	setTextColor(TFT_GREEN, TFT_BLACK);
 	}
 	} else if (ptr->DEV_TYP == 63) {
 	sumx += drawString(" T/H/P: ", sumx, 224, 2);
@@ -2148,28 +2148,28 @@ void tfblestate(uint8_t tmr)
 	itoa(ptr->bProg,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("%", sumx, 224, 2);
-        setTextColor(TFT_GREEN, TFT_BLACK);
+	setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString("/", sumx, 224, 2);
 	if (ptr->bSEnergy > 80) setTextColor(TFT_WHITE, TFT_BLACK);
 	else if (ptr->bSEnergy) setTextColor(TFT_YELLOW, TFT_BLACK);
 	itoa(ptr->bSEnergy,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("%", sumx, 224, 2);
-        setTextColor(TFT_GREEN, TFT_BLACK);
+	setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString("/", sumx, 224, 2);
 	if (ptr->bCtemp < 15) setTextColor(TFT_RED, TFT_BLACK);
 	else if (ptr->bCtemp < 40) setTextColor(TFT_YELLOW, TFT_BLACK);
 	itoa(ptr->bCtemp,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("%", sumx, 224, 2);
-        setTextColor(TFT_GREEN, TFT_BLACK);
+	setTextColor(TFT_GREEN, TFT_BLACK);
 	} else if (ptr->DEV_TYP == 76) {
 	sumx += drawString(" ", sumx, 224, 2);
 	setTextColor(TFT_RED, TFT_BLACK);
-        if (ptr->bLock & 0x01) {
+	if (ptr->bLock & 0x01) {
 	setTextColor(TFT_RED, TFT_BLACK);
 	sumx += drawString("Motion", sumx, 224, 2);
-        } else if (ptr->bLock & 0x02) {
+	} else if (ptr->bLock & 0x02) {
 	setTextColor(TFT_YELLOW, TFT_BLACK);
 	sumx += drawString("Presence", sumx, 224, 2);
 	}
@@ -2185,7 +2185,7 @@ void tfblestate(uint8_t tmr)
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("%", sumx, 224, 2);
 	}
-        setTextColor(TFT_GREEN, TFT_BLACK);
+	setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx += drawString(", ", sumx, 224, 2);
 	if (ptr->iRssi < -100) setTextColor(TFT_WHITE, TFT_BLACK);
 	else if (ptr->iRssi < -90) setTextColor(TFT_YELLOW, TFT_BLACK);
@@ -2250,8 +2250,23 @@ esp_err_t _http_event_handle(esp_http_client_event_t *evt)
             break;
         case HTTP_EVENT_ON_DATA:
 //            if (fdebug) ESP_LOGI(AP_TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
-            if (!esp_http_client_is_chunked_response(evt->client)) {
-	if ((MyJPGbufidx >= 0) && (MyJPGbufidx+evt->data_len < MyJPGbuflen)) {
+	if (!esp_http_client_is_chunked_response(evt->client)) {
+	uint16_t *MyJPGbuflen;
+	switch (MyHttpUridx & 0x03) {
+	case 1:
+	MyJPGbuflen = &MyJPGbuflen2;
+	break;
+	case 2:
+	MyJPGbuflen = &MyJPGbuflen3;
+	break;
+	case 3:
+	MyJPGbuflen = &MyJPGbuflen4;
+	break;
+	default:
+	MyJPGbuflen = &MyJPGbuflen1;
+	break;
+	}
+	if ((MyJPGbufidx >= 0) && (MyJPGbufidx+evt->data_len < *MyJPGbuflen)) {
 	memcpy(MyJPGbuf + MyJPGbufidx, (char*)evt->data, evt->data_len);
 	MyJPGbufidx +=evt->data_len;
 	} else MyJPGbufidx = -1;
@@ -2285,12 +2300,27 @@ typedef struct {
 //Input function for jpeg decoder. Just returns bytes from the inData field of the JpegDev structure.
 static uint16_t infunc(JDEC *decoder, uint8_t *buf, uint16_t len)
 {
+	uint16_t *MyJPGbuflen;
+	switch (MyHttpUridx & 0x03) {
+	case 1:
+	MyJPGbuflen = &MyJPGbuflen2;
+	break;
+	case 2:
+	MyJPGbuflen = &MyJPGbuflen3;
+	break;
+	case 3:
+	MyJPGbuflen = &MyJPGbuflen4;
+	break;
+	default:
+	MyJPGbuflen = &MyJPGbuflen1;
+	break;
+	}
     //Read bytes from input file
     JpegDev *jd = (JpegDev *)decoder->device;
 	uint16_t llen = len;
 	if ((buf != NULL) && (len > 0)) {
 	for (int i = 0; i < len; i++) buf[i] = 0;
-	if (jd->inPos + len < MyJPGbuflen) {
+	if (jd->inPos + len < *MyJPGbuflen) {
         memcpy(buf, jd->inData + jd->inPos, len);
 	} else llen = 0;
 	}
@@ -2421,10 +2451,11 @@ void MyHttpUri_inc() {
 //Size of the work space for the jpeg decoder.
 #define WORKSZ 6144
 
-bool tftjpg()
+uint8_t tftjpg()
 {
-	bool result = false;
+	uint8_t result = 0;
 	MyJPGbuf = NULL;
+	uint16_t *MyJPGbuflen;
 	char *MyHttpUri = NULL;
 	char *JpHttpUri = NULL;
 	int  jstat = 0;
@@ -2434,25 +2465,42 @@ bool tftjpg()
 	switch (MyHttpUridx & 0x03) {
 	case 1:
 	MyHttpUri = MyHttpUri2;
+	MyJPGbuflen = &MyJPGbuflen2;
 	break;
 	case 2:
 	MyHttpUri = MyHttpUri3;
+	MyJPGbuflen = &MyJPGbuflen3;
 	break;
 	case 3:
 	MyHttpUri = MyHttpUri4;
+	MyJPGbuflen = &MyJPGbuflen4;
 	break;
 	default:
 	MyHttpUri = MyHttpUri1;
+	MyJPGbuflen = &MyJPGbuflen1;
 	break;
 	}
-	if (MyHttpUri[0] && jpg_time && (parsoff(MyHttpUri, "http://", 9) || parsoff(MyHttpUri, "https://", 10))) {
-	MyJPGbuf = malloc(MyJPGbuflen);
+  	uint32_t sumx;
+	char buf[16];
+	if (MyHttpUri[0] && jpg_time && (parsoff(MyHttpUri, "http://", 8) || parsoff(MyHttpUri, "https://", 9))) {
+	if (*MyJPGbuflen < 1024) *MyJPGbuflen = 1024;
+	MyJPGbuf = malloc(*MyJPGbuflen);
 	if (MyJPGbuf == NULL) {
 	if (fdebug) ESP_LOGE(AP_TAG, "Tftjpg: No memory");
+	pushImage(0, 52, 320, 240, wallpaper);
+	setTextColor(TFT_YELLOW, TFT_BLACK);
+	sumx = 4;
+	sumx += drawString("JPG ", sumx, 60, 4);
+	itoa(MyHttpUridx + 1,buf,10);
+	sumx += drawString(buf, sumx, 60, 4);
+	sumx += drawString(": no memory", sumx, 60, 4);
+	if (MyJPGbufadj) *MyJPGbuflen = 4096;
+	MyHttpMqtt = MyHttpMqtt | 0x40;
 	MemErr++;
 	if (!MemErr) MemErr--;
+	result = 1;
 	} else {	
-	memset(MyJPGbuf,0,MyJPGbuflen);
+	memset(MyJPGbuf,0,*MyJPGbuflen);
 	esp_err_t err = ESP_OK;
 	JpHttpUri = malloc(520);
 	if (JpHttpUri != NULL) {
@@ -2462,11 +2510,7 @@ bool tftjpg()
 	esp_http_client_config_t config = {
 	.url = JpHttpUri,
 	.event_handler = _http_event_handle,
-
 	.max_authorization_retries = 3,
-//	.crt_bundle_attach = esp_crt_bundle_attach,
-//	.use_global_ca_store = true,
-
 	};
 	esp_http_client_handle_t client = esp_http_client_init(&config);
 	esp_http_client_set_url(client, JpHttpUri);
@@ -2483,51 +2527,54 @@ bool tftjpg()
 	JpgLoad++;
 	} else MyJPGbufidx = -1;
 	if ((err != ESP_OK) || (jlen == -1)) {
-  	uint32_t sumx;
-	char buf[16];
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
-	sumx = 8;
-       	sumx += drawString("Url ", sumx, 60, 4);
+	sumx = 4;
+	sumx += drawString("Url ", sumx, 60, 4);
 	itoa(MyHttpUridx + 1,buf,10);
-       	sumx += drawString(buf, sumx, 60, 4);
-       	sumx += drawString(" connection error", sumx, 60, 4);
-        MyHttpMqtt = MyHttpMqtt | 0x40;
+	sumx += drawString(buf, sumx, 60, 4);
+	sumx += drawString(" connection error", sumx, 60, 4);
+	MyHttpMqtt = MyHttpMqtt | 0x40;
 	JpgLoadErr++;
-	result = true;
+	result = 2;
 	} else if (MyJPGbufidx == -1) {
-  	uint32_t sumx;
-	char buf[16];
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
+	sumx = 4;
+	sumx += drawString("Not enough JPG ", sumx, 60, 4);
+	itoa(MyHttpUridx + 1,buf,10);
+	sumx += drawString(buf, sumx, 60, 4);
+	sumx += drawString(" memory:", sumx, 60, 4);
 	itoa(jlen,buf,10);
-       	drawString("Not enough JPG memory:", 8, 60, 4);
 	sumx = 40;
-       	sumx += drawString(buf, sumx, 90, 4);
-       	sumx += drawString(" -> ", sumx, 90, 4);
-	itoa(MyJPGbuflen,buf,10);
-       	sumx += drawString(buf, sumx, 90, 4);
+	sumx += drawString(buf, sumx, 90, 4);
+	sumx += drawString(" -> ", sumx, 90, 4);
+	itoa(*MyJPGbuflen,buf,10);
+	sumx += drawString(buf, sumx, 90, 4);
 	if (MyJPGbufadj) {
-	if (jlen < 65279) MyJPGbuflen = jlen + 256;
-	else MyJPGbuflen = 65535;
-        setTextColor(TFT_GREEN, TFT_BLACK);
+	if (jlen < 65279) *MyJPGbuflen = jlen + 256;
+	else *MyJPGbuflen = 65535;
+	setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx = 40;
-       	sumx += drawString("Adjusted:", sumx, 120, 4);
-	itoa(MyJPGbuflen,buf,10);
-       	sumx += drawString(buf, sumx, 120, 4);
+	sumx += drawString("Adjusted:", sumx, 120, 4);
+	itoa(*MyJPGbuflen,buf,10);
+	sumx += drawString(buf, sumx, 120, 4);
+	result = 3;
 	} else JpgLoadErr++;
-        MyHttpMqtt = MyHttpMqtt | 0x40;
-	result = true;
+	MyHttpMqtt = MyHttpMqtt | 0x40;
 	} else if ((err == ESP_OK) && jstat && (jstat != 200)) {
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
-	strcpy(MyJPGbuf,"Status:  ");
-	itoa(jstat,MyJPGbuf + 8,10);
-       	drawString(MyJPGbuf, 8, 60, 4);
-        MyHttpMqtt = MyHttpMqtt | 0x40;
+	sumx = 4;
+	sumx += drawString("Url ", sumx, 60, 4);
+	itoa(MyHttpUridx + 1,buf,10);
+	sumx += drawString(buf, sumx, 60, 4);
+	sumx += drawString(" status:  ", sumx, 60, 4);
+	itoa(jstat,buf,10);
+	sumx += drawString(buf, sumx, 60, 4);
+	MyHttpMqtt = MyHttpMqtt | 0x40;
 	JpgLoadErr++;
-	result = true;
-	} else if ((err == ESP_OK) && jstat && (MyJPGbufidx > 15) && (MyJPGbufidx < MyJPGbuflen)) {	
+	} else if ((err == ESP_OK) && jstat && (MyJPGbufidx > 15) && (MyJPGbufidx < *MyJPGbuflen)) {	
 	if ((!memcmp(&MyJPGbuf[0],"\xff\xd8\xff",3)) && (MyJPGbufidx > 128)) {
 	char *work = NULL;
 	JDEC decoder;
@@ -2537,15 +2584,20 @@ bool tftjpg()
     //Allocate the work space for the jpeg decoder.
 	work = malloc(WORKSZ);
 	if (work == NULL) {
-        if (fdebug) ESP_LOGE(AP_TAG, "Cannot allocate workspace");
-        ret = ESP_ERR_NO_MEM;
+	if (fdebug) ESP_LOGE(AP_TAG, "Cannot allocate workspace");
+	ret = ESP_ERR_NO_MEM;
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
-       	drawString("JPG: no memory", 8, 60, 4);
-        MyHttpMqtt = MyHttpMqtt | 0x40;
+	sumx = 4;
+	sumx += drawString("JPG ", sumx, 60, 4);
+	itoa(MyHttpUridx + 1,buf,10);
+	sumx += drawString(buf, sumx, 60, 4);
+	sumx += drawString(": no memory", sumx, 60, 4);
+	if (MyJPGbufadj) *MyJPGbuflen = 4096;
+	MyHttpMqtt = MyHttpMqtt | 0x40;
 	MemErr++;
 	if (!MemErr) MemErr--;
-	result = true;
+	result = 1;
 	} else {	
     //Populate fields of the JpegDev struct.
 	jd.inData = MyJPGbuf;
@@ -2556,12 +2608,15 @@ bool tftjpg()
     //Prepare and decode the jpeg.
 	ret = jd_prepare(&decoder, infunc, work, WORKSZ, (void *)&jd);
 	if (ret != JDR_OK) {
-        if (fdebug) ESP_LOGE(AP_TAG, "Image decoder: jd_prepare failed (%d)", ret);
+	if (fdebug) ESP_LOGE(AP_TAG, "Image decoder: jd_prepare failed (%d)", ret);
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
-       	drawString("JPG: not supported", 8, 60, 4);
-        MyHttpMqtt = MyHttpMqtt | 0x40;
-	result = true;
+	sumx = 4;
+	sumx += drawString("JPG ", sumx, 60, 4);
+	itoa(MyHttpUridx + 1,buf,10);
+   	sumx += drawString(buf, sumx, 60, 4);
+   	sumx += drawString(": not supported", sumx, 60, 4);
+	MyHttpMqtt = MyHttpMqtt | 0x40;
 	} else {
 	uint8_t scale;
 	if (decoder.width > 640) {
@@ -2576,24 +2631,30 @@ bool tftjpg()
 	}
 	if (MyHttpMqtt & 0x40) {
 	fillRect(0,52,320,240,TFT_BLACK);
-        MyHttpMqtt = MyHttpMqtt & 0xbf;
+	MyHttpMqtt = MyHttpMqtt & 0xbf;
 	}
 	ret = jd_decomp(&decoder, outfunc, scale);
 	if (ret != JDR_OK) {
-        if (fdebug) ESP_LOGE(AP_TAG, "Image decoder: jd_decode failed (%d)", ret);
-	if (MyJPGbufadj && (ret == JDR_INP) && ((MyJPGbuflen - jlen) < 512) && (MyJPGbuflen < 65407)) {
-        MyJPGbuflen = MyJPGbuflen + 128;
-        setTextColor(TFT_GREEN, TFT_BLACK);
-       	drawString("JPG: Adjust memory", 0, 52, 2);
+	if (fdebug) ESP_LOGE(AP_TAG, "Image decoder: jd_decode failed (%d)", ret);
+	if (MyJPGbufadj && (ret == JDR_INP) && ((*MyJPGbuflen - jlen) < 512) && (*MyJPGbuflen < 65407)) {
+	*MyJPGbuflen = *MyJPGbuflen + 128;
+	setTextColor(TFT_GREEN, TFT_BLACK);
+	sumx = 0;
+	sumx += drawString("JPG ", sumx, 52, 2);
+	itoa(MyHttpUridx + 1,buf,10);
+	sumx += drawString(buf, sumx, 52, 2);
+	sumx += drawString(": Adjust memory:", sumx, 52, 2);
 	} else {
 	setTextColor(TFT_YELLOW, TFT_BLACK);
-       	drawString("JPG: decoder error", 0, 52, 2);
+	sumx = 0;
+	sumx += drawString("JPG ", sumx, 52, 2);
+	itoa(MyHttpUridx + 1,buf,10);
+	sumx += drawString(buf, sumx, 52, 2);
+	sumx += drawString(": decoder error", sumx, 52, 2);
 	}
-        MyHttpMqtt = MyHttpMqtt | 0x40;
-	result = true;
+	MyHttpMqtt = MyHttpMqtt | 0x40;
 	} else {
 //	if (fdebug) ESP_LOGI(AP_TAG, "Image decoder: jd_decode Ok");
-	result = true;
 	}
 	}
 	free(work);
@@ -2602,24 +2663,23 @@ bool tftjpg()
 	uint16_t htoff = 0;
 //	if (MyHttpMqtt & 0x40) {
 	fillRect(0,52,320,240,TFT_BLACK);
-        MyHttpMqtt = MyHttpMqtt & 0xbf;
+	MyHttpMqtt = MyHttpMqtt & 0xbf;
 //	}
 	setTextColor(TFT_WHITE, TFT_BLACK);
-	htoff = parsoff(MyJPGbuf ,"<body", MyJPGbuflen);
+	htoff = parsoff(MyJPGbuf ,"<body", *MyJPGbuflen);
 	if(htoff) {	
 	if (htoff > 5) htoff = htoff - 5;
-       	drawHString(MyJPGbuf + htoff, 0, 60, 2);
+	drawHString(MyJPGbuf + htoff, 0, 60, 2);
 	} else drawString(MyJPGbuf, 0, 60, 2); 
 
 /*
 	pushImage(0, 52, 320, 240, wallpaper);
 	setTextColor(TFT_YELLOW, TFT_BLACK);
-       	drawString("Content not supported", 8, 60, 4);
-        MyHttpMqtt = MyHttpMqtt | 0x40;
+	drawString("Content not supported", 8, 60, 4);
+	MyHttpMqtt = MyHttpMqtt | 0x40;
 */
 //if (fdebug) ESP_LOGI(AP_TAG, "String: %s",MyJPGbuf);
 //if (fdebug) esp_log_buffer_hex(AP_TAG, MyJPGbuf, 256);
-	result = true;
 }        //jpg
 }        //load ok
 	free(MyJPGbuf);
@@ -2632,8 +2692,7 @@ bool tftjpg()
         MyHttpMqtt = MyHttpMqtt & 0xbf;
 	}
 	setTextColor(TFT_WHITE, TFT_BLACK);
-       	drawString(MyHttpUri , 0, 60, 2);
-	result = true;
+	drawString(MyHttpUri , 0, 60, 2);
 }        //uri&time
 	MyHttpUri_inc();
 	return result;
