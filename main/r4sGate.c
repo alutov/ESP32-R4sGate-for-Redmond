@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2024.02.02"
+#define AP_VER "2024.02.04"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -17070,8 +17070,8 @@ void msStatus(uint8_t blenum) {
 	ptr->bCStemp = ptr->readData[10];    //model id
 	ptr->bHtemp = ptr->readData[11];     //heater
 	ptr->bCtemp = ptr->readData[12];     //steamer
-	if (ptr->bHtemp > 150) ptr->bHtemp = 0;
-	if (ptr->bCtemp > 150) ptr->bCtemp = 0;
+	if (ptr->bHtemp & 0x80) ptr->bHtemp = 0;
+	if (ptr->bCtemp & 0x80) ptr->bCtemp = 0;
 	ptr->bStNl = ptr->readData[13];      //beverage
 	ptr->bAwarm = ptr->readData[14];    //waste
 	if (!ptr->sVer[0]) {
@@ -24668,7 +24668,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 	esp_wifi_connect();
 	if (fdebug) ESP_LOGI(AP_TAG, "Retry %d to connect to the AP",wf_retry_cnt);
 	if (!wf_retry_cnt) MyHttpMqtt = MyHttpMqtt | 0x80;
-	if (floop && (wf_bits & 0x02)) wf_retry_cnt |= 0x01;
+	if (floop && !(wf_bits & 0x02)) wf_retry_cnt |= 0x01;
 	else wf_retry_cnt++;
 	BleDevStA.t_rspdel = 0;
 	BleDevStB.t_rspdel = 0;
@@ -24694,6 +24694,18 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 void wifi_init_sta(void)
 {
 	char buff[32];
+	uint8_t wfmdbit;
+	switch (wf_mod & 3) {
+	case 1:
+	wfmdbit = 3;
+	break;
+	case 2:
+	wfmdbit = 1;
+	break;
+	default:
+	wfmdbit = 7;
+	break;
+	}
 	s_wifi_event_group = xEventGroupCreate();
 
 	ESP_ERROR_CHECK(esp_netif_init());
@@ -24710,7 +24722,7 @@ void wifi_init_sta(void)
 
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-	ESP_ERROR_CHECK(esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B|WIFI_PROTOCOL_11G|WIFI_PROTOCOL_11N));
+	ESP_ERROR_CHECK(esp_wifi_set_protocol(WIFI_IF_STA, wfmdbit));
 //	ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
 
 	esp_event_handler_instance_t instance_any_id;
@@ -24796,6 +24808,7 @@ void wifi_init_sta(void)
 		WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
 
 	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
+	ESP_ERROR_CHECK(esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B|WIFI_PROTOCOL_11G|WIFI_PROTOCOL_11N));
 	ESP_ERROR_CHECK(esp_wifi_start() );
 	ESP_ERROR_CHECK(esp_wifi_set_dynamic_cs(true));
 #ifdef USE_TFT
@@ -24949,6 +24962,7 @@ uint8_t ReadNVS(){
 	ble_mon =  nvtemp & 0x03;
 	ble_mon_refr = 0;
 	wf_bits = 0;
+	wf_mod = 0;
 	if (nvtemp & 0x04) FDHass = 1;
 	if (nvtemp & 0x08) fcommtp = 1;
 	if (nvtemp & 0x10) ftrufal = 1;
@@ -24981,6 +24995,8 @@ uint8_t ReadNVS(){
 	if (nvtemp & 0x2000000) wf_bits |= 0x04;
 	if (nvtemp & 0x4000000) wf_bits |= 0x08;
 	if (nvtemp & 0x8000000) fmut = 1;
+	if (nvtemp & 0x20000000) wf_mod |= 0x01;
+	if (nvtemp & 0x40000000) wf_mod |= 0x02;
 	nvtemp = 0;
 	nvs_get_u64(my_handle, "bhx1", &nvtemp);
 	bZeroHx6 = nvtemp & 0xffffffff;
@@ -25280,6 +25296,8 @@ void WriteNVS () {
 	if (wf_bits & 0x04) nvtemp = nvtemp | 0x2000000;
 	if (wf_bits & 0x08) nvtemp = nvtemp | 0x4000000;
 	if (fmut) nvtemp = nvtemp | 0x8000000;
+	if (wf_mod & 0x01) nvtemp = nvtemp | 0x20000000;
+	if (wf_mod & 0x02) nvtemp = nvtemp | 0x40000000;
 	nvs_set_u64(my_handle, "cmbits", nvtemp);
 	nvtemp = bDivHx6;
 	nvtemp = (nvtemp << 32) | bZeroHx6;
@@ -26222,9 +26240,35 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	wifi_ap_record_t wifidata;
 	memset(wifidata.ssid,0,31);
 	if (esp_wifi_sta_get_ap_info(&wifidata)==0){
-	strcat(bsend,"<tr><td>WiFi connections / RSSI / Name</td><td>");
+        wifi_phy_mode_t phymode = 255;
+	esp_wifi_sta_get_negotiated_phymode(&phymode);
+	strcat(bsend,"<tr><td>WiFi connections / PHY / RSSI / Name</td><td>");
 	itoa(NumWfConn,buff,10);
 	strcat(bsend,buff);
+	strcat(bsend," / ");
+	switch (phymode) {
+	case 0:
+	strcat(bsend,"LR");
+	break;
+	case 1:
+	strcat(bsend,"11B");
+	break;
+	case 2:
+	strcat(bsend,"11G");
+	break;
+	case 3:
+	strcat(bsend,"HT20");
+	break;
+	case 4:
+	strcat(bsend,"HT40");
+	break;
+	case 5:
+	strcat(bsend,"HE20");
+	break;
+	default:
+	strcat(bsend,"Unknown");
+	break;
+	}
 	strcat(bsend," / ");
 	itoa(wifidata.rssi,buff,10);
 	strcat(bsend,buff);
@@ -28702,13 +28746,21 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (WIFI_SSID[0]) strcat(bsend,WIFI_SSID);
 	strcat(bsend,"\" size=\"15\">SSID &emsp;<input type=\"password\" input name=\"swfpsw\" value=\"");
 	if (WIFI_PASSWORD[0]) strcat(bsend,WIFI_PASSWORD);
-	strcat(bsend,"\"size=\"31\">Password&emsp;<input type=\"checkbox\" name=\"wfb1\" value=\"1\"");
+	strcat(bsend,"\"size=\"25\">Password&emsp;<select name=\"swfmd\"><option ");
+	if ((wf_mod & 3) == 0) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"0\">802.11b/g/n</option><option ");
+	if ((wf_mod & 3) == 1) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"1\">802.11bg</option><option ");
+	if ((wf_mod & 3) == 2) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"2\">802.11b</option></select> Mode&emsp;<input type=\"checkbox\" name=\"wfb1\" value=\"1\"");
 	if (wf_bits & 0x01) strcat(bsend,"checked");
-	strcat(bsend,"> Connect to this AP only&emsp;<input type=\"checkbox\" name=\"wfb2\" value=\"2\"");
+	strcat(bsend,"> Disable \"");
+	strcat(bsend,INIT_WIFI_SSID);
+	strcat(bsend,"\" AP&emsp;<input type=\"checkbox\" name=\"wfb2\" value=\"2\"");
 	if (wf_bits & 0x02) strcat(bsend,"checked");
-	strcat(bsend,"> Disable restart if WIFI loss&emsp;<input type=\"checkbox\" name=\"wfb4\" value=\"4\"");
+	strcat(bsend,"> Restart if WIFI loss&emsp;<input type=\"checkbox\" name=\"wfb4\" value=\"4\"");
 	if (wf_bits & 0x08) strcat(bsend,"checked");
-	strcat(bsend,"> Reconnect WIFI if Mqtt loss<br/><h3>MQTT Setting</h3><br/><input name=\"smqsrv\" value=\"");
+	strcat(bsend,"> Reconnect if Mqtt loss<br/><h3>MQTT Setting</h3><br/><input name=\"smqsrv\" value=\"");
 	if (MQTT_SERVER[0]) strcat(bsend,MQTT_SERVER);
 	strcat(bsend,"\"size=\"25\">Server &emsp;<input name=\"smqprt\" type=\"number\" value=\"");
 	itoa(mqtt_port,buff,10);
@@ -29312,6 +29364,10 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	strcpy(buf2,"smjpuri");
 	parsuri(buf1,MyHttpUri1,buf2,4096,128,0);
 #endif
+	buf3[0] = 0;
+	strcpy(buf2,"swfmd");
+	parsuri(buf1,buf3,buf2,4096,2,0);
+	if (buf3[0]) wf_mod = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"wfb1");
 	parsuri(buf1,buf3,buf2,4096,2,0);
