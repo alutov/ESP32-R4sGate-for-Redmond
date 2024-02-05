@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2024.02.04"
+#define AP_VER "2024.02.05"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -24742,11 +24742,13 @@ void wifi_init_sta(void)
 	.sta = {
 //	.ssid = WIFI_SSID,
 //	.password = WIFI_PASSWORD,
-	/* Setting a password implies station will connect to all security modes including WEP/WPA.
-	* However these modes are deprecated and not advisable to be used. Incase your Access point
-	* doesn't support WPA2, these mode can be enabled by commenting below line */
+	// Setting a password implies station will connect to all security modes including WEP/WPA.
+	// However these modes are deprecated and not advisable to be used. Incase your Access point
+	// doesn't support WPA2, these mode can be enabled by commenting below line
 //		.threshold.authmode = WIFI_AUTH_WPA2_PSK,
 		.threshold.authmode = WIFI_AUTH_WPA_PSK,
+		.scan_method = WIFI_ALL_CHANNEL_SCAN,
+		.sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
 
 		.pmf_cfg = {
 		.capable = true,
