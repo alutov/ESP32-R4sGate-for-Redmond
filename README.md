@@ -22,9 +22,9 @@
 * MQTT support is included in the esp-idf development environment and does not require third-party libraries. After unsuccessful attempts to finalize a very good [olehs project](https://github.com/olehs/r4sGate) on arduino, I became a supporter of pure esp-idf.
 </details>     
 
-#### Список поддерживаемых устройств:
+#### List of supported devices:
 
-**Электрочайники:**
+**Electric kettles:**
 * Redmond SkyKettle **RK-M170S**
 * Redmond SkyKettle **RK-M173S** / RK-M171S / RTP-M810S
 * Redmond SkyKettle **RK-G200S** / RK-G204S / RK-G210S / RK-G211S / RK-G212S / RK-G214S / RK-M216S / RK-M139S
