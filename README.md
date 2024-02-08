@@ -3,13 +3,13 @@
 >**In versions starting from 2022.06.03, the device topics in gateway number 0 have been changed from “r4s/#” to “r4s0/#”. In new versions, topics in "r4s/#" are used to track tags by multiple gateways. When upgrading from older versions, you need to enable BLE Monitor in the settings (the gateway deletes the contents of "r4s/#" only when the monitor is turned on), selecting Passive, Active or Auto, check the Hass Discovery and Delete Mqtt Topics items and save the settings. After the reboot, the gateway will delete unnecessary topics and create them again. Then, if necessary, BLE Monitor can be disabled. Then fix the devices in automations, scripts, etc.**
 
 #### Current version is 2024.02.05 для [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) и [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin).
-2024.02.05. At startup, the gateway scans all WIFI APs with the required parameters and selects the AP with the best level. Relevant for mesh systems.
-2024.02.04. Added selection of WIFI 802.11b/g/n mode in settings.
-2024.02.02. Corrections by Delonghi. In Auto mode, the image buffer size is selected separately for each URL.
-2024.01.30. Added the ability to automatically increase the buffer size for loading images within 10-65 kilobytes (Adjust option). The gateway operates more stable at wifi levels below -73dBm.
-2024.01.25. Corrected Delonghi statistics and availability of BLE devices/tags in Home Assistant.
-2024.01.22. Added mute option as an alternative to beep. The availability of devices in Home Assistant has been fixed. If the gateway is unavailable, all devices connected to it become unavailable. If devices disappear from the BLE monitor, the data from them becomes inaccessible. Added statistics to Delonghi coffee machines.
-2024.01.14. The project was built using esp-idf version 5.2-beta2. Added Russian program names to the multicooker menu. Added support for the Redmond SkyHeat RCH-4560S heater. Added support for LYWSDCGQ thermometers to BLE Gateway Monitor. You can display up to 4 images in turn on the gateway screen using 4 urls.
+* 2024.02.05. At startup, the gateway scans all WIFI APs with the required parameters and selects the AP with the best level. Relevant for mesh systems.
+* 2024.02.04. Added selection of WIFI 802.11b/g/n mode in settings.
+* 2024.02.02. Corrections by Delonghi. In Auto mode, the image buffer size is selected separately for each URL.
+* 2024.01.30. Added the ability to automatically increase the buffer size for loading images within 10-65 kilobytes (Adjust option). The gateway operates more stable at wifi levels below -73dBm.
+* 2024.01.25. Corrected Delonghi statistics and availability of BLE devices/tags in Home Assistant.
+* 2024.01.22. Added mute option as an alternative to beep. The availability of devices in Home Assistant has been fixed. If the gateway is unavailable, all devices connected to it become unavailable. If devices disappear from the BLE monitor, the data from them becomes inaccessible. Added statistics to Delonghi coffee machines.
+* 2024.01.14. The project was built using esp-idf version 5.2-beta2. Added Russian program names to the multicooker menu. Added support for the Redmond SkyHeat RCH-4560S heater. Added support for LYWSDCGQ thermometers to BLE Gateway Monitor. You can display up to 4 images in turn on the gateway screen using 4 urls.
 
 ## 1. Возможности
 &emsp; Шлюз ESP32 r4sGate в минимальной конфигурации (только ESP32 или ESP32C3 с источником питания 3.3v) позволяет подключать BLE-совместимые устройства Redmond, чайники Xiaomi MiKettle и некоторые другие устройства к системе умный дом (Home Assistant, OpenHab, ioBroker, MajorDoMo и т.д.) по протоколу MQTT. Изначально проект был только под Redmond, сейчас добавляются и другие устройства. Отсюда и плюс в названии проекта.
