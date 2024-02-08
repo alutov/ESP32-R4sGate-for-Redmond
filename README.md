@@ -36,7 +36,7 @@
 <summary>Read more about Xiaomi MiKettle...</summary>
 &emsp;Xiaomi MiKettle can only be controlled from the **keep warm** mode. In this mode, the kettle maintains a minimum temperature of 40°C set by the gateway with a hysteresis of approximately 4°C, that is, at 36°C the heating is turned on, and at 44°C it is turned off. You can turn boiling on and off (state = ON/OFF), set the heating temperature (heat_temp = 40...95). You can switch the kettle to Idle mode (heat_temp = 0). The last command is executed with a delay. After executing the command, further control of the kettle is unavailable. In contrast to turning it off with the **warm** sensor on the kettle, when you turn it off and on again, the kettle returns to the **keep warm** mode. Perhaps this is a feature of a specific version of MCU 6.2.1.9. For now I left it like that and turned on the kettle through the Redmond outlet. If you turn it off and on again, the kettle goes into heating mode. The gateway installs all the necessary parameters of the kettle itself, and the native application is useful for updating the firmware. The heating time is set to 12 hours (720 minutes), after 256 minutes the gateway resets the counter by briefly turning the boiling on and off. And still control is limited. The main problem is that when you turn on boiling with the **boil** sensor on the kettle, the **keep warm** mode is turned off and you can return it only with the **warm** button on the kettle. For the same reason, I postponed work on Mikettle Pro for now.</details>
 
-**Мультиварки**
+**Multicookers**
 
 * Redmond SkyCooker **RMC-M224S**
 * Redmond SkyCooker **RMC-M800S**
@@ -44,42 +44,42 @@
 * Redmond SkyCooker **RMC-M92S**
 * Redmond SkyCooker **RMC-M961S**
      
-**Кофеварки**
+**Coffee makers**
 
 * Redmond SkyCoffee **RCM-M1519S**
 
-**Кофемашины**
+**Coffee machines**
 
-* Delonghi **ECAM650.75** (Возможно и другие модели 😉 серии Primadonna Elite)
+* Delonghi **ECAM650.75** (Possibly other models 😉 Primadonna Elite series)
 
-**Розетки**
+**Sockets**
 
 * Redmond SkyPort **RSP-103S** / RSP-100S
 
-**Конвекторы электрические**
+**Electric convectors**
 
 * Redmond SkyHeat **RCH-7001S** / RCH-7002S / RCH-7003S
 * Redmond SkyHeat **RCH-4560S**
 
-**Климатические станции**
+**Climate stations**
 
 * Redmond SkyClimate **RSC-51S**
 
-**Увлажнители воздуха**
+**Humidifiers**
 
 * Redmond SkyDew **RHF-3310S**
 
-**Датчики**
+**Sensors**
 
-* Redmond SkySmoke **RSS-61S** - датчик дыма
-* Redmond SkyOpen **RSO-31**  - датчик открытия дверей
-* Hilink **HLK-LD2410B** - датчик движения и присутствия
+* Redmond SkySmoke **RSS-61S** - smoke sensor
+* Redmond SkyOpen **RSO-31**  - door open sensor
+* Hilink **HLK-LD2410B** - motion and presence sensor
 
-**Контроллеры полива**
+**Irrigation controllers**
      
 * Galcon **GL9001A** / Green Apple GATB010-03
 
-**Драйверы штор/жалюзи**
+**Curtain/blind drivers**
      
 * **AM43 blinds** (A-OK и подобные)
 
