@@ -7,7 +7,7 @@
 * 2024.02.04. Added selection of WIFI 802.11b/g/n mode in settings.
 * 2024.02.02. Corrections by Delonghi. In Auto mode, the image buffer size is selected separately for each URL.
 * 2024.01.30. Added the ability to automatically increase the buffer size for loading images within 10-65 kilobytes (Adjust option). The gateway operates more stable at wifi levels below -73dBm.
-* 2024.01.25. Corrected Delonghi statistics and availability of BLE devices/tags in Home Assistant. Delonghi in HA:
+* 2024.01.25. Corrected Delonghi statistics and availability of BLE devices/tags in Home Assistant. Currently Delonghi in HA:
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/ecam.jpg)  
 * 2024.01.22. Added mute option as an alternative to beep. The availability of devices in Home Assistant has been fixed. If the gateway is unavailable, all devices connected to it become unavailable. If devices disappear from the BLE monitor, the data from them becomes inaccessible. Added statistics to Delonghi coffee machines.
 * 2024.01.14. The project was built using esp-idf version 5.2-beta2. Added Russian program names to the multicooker menu. Added support for the Redmond SkyHeat RCH-4560S heater. Added support for LYWSDCGQ thermometers to BLE Gateway Monitor. You can display up to 4 images in turn on the gateway screen using 4 urls.
