@@ -81,9 +81,9 @@
 
 **Curtain/blind drivers**
      
-* **AM43 blinds** (A-OK и подобные)
+* **AM43 blinds** A-OK and similar)
 
-&emsp;Шлюз поддерживает 5 одновременных BLE соединений. Управление устройствами возможно и из web интерфейса шлюза. Предусмотрена [простая защита web интерфейса паролем от Raerten](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/67). Для этого строку виде **login:password** нужно зашифровать в Base 64 и затем вписать ее в поле **Basic Auth** в настройках. Строка пароля выводится в лог при старте шлюза.<br>
+&emsp;The gateway supports 5 simultaneous BLE connections. Device management is also possible from the gateway web interface. The web interface is [simply protected with a password from Raerten](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/67). To do this, the string in the form login:password must be encrypted in Base 64 and then entered into the Basic Auth field in the settings. The password string is output to the log when the gateway starts.<br/>
 &emsp;Поддерживается Home Assistant Mqtt Discovery. Для включения нужно отметить **Hass Discovery** в настройках. Предусмотрена возможность удаления всех созданных шлюзом данных в Mqtt и устройств в Home Assistant. Для этого нужно выбрать во вкладке **Setting** опцию **Delete Mqtt topics** и затем нажать **Save setting**. После перезагрузки шлюза будут заново созданы только подключенные к шлюзу устройства. Рекомендуется при первом подключении шлюза и реконфигурации с удалением устройств.<br> 
 
 <details>
