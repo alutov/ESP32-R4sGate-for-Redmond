@@ -1,4 +1,4 @@
-#ESP32 Ready4Sky (R4S) gateway for Redmond+ devices
+# ESP32 Ready4Sky (R4S) gateway for Redmond+ devices
 > **[A script based on a PHP server on a local network with Internet access to display the weather on the gateway screen.](https://github.com/artt652/Weather-for-ESP32-R4S-gate).**<br>
 >**In versions starting from 2022.06.03, the device topics in gateway number 0 have been changed from “r4s/#” to “r4s0/#”. In new versions, topics in "r4s/#" are used to track tags by multiple gateways. When upgrading from older versions, you need to enable BLE Monitor in the settings (the gateway deletes the contents of "r4s/#" only when the monitor is turned on), selecting Passive, Active or Auto, check the Hass Discovery and Delete Mqtt Topics items and save the settings. After the reboot, the gateway will delete unnecessary topics and create them again. Then, if necessary, BLE Monitor can be disabled. Then fix the devices in automations, scripts, etc.**
 
@@ -11,16 +11,15 @@
 * 2024.01.22. Added mute option as an alternative to beep. The availability of devices in Home Assistant has been fixed. If the gateway is unavailable, all devices connected to it become unavailable. If devices disappear from the BLE monitor, the data from them becomes inaccessible. Added statistics to Delonghi coffee machines.
 * 2024.01.14. The project was built using esp-idf version 5.2-beta2. Added Russian program names to the multicooker menu. Added support for the Redmond SkyHeat RCH-4560S heater. Added support for LYWSDCGQ thermometers to BLE Gateway Monitor. You can display up to 4 images in turn on the gateway screen using 4 urls.
 
-## 1. Возможности
-&emsp; Шлюз ESP32 r4sGate в минимальной конфигурации (только ESP32 или ESP32C3 с источником питания 3.3v) позволяет подключать BLE-совместимые устройства Redmond, чайники Xiaomi MiKettle и некоторые другие устройства к системе умный дом (Home Assistant, OpenHab, ioBroker, MajorDoMo и т.д.) по протоколу MQTT. Изначально проект был только под Redmond, сейчас добавляются и другие устройства. Отсюда и плюс в названии проекта.
-
+## 1. Opportunities
+&emsp; The ESP32 r4sGate gateway in a minimal configuration (only ESP32 or ESP32C3 with a 3.3v power supply) allows you to connect BLE-compatible Redmond devices, Xiaomi MiKettle kettles and some other devices to the smart home system (Home Assistant, OpenHab, ioBroker, MajorDoMo, etc. ) via MQTT protocol. Initially, the project was only for Redmond, now other devices are being added. Hence the plus in the name of the project.
 <details>
-<summary>Почему MQTT...</summary>
+<summary>Why MQTT...</summary>
 
-* Это по факту стандартный протокол систем умного дома. Другое дело, как он реализован. От встроенного MQTT сервера в системе ioBroker, где все, что происходит в MQTT, сразу отображается в админ интерфейсе, до внешнего брокера в Home Assistant, где для настройки иногда приходится пользоваться сторонними утилитами. В последнем, правда, MQTT Discovery сильно упрощает интеграцию устройств в систему.
-* В MQTT устройства могут обмениваться данными и между собой, а не только с сервером умного дома. В шлюзе можно настроить отображение на экране показаний основных датчиков в доме. На аргумент, что одни устройства могут бесконтрольно переписывать данные других замечу, что в нормальных брокерах существует система разделенного доступа (ACL). Хотя на вопрос, а зачем вообще заводить в систему устройства, которым нет доверия, у меня ответа нет. 
-* В MQTT могут обмениваться информацией устройства, вообще не знающие друг о друге ничего, кроме топика, где они должны встретиться. Это используется для определения максимального уровня сигнала от метки/маяка среди нескольких шлюзов, и шлюза, принимающего самый сильный сигнал. 
-* Поддержка MQTT включена в среду разработки esp-idf и не требует подключения сторонних библиотек. После неудачных попыток доработать очень неплохой [проект olehs](https://github.com/olehs/r4sGate) на arduino стал сторонником чистого esp-idf.   
+* This is in fact a standard protocol for smart home systems. Another thing is how it is implemented. From the built-in MQTT server in the ioBroker system, where everything that happens in MQTT is immediately displayed in the admin interface, to the external broker in Home Assistant, where sometimes you have to use third-party utilities to configure it. In the latter, however, MQTT Discovery greatly simplifies the integration of devices into the system.
+* In MQTT, devices can exchange data with each other, and not just with the smart home server. The gateway can be configured to display the readings of the main sensors in the house on the screen. In response to the argument that some devices can uncontrollably rewrite the data of others, I note that normal brokers have a shared access system (ACL). Although I don’t have an answer to the question, why even introduce devices into the system that are not trusted.
+* In MQTT, devices can exchange information without knowing anything about each other except the topic where they should meet. This is used to determine the maximum signal strength from a tag/beacon among multiple gateways, and the gateway receiving the strongest signal.
+* MQTT support is included in the esp-idf development environment and does not require third-party libraries. After unsuccessful attempts to finalize a very good [olehs project](https://github.com/olehs/r4sGate) on arduino, I became a supporter of pure esp-idf.
 </details>     
 
 #### Список поддерживаемых устройств:
