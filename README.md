@@ -214,18 +214,17 @@ Picture 15. Connect pins 6 and 7 of the connector before flashing the TTGO T-Wat
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft6.jpg)
 <br>Picture 16. M5Stack BASIC Kit.<br><br>
 &emsp;As I understand it, old versions of M5Stack Basic came with a screen based on ili9341, and the old version of the gateway also worked on these versions. Screen settings for this version: 19-MISO, 23-MOSI, 18-CLK, 14-CS, 27-DC, 33-RES, 32-LED, 0-PWR. New versions already come with a screen based on ili9342. Starting with version 2021.10.29, screen support for ili9342 has been added. I tested the functionality of the gateway on the new version of the M5Stack BASIC Kit. It is flashed via the built-in USB connector; before flashing the device, you need to connect the last contact in the top row and 4 in the bottom row (gnd and gpio0) of the connector (picture 17). It is possible to flash the firmware without installing jumpers, depending on the program. Screen settings for the new version: 23-MISO, 23-MOSI, 18-CLK, 14-CS, 27-DC, 33-RES, 32-LED, 0-PWR. Buttons from left to right 39-Port1, 38-Port2, 37-Port3. I2C bus: SCL-22, SDA-21.<br>
-Settings for[**M5Stack Tough**](https://docs.m5stack.com/en/core/tough) : 23-MISO, 23-MOSI, 18-CLK, 5-CS, 15-DC, 44-RES, 47-LED, 46-PWR. I2C bus: SCL-22, SDA-21. Without I2C the screen will not start.<br>
+Settings for [**M5Stack Tough**](https://docs.m5stack.com/en/core/tough) : 23-MISO, 23-MOSI, 18-CLK, 5-CS, 15-DC, 44-RES, 47-LED, 46-PWR. I2C bus: SCL-22, SDA-21. Without I2C the screen will not start.<br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft7.jpg)
-<br>Картинка 17. Соединить последний контакт в верхнем ряду и 4 в нижнем ряду (gnd и gpio0) перед прошивкой M5Stack BASIC Kit.<br><br>
+<br>Picture 17. Connect the last pin in the top row and 4 in the bottom row (gnd and gpio0) before flashing the M5Stack BASIC Kit.<br><br>
 
 #### [ATOM-LITE-ESP32-DEVELOPMENT-KIT](https://docs.m5stack.com/en/core/atom_lite)<br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft8.jpg)
-<br>Картинка 18. ATOM-LITE-ESP32-DEVELOPMENT-KIT.<br><br>
-     Прошивается атом по usb без установки перемычек. Кнопку использовал для включения-выключения одного из устройств (39-Port1), светодиод пока в прошивке не задействован. IR LED на 12 gpio можно использовать для дистанционного управления. Устройство компактное (24 * 24 * 10 mm), devkit esp32 по размерам больше.
+<br>Picture 18. ATOM-LITE-ESP32-DEVELOPMENT-KIT.<br><br>
+&emsp;The atom is flashed via USB without installing jumpers. I used the button to turn on/off one of the devices (39-Port1), the LED is not yet used in the firmware. IR LED at 12 gpio can be used for remote control. The device is compact (24 * 24 * 10 mm), devkit esp32 is larger in size.<br>
      
-     
-## 7. Сборка проекта и лицензия
-&emsp; Для сборки бинарных файлов использовал [Espressif IoT Development Framework.](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/). Добавлена лицензия MIT. Добавлена конфигурация для сборки в среде PlatformIO, спасибо [bvp](https://github.com/bvp),  его сообщение [здесь](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/89).
+## 7. Project assembly and license
+&emsp; To build the binary files I used the [Espressif IoT Development Framework](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/). MIT license added. Added configuration for building in the PlatformIO environment, thanks to [bvp](https://github.com/bvp) , his post is [here](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/89).
 <details>
 <summary>Подробнее...</summary>
 
