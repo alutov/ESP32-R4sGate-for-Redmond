@@ -224,23 +224,4 @@ Settings for [**M5Stack Tough**](https://docs.m5stack.com/en/core/tough) : 23-MI
 &emsp;The atom is flashed via USB without installing jumpers. I used the button to turn on/off one of the devices (39-Port1), the LED is not yet used in the firmware. IR LED at 12 gpio can be used for remote control. The device is compact (24 * 24 * 10 mm), devkit esp32 is larger in size.<br>
      
 ## 7. Project assembly and license
-&emsp; To build the binary files I used the [Espressif IoT Development Framework](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/). MIT license added. Added configuration for building in the PlatformIO environment, thanks to [bvp](https://github.com/bvp) , his post is [here](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/89).
-<details>
-<summary>Подробнее...</summary>
-
-## PlatformIO
-Это платформа для сборки прошивок для микроконтроллеров. Управляет инструментарием сборки, и зависимостями проекта. Всё нужное скачает сама. Со списком поддерживаемых платформ можно ознакомиться [тут](https://registry.platformio.org/search?t=platform), а фреймворков - [тут](https://registry.platformio.org/search?t=tool&q=keyword%3Aframework).
-
-platformio.ini - файл конфигурации для PlatformIO
-Собрать так - `pio run -t build` или просто `pio run`
-Загрузить прошивку - `pio run -t upload`
-Потребуется только поправить `upload_port` и `monitor_port`.
-Для Win32 значение будет вида `COM4` (поставить свой номер порта, на котором находится прошивальщик).
-Для Linux - будет `/dev/ttyUSB0` (так же поставить свой номер порта, на котором находится прошивальщик).
-Для macOS - как в прилагаемом примере.
-
-## Clang-format
-В файле описываются правила форматирования кода, согласно которым код приводится к нужному стилю. Необходим установленный `clang-format`.     
-</details>
-
-<br>
+&emsp; To build the binary files I used the [Espressif IoT Development Framework](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/). MIT license added. Added configuration for building in the PlatformIO environment, thanks to [bvp](https://github.com/bvp) , his post is [here](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/89).<br>
