@@ -178,37 +178,37 @@ Picture 9. BLE Monitor page.
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/blemon2.jpg)  
  Picture 10. Tag entities in Home Assistant.
  
-## 5. Поддержка экрана
+## 5. Screen support
 
 &emsp;IIn the first version of the gateway, there was a reserve of both operational (~100 kByte) and programmable (~400 kByte) free memory, which made it possible to expand the capabilities of the firmware, in particular, to add screen support. In addition, I already had an assembled esp32 with a [3.2" 320x240 screen on an ili9341 chip](https://www.aliexpress.com/item/32911859963.html?spm=a2g0s.9042311.0.0.274233edzZnjSp) , working with firmware from the wifi-iot website . It is also possible to use ready-made devices on ili9341, ili9342 or ST7789 chips for the gateway. In the gateway I used only the necessary procedures from [Bodmer](https://github.com/Bodmer/TFT_eSPI), not very well adapted, but as it is for esp-iot. Pins for connecting the default screen: MOSI-23, MISO-25, CLK-19, CS-16, DC-17, RST-18, LED-21 . Pins can be reassigned in the settings. If PWR, RST, LED are set to 0, then the gateway will not use these pins. There is also an option to rotate the screen 180°, as well as the ability to adjust the display brightness using Mqtt, using the **r4s/screen** topic. The program checks presence of a screen on the SPI bus at startup. It is possible to display images on the screen in jpeg format. To do this, you need to specify the url of the image. My camera has the following url: **http://192.168.1.7/auto.jpg?usr=admin&pwd=admin**. The image is loaded into a 20-65 kilobyte buffer in RAM.The update time and buffer size can be set in the settings. It is possible to download images via https. Certificate verification is disabled. It is possible to control the parameters for loading up to 4 images via Mqtt, using the topics **r4sx/jpg_url1...r4sx/jpg_url4** and **r4sx/jpg_time**. To clear the url of an image, you need to enter the **#** symbol in the corresponding topic. If these topics are not registered in Mqtt, and also after saving the settings, these parameters are copied from the settings in Mqtt. Setting the refresh interval to zero returns the cat to the screen. The length of the link buffer is currently 384 bytes. Added loading and display of weather in text form from the website wttr.in. In principle, this can be done by any site that provides text and allows formatting. If the link does not contain the lines **http://** or **https://** , then the gateway considers this message to be plain text and displays it on the screen. Available in 2 fonts and 10 color options. Control characters: \ \ or \n - line feed, \F - 26 pixel font and line feed, \f - 16 pixel font and line feed, \0 ... \9 - colors. The Cyrillic alphabet is supported, I checked it, however, only from mosquitto. It actually supports Unicode, like other brokers, I don’t know. An example of displaying an image on the screen in picture 11.<br>
 
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft3.jpg)
-Картинка 11. Изображение.<br><br>
+Picture 11. Image.<br><br>
 
-&emsp;На картинке 12 пример вывода на экран Mqtt погоды с сайта wttr.in:
+&emsp;Picture 12 shows an example of displaying Mqtt weather from the website wttr.in:
 <td>https://wttr.in/Донецк?format=\F\6+%25l%20\\\4Темп:+\0%25t(%25f)\\\4Давл:\0+%25P\\\4Влажн:\0+%25h\\\6+%25c+%25w+UV:+%25u\f\4Восход:\0+%25D+\4Закат:\0+%25d</td><br> 
 
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft10.jpg)
-Картинка 12. Погода.<br><br>
+Picture 12. Weather.<br><br>
 
-&emsp;На картинке 13 пример вывода на экран Mqtt строки (символ градуса можно вывести на экран используя обратный апостроф):
+&emsp;Picture 13 shows an example of displaying a Mqtt string (the degree symbol can be displayed on the screen using a back apostrophe):
 <td>\F\0` English \1color \2text\3 example\n\4Русский \5цветной \6текст\n\7text1 \8text2 \9text3\f\0` English \1color \2text\3 example\n\4Русский \5цветной \6текст\n\7text1 \8text2 \9text3</td><br>    
   
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft9.jpg)
-Картинка 13. Текст.<br><br>
+Picture 13. Text.<br><br>
 
-&emsp; Стоит отметить, что сама TFT плата влияет на распространение как WiFi, так и BLE. И даже если антенна esp32 выглядывает из-под экрана, чувствительнось такого бутерброда заметно меньше обычной esp32. Рекомендую использовать с экраном вариант esp32 с внешней антенной. У меня в шлюзе с экраном замена esp32 на вариант с разъемом и установка внешней антенны дала прирост уровней WIFI и BLE примерно на 15-20dBm.<br>
-&emsp; Если же экран не нужен, то нужно после программирования и настройки  esp32 подсоединить ее к источнику питания и спрятать где-нибудь на кухне.<br>
+&emsp;It is worth noting that the TFT board itself affects the distribution of both WiFi and BLE. And even if the esp32 antenna peeks out from under the screen, the sensitivity of such a sandwich is noticeably less than the usual esp32. I recommend using the esp32 version with an external antenna with the screen. In my gateway with a screen, replacing the esp32 with a version with a connector and installing an external antenna gave an increase in WIFI and BLE levels by about 15-20dBm.<br>
+&emsp;If the screen is not needed, then after programming and setting up the esp32, you need to connect it to a power source and hide it somewhere in the kitchen.<br>
 
-## 6. Совместимые устройства
-Если хочется запустить шлюз максимально быстро, без пайки, да еще и с приличным корпусом, стоит присмотреться к совместимым устройствам. Их нужно только перепрограммировать. Ниже перечислены только проверенные мной устройства. Для прошивки использовалась программа [flash_download_tools](https://www.espressif.com/en/support/download/other-tools).
+## 6. Compatible devices
+&emsp;If you want to launch a gateway as quickly as possible, without soldering, and even with a decent case, you should take a closer look at compatible devices. They just need to be reprogrammed. Only the devices I have tested are listed below. The [flash_download_tools program](https://www.espressif.com/en/support/download/other-tools) was used for flashing the firmware .
 
-#### [TTGO T-Watcher](http://www.lilygo.cn/prod_view.aspx?TypeId=50033&Id=1160) (LILYGO® TTGO T4 в корпусе).<br>
+#### [TTGO T-Watcher](http://www.lilygo.cn/prod_view.aspx?TypeId=50033&Id=1160) (LILYGO® TTGO T4 in case).<br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft4.jpg)
-<br>Картинка 14. TTGO T-Watcher.<br><br>
-Я проверял работоспособность шлюза на TTGO T4 версии 1.3. Прошивается он через встроенный USB разъем, перед прошивкой устройства нужно соединить контакты 6 и 7 (gpio0 и gnd) в нижнем ряду разъема (картинка 15). Возможна прошивка и без установки перемычек, зависит от программы. Настройки экрана для версии 1.3: 12-MISO, 23-MOSI, 18-CLK, 27-CS, 32-DC, 5-RES, 4-LED, 0-PWR, и для версии 1.2: 12-MISO, 23-MOSI, 18-CLK, 27-CS, 26-DC, 5-RES, 4-LED, 0-PWR. В версии 1.2 нет управления включением и выключением экрана. Кнопки сверху вниз 38-Port1, 37-Port2, 39-Port3. Шина I2C: SCL-22, SDA-21.<br>
+<br>Picture 14. TTGO T-Watcher.<br><br>
+&emsp;I checked the functionality of the gateway on TTGO T4 version 1.3. It is flashed via the built-in USB connector; before flashing the device, you need to connect pins 6 and 7 (gpio0 and gnd) in the bottom row of the connector (picture 15). It is possible to flash the firmware without installing jumpers, depending on the program. Screen settings for version 1.3: 12-MISO, 23-MOSI, 18-CLK, 27-CS, 32-DC, 5-RES, 4-LED, 0-PWR, and for version 1.2: 12-MISO, 23-MOSI , 18-CLK, 27-CS, 26-DC, 5-RES, 4-LED, 0-PWR. In version 1.2 there is no control to turn the screen on and off. Buttons from top to bottom 38-Port1, 37-Port2, 39-Port3. I2C bus: SCL-22, SDA-21.<br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft5.jpg)
-<br>Картинка 15. Соединить 6 и 7 пины разъема перед прошивкой TTGO T-Watcher.<br><br>
+Picture 15. Connect pins 6 and 7 of the connector before flashing the TTGO T-Watcher firmware.<br><br>
 
 #### [M5Stack BASIC Kit](https://docs.m5stack.com/en/core/basic)<br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft6.jpg)
