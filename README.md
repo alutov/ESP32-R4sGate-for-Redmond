@@ -135,15 +135,14 @@ Picture 1. Components for assembling the gateway.
 &emsp;It is possible to connect several gateways to one MQTT server. To do this, you need to install your own r4sGate Number in each gateway. Gateway number 0 will write to topic r4s0/devaddr/..., gateway number 1 - r4s1/devaddr/..., etc. You just need to take into account that the authorization request when binding depends on the gateway number and the connection number in the gateway. This allows you to link 2 identical kettles or multicookers to 2 different gateways or to 2 different connections within the same gateway. If there are two gateways with the same parameters working nearby, connected to different smart home systems (for example, a neighbor behind the wall), to exclude the possibility of connecting a device to the neighbor’s gateway, you can use the option to authorize devices using the gateway’s MAC address by selecting **Use MAC in BLE in the settings Authentication**. Then reset all bindings on the devices and then bind them to the gateway again.<br>
 &emsp;To connect to the Mqtt broker, you need to enter its address and port, as well as login and password. If the gateway works with Home Assistant paired with a mosquitto broker, you should use the **Hass Discovery** option. Before using it, I recommend deleting all topics with r4s in the Mqtt broker, for which select **Delete Mqtt topics** in the settings.<br>
 
-#### Веб интерфейс
+#### Web interface
 
-Устройствами можно управлять также и в веб интерфейсе шлюза. Примеры главной страницы и страницы настроек ниже на картинках 6 и 7.
-
+Devices can also be managed in the gateway web interface. Examples of the main page and settings page are below in pictures 6 and 7.
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb.jpg) 
-Картинка 6. Главная страничка.
+Picture 6. Home page.
 
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/myweb1.jpg) 
-Картинка 7. Страничка настроек.
+Picture 7. Settings page.
  
 ## 4. BLE Monitor
 &emsp;Монитор позволяет отслеживать метки(маяки) со статическими MAC адресами. Выводится наличие/отсутствие метки(маяка) и rssi.<br>
