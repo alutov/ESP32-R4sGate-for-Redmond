@@ -212,11 +212,9 @@ Picture 15. Connect pins 6 and 7 of the connector before flashing the TTGO T-Wat
 
 #### [M5Stack BASIC Kit](https://docs.m5stack.com/en/core/basic)<br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft6.jpg)
-<br>Картинка 16. M5Stack BASIC Kit.<br><br>
-Как я понял, старые версии M5Stack Basic шли с экраном на ili9341, и на этих версиях [работала и старая версия шлюза](https://github.com/alutov/ESP32-R4sGate-for-Redmond/issues/16). 
-Настройки экрана для этой версии: 19-MISO, 23-MOSI, 18-CLK, 14-CS, 27-DC, 33-RES, 32-LED, 0-PWR. Новые версии уже идут с экраном на ili9342. Начиная с версии 2021.10.29 добавлена поддержка экрана на ili9342. Я проверял работоспособность шлюза на новой версии M5Stack BASIC Kit. Прошивается он через встроенный USB разъем, перед прошивкой устройства нужно соединить последний контакт в верхнем ряду и 4 в нижнем ряду (gnd и gpio0) разъема (картинка 17). Возможна прошивка и без установки перемычек, зависит от программы. Настройки экрана для новой версии: 23-MISO, 23-MOSI, 18-CLK, 14-CS, 27-DC, 33-RES, 32-LED, 0-PWR. Кнопки слева направо 39-Port1, 38-Port2, 37-Port3. Шина I2C: SCL-22, SDA-21.<br>
-Настройки для [**M5Stack Tough**](https://docs.m5stack.com/en/core/tough): 23-MISO, 23-MOSI, 18-CLK, 5-CS, 15-DC, 44-RES, 47-LED, 46-PWR. Шина I2C: SCL-22, SDA-21. Без I2C экран не запустится.<br>  
-     
+<br>Picture 16. M5Stack BASIC Kit.<br><br>
+&emsp;As I understand it, old versions of M5Stack Basic came with a screen based on ili9341, and the old version of the gateway also worked on these versions. Screen settings for this version: 19-MISO, 23-MOSI, 18-CLK, 14-CS, 27-DC, 33-RES, 32-LED, 0-PWR. New versions already come with a screen based on ili9342. Starting with version 2021.10.29, screen support for ili9342 has been added. I tested the functionality of the gateway on the new version of the M5Stack BASIC Kit. It is flashed via the built-in USB connector; before flashing the device, you need to connect the last contact in the top row and 4 in the bottom row (gnd and gpio0) of the connector (picture 17). It is possible to flash the firmware without installing jumpers, depending on the program. Screen settings for the new version: 23-MISO, 23-MOSI, 18-CLK, 14-CS, 27-DC, 33-RES, 32-LED, 0-PWR. Buttons from left to right 39-Port1, 38-Port2, 37-Port3. I2C bus: SCL-22, SDA-21.<br>
+Settings for[**M5Stack Tough**](https://docs.m5stack.com/en/core/tough) : 23-MISO, 23-MOSI, 18-CLK, 5-CS, 15-DC, 44-RES, 47-LED, 46-PWR. I2C bus: SCL-22, SDA-21. Without I2C the screen will not start.<br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/mytft7.jpg)
 <br>Картинка 17. Соединить последний контакт в верхнем ряду и 4 в нижнем ряду (gnd и gpio0) перед прошивкой M5Stack BASIC Kit.<br><br>
 
