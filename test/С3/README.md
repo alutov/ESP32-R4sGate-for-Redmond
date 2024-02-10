@@ -1,1 +1,1 @@
-#### Тестовые версии для esp32C3.
+#### Test versions for esp32C3.
