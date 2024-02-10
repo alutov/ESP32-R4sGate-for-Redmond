@@ -1,1 +1,1 @@
-Утилиты поддержки проекта. Не содержат исходный код и не попадают под лицензию MIT.
+Project support utilities. Does not contain source code and is not subject to the MIT license.
