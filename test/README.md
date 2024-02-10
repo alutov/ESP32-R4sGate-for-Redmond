@@ -1,1 +1,1 @@
-#### Тестовые версии для esp32.
+#### Test versions for esp32.
