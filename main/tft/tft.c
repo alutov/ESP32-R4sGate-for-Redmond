@@ -1,4 +1,4 @@
-// tft proc
+// tft proc for idf 5.2
 
 #include "wallpaper.h"          //screen cat
 #include "tjpgd.c"              //jpeg decode

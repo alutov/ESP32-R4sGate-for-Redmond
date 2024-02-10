@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2024.02.05"
+#define AP_VER "2024.02.10"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -3941,9 +3941,9 @@ static IRAM_ATTR bool hw_timer_callback(gptimer_handle_t timer, const gptimer_al
 	BleMX[i].advdatlen = 0;
 	BleMX[i].scrsplen = 0;
 	BleMX[i].state = 0;
+	BleMX[i].rssi = 0;
 	if (!FDHass) {
 	if (BleMR[i].id != 2) {
-	BleMX[i].rssi = 0;
 	BleMX[i].par1 = -1;
 	BleMX[i].par2 = 0;
 	if (BleMR[i].id != 6) {
@@ -4228,7 +4228,9 @@ static IRAM_ATTR bool hw_timer_callback(gptimer_handle_t timer, const gptimer_al
 	lvgpio4 = lvgpio4 ^ 1;
 	t_lasts = 0;
 	cntgpio4 = 0;
+#ifdef USE_TFT
 	if (lvgpio4 && (MyHttpMqtt & 0x20)) t_jpg = 0;	
+#endif
 	}
 	} else cntgpio4 = 0;
 	break;
@@ -24383,6 +24385,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	int tempsz = event->data_len;
 	if  (tempsz > 15) tempsz = 15;
 	mystrcpy(MQTT_VALP7, event->data, tempsz);
+#endif
 #ifdef USE_IRTX
 	} else if (topoffi) {
 	if (!memcmp(event->topic+topoffi, "tx", event->topic_len-topoffi)) {
@@ -24456,6 +24459,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	} //<9
 	} //code
 #endif
+#ifdef USE_TFT
 	} else if (topoffj) {
 	if (!memcmp(event->topic+topoffj, "url1", event->topic_len-topoffj)) {
 	if (event->data_len > 0) {
@@ -24667,7 +24671,9 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 	if ((!floop && (wf_retry_cnt < WIFI_MAXIMUM_RETRY)) || (floop && (wf_retry_cnt < (WIFI_MAXIMUM_RETRY << 6)))) {
 	esp_wifi_connect();
 	if (fdebug) ESP_LOGI(AP_TAG, "Retry %d to connect to the AP",wf_retry_cnt);
+#ifdef USE_TFT
 	if (!wf_retry_cnt) MyHttpMqtt = MyHttpMqtt | 0x80;
+#endif
 	if (floop && !(wf_bits & 0x02)) wf_retry_cnt |= 0x01;
 	else wf_retry_cnt++;
 	BleDevStA.t_rspdel = 0;
@@ -25097,7 +25103,9 @@ uint8_t ReadNVS(){
 	nvs_get_u8(my_handle, "chk7",   &foffln);
 	nvs_get_u8(my_handle, "chk8",   &macauth);
 	nvs_get_u8(my_handle, "chk9",   &volperc);
+#ifdef USE_TFT
 	MyJPGbufadj = 0;
+#endif
 	}
 	BleDevStA.PRgbR = ~BleDevStA.RgbR;
 	BleDevStA.PRgbG = ~BleDevStA.RgbG;
