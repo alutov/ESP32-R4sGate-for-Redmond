@@ -1,2 +1,2 @@
-#### В папке скомпилированные  в esp-idf 5.2-beta2 бинарные файлы для esp32 @160MHz.</br> 
-Файл **fr4sGate.bin** это уже собранный бинарник для esp32 @160MHz с памятью 4 Мбайт, **DIO** загрузчиком и прошивается одним файлом с адреса 0x0000 на чистую esp32. Если же **DIO** загрузчик не стартует, можно использовать файл **fqr4sGate.bin** с загрузчиком **QIO**.   Файл **r4sGate.bin** используется для обновления прошивки шлюза через web интерфейс.
+#### In the folder there are binary files compiled in esp-idf 5.2-beta2 for esp32 @160MHz.</br>
+The file **fr4sGate.bin** is an already assembled binary for esp32 @160MHz with 4 MB memory, **DIO** bootloader and is flashed in one file from address 0x0000 to a clean esp32. If the **DIO** bootloader does not start, you can use the **fqr4sGate.bin** file with the **QIO** bootloader. The **r4sGate.bin** file is used to update the gateway firmware via the web interface.
