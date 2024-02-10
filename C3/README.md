@@ -1,2 +1,2 @@
-#### В папке файлы для сборки в esp-idf 5.2-beta2 для esp32C3 @160MHz.</br>
-В папке **build** скомпилированные  в esp-idf 5.2-beta2 бинарные файлы для esp32C3 @160MHz.</br>
+#### In the folder there are files for assembly in esp-idf 5.2-beta2 for esp32C3 @160MHz.</br>
+In the **build** folder there are binary files compiled in esp-idf 5.2-beta2 for esp32C3 @160MHz.<br/>
