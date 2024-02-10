@@ -86,7 +86,7 @@
 * **AM43 blinds** A-OK and similar)
 
 &emsp;The gateway supports 5 simultaneous BLE connections. Device management is also possible from the gateway web interface. The web interface is [simply protected with a password from Raerten](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/67). To do this, the string in the form login:password must be encrypted in Base 64 and then entered into the Basic Auth field in the settings. The password string is output to the log when the gateway starts.<br/>
-&emsp;Home Assistant Mqtt Discovery is supported. To enable it, you need to check **Hass Discovery** in the settings. It is possible to delete all data created by the gateway in Mqtt and devices in Home Assistant. To do this, select the **Delete Mqtt topics** option in the **Setting** tab and then click **Save setting** . After rebooting the gateway, only devices connected to the gateway will be recreated. Recommended when connecting the gateway for the first time and reconfiguring by removing devices.Поддерживается Home Assistant Mqtt Discovery.<br/> 
+&emsp;Home Assistant Mqtt Discovery is supported. To enable it, you need to check **Hass Discovery** in the settings. It is possible to delete all data created by the gateway in Mqtt and devices in Home Assistant. To do this, select the **Delete Mqtt topics** option in the **Setting** tab and then click **Save setting** . After rebooting the gateway, only devices connected to the gateway will be recreated. Recommended when connecting the gateway for the first time and reconfiguring by removing devices.<br/> 
 
 <details>
 <summary>A simple option for integrating a kettle from Home Assistant into a Yandex smart home is to use the climate entity.</summary>
