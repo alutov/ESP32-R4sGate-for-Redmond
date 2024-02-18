@@ -186,9 +186,8 @@ uint8_t  sendData[BLE_OUTPUT_BUFFSIZE];
 int8_t   sendDataLen;
 int8_t   sendDataHandle;
 uint8_t  DEV_TYP; 
-char     REQ_NAME[16];
-char     RQC_NAME[16];
-char     DEV_NAME[16];
+char     REQ_NAME[20];
+char     DEV_NAME[20];
 char     tBLEAddr[16];
 char     sVer[16];
 uint32_t NumConn;
@@ -300,7 +299,7 @@ uint8_t  res;
 struct BleMonExt {
 uint16_t ttick;
 uint16_t mto;
-char     name[16];
+char     name[20];
 uint8_t  advdat[32];
 uint8_t  scrsp[32];
 uint8_t  advdatlen;
@@ -378,7 +377,7 @@ char strON[8];
 uint8_t binblemac [8];
 uint8_t binwfmac [8];
 char MQTT_BASE_TOPIC[8];                    // r4s
-char FND_NAME[16];                          // last founded device name
+char FND_NAME[20];                          // last founded device name
 char FND_ADDR[16];                          // last founded device addr
 char FND_ADDRx[32];                         // last founded device addr incl :
 char MQTT_USER[16];                         // MQTT Server user

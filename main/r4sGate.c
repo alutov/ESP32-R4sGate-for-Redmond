@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2024.02.10"
+#define AP_VER "2024.02.18"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -26,6 +26,9 @@ https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 #define MxPOutP 22 
 //#define MxPInP 22 
+#ELif CONFIG_IDF_TARGET_ESP32S3
+#define MxPOutP 49 
+//#define MxPInP 49 
 #else
 #define MxPOutP 34 
 //#define MxPInP 40 
@@ -640,6 +643,24 @@ void ecmmb2st(char *smd, uint8_t bst, uint8_t bmd)
 	strcat(smd,buf);
 	strcat(smd,")");
 	break;
+	case 5:
+	strcat(smd,"Steam delivery(");
+	itoa(bmd,buf,10);
+	strcat(smd,buf);
+	strcat(smd,")");
+	break;
+	case 6:
+	strcat(smd,"Recovery(");
+	itoa(bmd,buf,10);
+	strcat(smd,buf);
+	strcat(smd,")");
+	break;
+	case 8:
+	strcat(smd,"Rinsing(");
+	itoa(bmd,buf,10);
+	strcat(smd,buf);
+	strcat(smd,")");
+	break;
 	case 10:
 	switch (bmd) {
 	case 1:
@@ -661,8 +682,25 @@ void ecmmb2st(char *smd, uint8_t bst, uint8_t bmd)
 	break;
 	}
 	break;
+	case 11:
+	strcat(smd,"Hot water delivery(");
+	itoa(bmd,buf,10);
+	strcat(smd,buf);
+	strcat(smd,")");
+	break;
 	case 12:
 	strcat(smd,"Milk cleaning");
+	break;
+	case 16:
+	switch (bmd) {
+//
+	default:
+	strcat(smd,"Chocolate preparation(");
+	itoa(bmd,buf,10);
+	strcat(smd,buf);
+	strcat(smd,")");
+	break;
+	}
 	break;
 	case 7:
 	switch (bmd) {
@@ -1078,6 +1116,9 @@ bool rmtir_init (uint8_t idx, uint8_t  gpio_num)
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 	if (idx > 1) return result;
 	tidx = idx;
+#elif  CONFIG_IDF_TARGET_ESP32S3
+	if (idx > 2) return result;
+	tidx = idx;
 #else
 	if (idx > 2) return result;
 	tidx = idx << 1;
@@ -1117,6 +1158,9 @@ bool rmtir_send (uint8_t idx,  uint16_t* ptxcmd, uint16_t* pprtxcmd, uint16_t* p
 	if (fdebug) ESP_LOGI(AP_TAG, "IR/RC Tx code: %02X%04x%02x", ((txcmd >> 8) & 0xff), taddr, (txcmd & 0xff));
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 	if (idx > 1) return result;
+	tidx = idx;
+#elif  CONFIG_IDF_TARGET_ESP32S3
+	if (idx > 2) return result;
 	tidx = idx;
 #else
 	if (idx > 2) return result;
@@ -1946,6 +1990,9 @@ bool    rmthx_ssck(uint8_t idx, uint16_t usec)
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 	if (idx > 1) return result;
 	tidx = idx;
+#elif  CONFIG_IDF_TARGET_ESP32S3
+	if (idx > 2) return result;
+	tidx = idx;
 #else
 	if (idx > 2) return result;
 	tidx = idx << 1;
@@ -1968,6 +2015,9 @@ bool rmthx_init (uint8_t idx, uint8_t  gpio_num)
 	uint8_t tidx;
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 	if (idx > 1) return result;
+	tidx = idx;
+#elif  CONFIG_IDF_TARGET_ESP32S3
+	if (idx > 2) return result;
 	tidx = idx;
 #else
 	if (idx > 2) return result;
@@ -2026,6 +2076,10 @@ bool rmt1w_init (uint8_t idx, uint8_t  gpio_num, RingbufHandle_t RmtRgHd)
 	if (idx > 1) return result;
 	tidx = idx;
 	ridx = idx + 2;	
+#elif  CONFIG_IDF_TARGET_ESP32S3
+	if (idx > 2) return result;
+	tidx = idx;
+	ridx = idx + 4;	
 #else
 	if (idx > 2) return result;
 	tidx = idx << 1;
@@ -2097,6 +2151,10 @@ bool    rmt1w_dsres(uint8_t idx, RingbufHandle_t RmtRgHd)
 	if (idx > 1) return result;
 	tidx = idx;
 	ridx = idx + 2;	
+#elif  CONFIG_IDF_TARGET_ESP32S3
+	if (idx > 2) return result;
+	tidx = idx;
+	ridx = idx + 4;	
 #else
 	if (idx > 2) return result;
 	tidx = idx << 1;
@@ -2139,6 +2197,9 @@ bool    rmt1w_dscomm(uint8_t idx, uint8_t comm)
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 	if (idx > 1) return result;
 	tidx = idx;
+#elif  CONFIG_IDF_TARGET_ESP32S3
+	if (idx > 2) return result;
+	tidx = idx;
 #else
 	if (idx > 2) return result;
 	tidx = idx << 1;
@@ -2176,6 +2237,10 @@ bool    rmt1w_dsread(uint8_t idx, uint8_t* data, RingbufHandle_t RmtRgHd)
 	if (idx > 1) return result;
 	tidx = idx;
 	ridx = idx + 2;	
+#elif  CONFIG_IDF_TARGET_ESP32S3
+	if (idx > 2) return result;
+	tidx = idx;
+	ridx = idx + 4;	
 #else
 	if (idx > 2) return result;
 	tidx = idx << 1;
@@ -2264,6 +2329,10 @@ void rmt1w_readdht (uint8_t idx, uint8_t* f_rmds, uint16_t* temp, uint16_t* humi
 	if (idx > 1) return;
 	tidx = idx;
 	ridx = idx + 2;	
+#elif CONFIG_IDF_TARGET_ESP32S3
+	if (idx > 2) return;
+	tidx = idx;
+	ridx = idx + 4;	
 #else
 	if (idx > 2) return;
 	tidx = idx << 1;
@@ -2724,6 +2793,7 @@ esp_err_t i2c_axpin_set (uint32_t* f_i2cdev, uint8_t gpio, uint8_t val)
 	switch (gpio) {
 /*
 	case 40:     //gpio 0
+	case 50:     //gpio 0
 	if (!i2c_read_data(addr, 0x90, &buf[0], 1) && !i2c_read_data(addr, 0x94, &buf[1], 1)) {
 	err = 0;
 	if (buf[0] & 0x07) err = i2c_write_byte(addr, 0x90, (buf[0] & 0xf8));
@@ -2736,6 +2806,7 @@ esp_err_t i2c_axpin_set (uint32_t* f_i2cdev, uint8_t gpio, uint8_t val)
 	break;
 */
 	case 41:     //gpio 1
+	case 51:     //gpio 1
 	if (!i2c_read_data(addr, 0x92, &buf[0], 1) && !i2c_read_data(addr, 0x94, &buf[1], 1)) {
 	err = 0;
 	if (buf[0] & 0x07) err = i2c_write_byte(addr, 0x92, (buf[0] & 0xf8));
@@ -2747,6 +2818,7 @@ esp_err_t i2c_axpin_set (uint32_t* f_i2cdev, uint8_t gpio, uint8_t val)
 	}
 	break;
 	case 42:     //gpio 2
+	case 52:     //gpio 2
 	if (!i2c_read_data(addr, 0x93, &buf[0], 1) && !i2c_read_data(addr, 0x94, &buf[1], 1)) {
 	err = 0;
 	if (buf[0] & 0x07) err = i2c_write_byte(addr, 0x93, (buf[0] & 0xf8));
@@ -2758,6 +2830,7 @@ esp_err_t i2c_axpin_set (uint32_t* f_i2cdev, uint8_t gpio, uint8_t val)
 	}
 	break;
 	case 43:     //gpio 3
+	case 53:     //gpio 3
 	if (!i2c_read_data(addr, 0x95, &buf[0], 3)) {
 	err = 0;
 	if ((buf[0] & 0x83) ^ 0x81) err = i2c_write_byte(addr, 0x95, ((buf[0] & 0xfc) | 0x81));
@@ -2769,6 +2842,7 @@ esp_err_t i2c_axpin_set (uint32_t* f_i2cdev, uint8_t gpio, uint8_t val)
 	}
 	break;
 	case 44:     //gpio 4
+	case 54:     //gpio 4
 	if (!i2c_read_data(addr, 0x95, &buf[0], 3)) {
 	err = 0;
 	if ((buf[0] & 0x8c) ^ 0x84) err = i2c_write_byte(addr, 0x95, ((buf[0] & 0xf3) | 0x84));
@@ -2780,6 +2854,7 @@ esp_err_t i2c_axpin_set (uint32_t* f_i2cdev, uint8_t gpio, uint8_t val)
 	}
 	break;
 	case 45:     //gpio 5
+	case 55:     //gpio 5
 	if (!i2c_read_data(addr, 0x9e, &buf[0], 1)) {
 	err = 0;
 	if (val) {
@@ -2790,6 +2865,7 @@ esp_err_t i2c_axpin_set (uint32_t* f_i2cdev, uint8_t gpio, uint8_t val)
 	}
 	break;
 	case 46:     //ldo2
+	case 56:     //ldo2
 	val1 = (val / 28 + 6) << 4;
 	if (!i2c_read_data(addr, 0x12, &buf[0], 1) && !i2c_read_data(addr, 0x28, &buf[1], 1)) {
 	err = 0;
@@ -2811,6 +2887,7 @@ esp_err_t i2c_axpin_set (uint32_t* f_i2cdev, uint8_t gpio, uint8_t val)
 	}
 	break;
 	case 47:     //ldo3
+	case 57:     //ldo3
 	val1 = (val / 28 + 6) << 4;
 	if (!i2c_read_data(addr, 0x12, &buf[0], 1) && !i2c_read_data(addr, 0x28, &buf[1], 1)) {
 	err = 0;
@@ -4292,13 +4369,13 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(buft,"/status");
 	if (ptr->btauthoriz) esp_mqtt_client_publish(mqttclient, buft, "online", 0, 1, 1);
 	else esp_mqtt_client_publish(mqttclient, buft, "offline", 0, 1, 1);
+
+	if (ptr->btauthoriz) {
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
 	strcat(buft,ptr->tBLEAddr);
 	strcat(buft,"/name");
 	esp_mqtt_client_publish(mqttclient, buft, ptr->DEV_NAME, 0, 1, 1);
-
-	if (ptr->btauthoriz) {
 	if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73))) {
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
@@ -9973,7 +10050,7 @@ static void start_scan(void)
 //step 1: set scan only if not update, if not already starting scan or if no connections is opening   
 	if (!(wf_retry_cnt && (wf_bits & 0x04)) && !f_update && !StartStopScanReq && !SetScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen) && (!BleDevStD.btopenreq || BleDevStD.btopen) && (!BleDevStE.btopenreq || BleDevStE.btopen)) {
 	if (!ble_mon || (ble_mon == 3)) {
-	if ((BleDevStA.REQ_NAME[0] && !BleDevStA.btopenreq) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btopenreq) || (BleDevStC.REQ_NAME[0] && !BleDevStC.btopenreq) || (BleDevStD.REQ_NAME[0] && !BleDevStD.btopenreq) || (BleDevStE.REQ_NAME[0] && !BleDevStE.btopenreq)) {
+	if ((BleDevStA.DEV_NAME[0] && !BleDevStA.btopenreq) || (BleDevStB.DEV_NAME[0] && !BleDevStB.btopenreq) || (BleDevStC.DEV_NAME[0] && !BleDevStC.btopenreq) || (BleDevStD.DEV_NAME[0] && !BleDevStD.btopenreq) || (BleDevStE.DEV_NAME[0] && !BleDevStE.btopenreq)) {
 	if (!Isscanning) {
 	SetScanReq = true;
 	scan_ret = esp_ble_gap_set_scan_params(&ble_scan_params);
@@ -10123,7 +10200,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	switch (event) {
 	case ESP_GATTC_REG_EVT:
 	if (!blenum) {
-	esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV,ESP_PWR_LVL_P9); // for more power???
 	esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT,ESP_PWR_LVL_P9); // for more power???
         esp_ble_gap_config_local_privacy(true);
 	}
@@ -10164,9 +10240,15 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	esp_err_t ret;
 	char bd_addr[20];
 	if (param->open.status != ESP_GATT_OK) {
-	if (fdebug) ESP_LOGE(AP_TAG, "Open %d failed, status %d", blenum1, p_data->open.status);
+	if (fdebug) {
+	ESP_LOGE(AP_TAG, "Open %d failed, status %d", blenum1, p_data->open.status);
+	bin2hex(p_data->open.remote_bda, bd_addr,6,0x3a);
+        ESP_LOGE(AP_TAG, "Remote BD_ADDR: %s", bd_addr);
+	}
 	ptr->btopen = false;
         ptr->btopenreq = false;
+	if (ptr->DEV_TYP == 73) ptr->t_ppcon = 50;
+	else ptr->t_ppcon = 10;
 	start_scan();
 	} else {
 	memcpy(gl_profile_tab[blenum].remote_bda, p_data->open.remote_bda, 6);
@@ -11133,7 +11215,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ptr->NumConn++;
 	if (!ptr->NumConn) ptr->NumConn--;
 	bin2hex(gl_profile_tab[blenum].remote_bda, ptr->tBLEAddr,6,0);
-	strcpy(ptr->DEV_NAME,ptr->RQC_NAME);
 	} else {
 	if (fdebug) ESP_LOGI(AP_TAG, "Authorize %d ECAM650.75 error", blenum1);
 	conerr = 1;
@@ -11231,7 +11312,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ptr->NumConn++;
 	if (!ptr->NumConn) ptr->NumConn--;
 	bin2hex(gl_profile_tab[blenum].remote_bda, ptr->tBLEAddr,6,0);
-	strcpy(ptr->DEV_NAME,ptr->RQC_NAME);
 	} else {
 	if (fdebug) ESP_LOGI(AP_TAG, "Authorize %d Redmond error", blenum1);
 	ptr->r4sAuthCount++;
@@ -11257,7 +11337,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ptr->NumConn++;
 	if (!ptr->NumConn) ptr->NumConn--;
 	bin2hex(gl_profile_tab[blenum].remote_bda, ptr->tBLEAddr,6,0);
-	strcpy(ptr->DEV_NAME,ptr->RQC_NAME);
 	} else if ((p_data->notify.value_len == 5) && (!memcmp(&p_data->notify.value[0],"\x9a\x17\x01\xa5\xce",5))) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Authorize %d AM43 A-OK error, Passkey %"PRIu32" invalid", blenum1, ptr->PassKey);
 	conerr = 1;
@@ -11281,7 +11360,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ptr->NumConn++;
 	if (!ptr->NumConn) ptr->NumConn--;
 	bin2hex(gl_profile_tab[blenum].remote_bda, ptr->tBLEAddr,6,0);
-	strcpy(ptr->DEV_NAME,ptr->RQC_NAME);
 	} else {
 	if (fdebug) ESP_LOGI(AP_TAG, "Authorize %d HLK-LD2410 error", blenum1);
 	conerr = 1;
@@ -11417,7 +11495,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ptr->NumConn++;
 	if (!ptr->NumConn) ptr->NumConn--;
 	bin2hex(gl_profile_tab[blenum].remote_bda, ptr->tBLEAddr,6,0);
-	strcpy(ptr->DEV_NAME,ptr->RQC_NAME);
 	esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, gl_profile_tab[blenum].rxchar_handle);
 	}
 	} else {
@@ -11564,7 +11641,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ptr->NumConn++;
 	if (!ptr->NumConn) ptr->NumConn--;
 	bin2hex(gl_profile_tab[blenum].remote_bda, ptr->tBLEAddr,6,0);
-	strcpy(ptr->DEV_NAME,ptr->RQC_NAME);
 	}
 	} else if (ptr->DEV_TYP == 74) {
         write_char_data[0] = 0x00;
@@ -11851,7 +11927,7 @@ if (fdebug) {
 	}
         esp_err_t scan_ret = ESP_GATT_OK;
 	if (!ble_mon || (ble_mon == 3)) {
-	if ((BleDevStA.REQ_NAME[0] && !BleDevStA.btopenreq) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btopenreq) || (BleDevStC.REQ_NAME[0] && !BleDevStC.btopenreq) || (BleDevStD.REQ_NAME[0] && !BleDevStD.btopenreq) || (BleDevStE.REQ_NAME[0] && !BleDevStE.btopenreq)) {
+	if ((BleDevStA.DEV_NAME[0] && !BleDevStA.btopenreq) || (BleDevStB.DEV_NAME[0] && !BleDevStB.btopenreq) || (BleDevStC.DEV_NAME[0] && !BleDevStC.btopenreq) || (BleDevStD.DEV_NAME[0] && !BleDevStD.btopenreq) || (BleDevStE.DEV_NAME[0] && !BleDevStE.btopenreq)) {
 	SetScanReq = true;
 	scan_ret = esp_ble_gap_set_scan_params(&ble_scan_params);
 	IsPassiveScan = false;
@@ -11981,7 +12057,7 @@ if (fdebug) {
 //step 1: start scan only if not update, if not scanning, if not already starting scan or if no connections is opening   
 	if (!(wf_retry_cnt && (wf_bits & 0x04)) && !f_update && !Isscanning && !StartStopScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen) && (!BleDevStD.btopenreq || BleDevStD.btopen) && (!BleDevStE.btopenreq || BleDevStE.btopen)) {
 //step 2: start scan if defined but not open connection present
-//	if ((BleDevStA.REQ_NAME[0] && !BleDevStA.btopenreq) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btopenreq) || (BleDevStC.REQ_NAME[0] && !BleDevStC.btopenreq) || (BleDevStD.REQ_NAME[0] && !BleDevStD.btopenreq) || (BleDevStE.REQ_NAME[0] && !BleDevStE.btopenreq)) {
+//	if ((BleDevStA.DEV_NAME[0] && !BleDevStA.btopenreq) || (BleDevStB.DEV_NAME[0] && !BleDevStB.btopenreq) || (BleDevStC.DEV_NAME[0] && !BleDevStC.btopenreq) || (BleDevStD.DEV_NAME[0] && !BleDevStD.btopenreq) || (BleDevStE.DEV_NAME[0] && !BleDevStE.btopenreq)) {
 	uint32_t duration = 0; //30
 	FND_NAME[0] = 0;
 	FND_ADDR[0] = 0;
@@ -12041,7 +12117,7 @@ if (fdebug) {
 
     	if (adv_name_len)  {
             int fnd_namelen = adv_name_len;
-		if (fnd_namelen > 15) fnd_namelen = 15;		
+		if (fnd_namelen > 19) fnd_namelen = 19;		
             mystrcpy(FND_NAME, (char *)adv_name,  fnd_namelen);
 	} else FND_NAME[0] = 0;
 // blemon
@@ -12126,7 +12202,7 @@ if (fdebug) {
 	BleMX[i].ttick = BleMonDefTO;
 	}
 	BleMX[i].rssi = scan_result->scan_rst.rssi;
-	if (adv_name_len) mystrcpy(BleMX[i].name, (char *)adv_name,  15);
+	if (adv_name_len) mystrcpy(BleMX[i].name, (char *)adv_name,  19);
 	BleMX[i].advdatlen = scan_result->scan_rst.adv_data_len & 0x1f;
 	if (BleMX[i].advdatlen) memcpy(BleMX[i].advdat, &scan_result->scan_rst.ble_adv[0], BleMX[i].advdatlen);
 	else memset(BleMX[i].advdat,0,32);
@@ -12290,7 +12366,7 @@ if (fdebug) {
 	BleMR[i].mac[7] = scan_result->scan_rst.flag;
 	} else if (id == 0x42) memcpy(BleMR[i].mac, &scan_result->scan_rst.ble_adv[6], 16);
 	BleMR[i].id = id;
-	if (adv_name_len) mystrcpy(BleMX[i].name, (char *)adv_name,  15);
+	if (adv_name_len) mystrcpy(BleMX[i].name, (char *)adv_name,  19);
 	else memset(BleMX[i].name,0,16);
 	memset(BleMX[i].advdat,0,32);
 	BleMX[i].advdatlen = scan_result->scan_rst.adv_data_len & 0x1f;
@@ -12439,14 +12515,13 @@ if (fdebug) {
 	break;
 	}
 
-       	if ((ptr->t_ppcon < 20) && !ptr->btopenreq && !ptr->btopen && ptr->REQ_NAME[0] && !f_scanproc && 
+       	if ((ptr->t_ppcon < 20) && !ptr->btopenreq && !ptr->btopen && ptr->DEV_NAME[0] && !f_scanproc && 
 	((strlen(ptr->REQ_NAME) == adv_name_len && !strncmp((char *)adv_name, ptr->REQ_NAME, adv_name_len)) ||
 	(strlen(ptr->REQ_NAME) == 12 && !incascmp(ptr->REQ_NAME,FND_ADDR,12))) ) {
 	ptr->btopen = false;
 	ptr->btopenreq = true;
-	if (FND_NAME[0]) strcpy (ptr->RQC_NAME,FND_NAME);
-	else strcpy (ptr->RQC_NAME,ptr->REQ_NAME);
-	if (fdebug) ESP_LOGI(AP_TAG, "Searched %d device %s\n", blenum + 1, ptr->RQC_NAME);
+	if (FND_NAME[0]) strcpy (ptr->DEV_NAME,FND_NAME);
+	if (fdebug) ESP_LOGI(AP_TAG, "Searched %d device %s\n", blenum + 1, ptr->DEV_NAME);
 	memcpy(&scan_rst_bda, scan_result->scan_rst.bda, 6);
 	scan_rst_bda_type = scan_result->scan_rst.ble_addr_type;
 	if (Isscanning) {
@@ -15993,9 +16068,10 @@ bool mkSync(uint8_t blenum) {
 	data[4] = timeinfo.tm_hour;
 	data[5] = timeinfo.tm_min;
 	data[6] = timeinfo.tm_sec;
-	data[7] = timeinfo.tm_wday;            //sun mon ... sat
-//	data[7] = (timeinfo.tm_wday - 1) & 7;  //mon tue ... sun
-//	if (data[7] > 6) data[7] = 6;
+	if (ptr->bLtemp == 1) {
+	data[7] = (timeinfo.tm_wday - 1) & 7;  //mon tue ... sun
+	if (data[7] > 6) data[7] = 6;
+	} else data[7] = timeinfo.tm_wday;            //sun mon ... sat
 	if (data[0] < 20) return false; //if data correct?
 	ptr->sendDataLen = 0;
 	ptr->sendDataHandle = 2;  //auth
@@ -23394,7 +23470,7 @@ void MqtDevInit(bool mqtttst) {
 	strcat(llwtd,tESP32Addr1);
 	strcat(llwtd,"\"]],\"mf\":\"Espressif\"},\"cmd_t\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
-	strcat(llwtd,"/screen\",\"payload_press\":\"restart\",\"avty_t\":\"");
+	strcat(llwtd,"/screen\",\"payload_press\":\"-0\",\"avty_t\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
@@ -24142,7 +24218,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	strcat(tbuff,"/screen");
 	if (!memcmp(event->topic, tbuff, event->topic_len)) {
 	if ((!incascmp("restart",event->data,event->data_len)) || (!incascmp("reset",event->data,event->data_len))
-		|| (!incascmp("reboot",event->data,event->data_len))) {
+	|| (!incascmp("reboot",event->data,event->data_len)) || (!incascmp("-0",event->data,event->data_len))) {
 #ifdef USE_TFT
 	blstnum = 249;
 #endif
@@ -24176,7 +24252,17 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio1) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio1 < (MxPOutP + 64)) {
+///	gpio_set_level((bgpio1 & 0x3f), lvout1 ^ 1);
+#ifdef USE_ODIO
+	if (!lvout1) gpio_set_level((bgpio1 & 0x3f), 1);
+	else {
+	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio1 & 0x3f);
+	gpio_set_level((bgpio1 & 0x3f), 0);
+	}
+#else
 	gpio_set_level((bgpio1 & 0x3f), lvout1 ^ 1);
+#endif
 	lvgpio1 = 1;
 			}
 	fgpio1 = 1;
@@ -24186,7 +24272,13 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio1)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio1 < (MxPOutP + 64)) {
+///	gpio_set_level((bgpio1 & 0x3f), lvout1);
+#ifdef USE_ODIO
+	if (!lvout1) gpio_set_level((bgpio1 & 0x3f), 0);
+	else gpio_reset_pin(bgpio1 & 0x3f);
+#else
 	gpio_set_level((bgpio1 & 0x3f), lvout1);
+#endif
 	lvgpio1 = 0;
 			}
 	fgpio1 = 1;
@@ -24198,7 +24290,17 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio2) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio2 < (MxPOutP + 64)) {
+///	gpio_set_level((bgpio2 & 0x3f), lvout2 ^ 1);
+#ifdef USE_ODIO
+	if (!lvout2) gpio_set_level((bgpio2 & 0x3f), 1);
+	else {
+	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio2 & 0x3f);
+	gpio_set_level((bgpio2 & 0x3f), 0);
+	}
+#else
 	gpio_set_level((bgpio2 & 0x3f), lvout2 ^ 1);
+#endif
 	lvgpio2 = 1;
 			}
 	fgpio2 = 1;
@@ -24208,7 +24310,13 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio2)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio2 < (MxPOutP + 64)) {
+///	gpio_set_level((bgpio2 & 0x3f), lvout2);
+#ifdef USE_ODIO
+	if (!lvout2) gpio_set_level((bgpio2 & 0x3f), 0);
+	else gpio_reset_pin(bgpio2 & 0x3f);
+#else
 	gpio_set_level((bgpio2 & 0x3f), lvout2);
+#endif
 	lvgpio2 = 0;
 			}
 	fgpio2 = 1;
@@ -24220,7 +24328,17 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio3) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio3 < (MxPOutP + 64)) {
+///	gpio_set_level((bgpio3 & 0x3f), lvout3 ^ 1);
+#ifdef USE_ODIO
+	if (!lvout3) gpio_set_level((bgpio3 & 0x3f), 1);
+	else {
+	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio3 & 0x3f);
+	gpio_set_level((bgpio3 & 0x3f), 0);
+	}
+#else
 	gpio_set_level((bgpio3 & 0x3f), lvout3 ^ 1);
+#endif
 	lvgpio3 = 1;
 			}
 	fgpio3 = 1;
@@ -24230,7 +24348,13 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio3)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio3 < (MxPOutP + 64)) {
+///	gpio_set_level((bgpio3 & 0x3f), lvout3);
+#ifdef USE_ODIO
+	if (!lvout3) gpio_set_level((bgpio3 & 0x3f), 0);
+	else gpio_reset_pin(bgpio3 & 0x3f);
+#else
 	gpio_set_level((bgpio3 & 0x3f), lvout3);
+#endif
 	lvgpio3 = 0;
 			}
 	fgpio3 = 1;
@@ -24242,7 +24366,17 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio4) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio4 < (MxPOutP + 64)) {
+///	gpio_set_level((bgpio4 & 0x3f), lvout4 ^ 1);
+#ifdef USE_ODIO
+	if (!lvout4) gpio_set_level((bgpio4 & 0x3f), 1);
+	else {
+	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio4 & 0x3f);
+	gpio_set_level((bgpio4 & 0x3f), 0);
+	}
+#else
 	gpio_set_level((bgpio4 & 0x3f), lvout4 ^ 1);
+#endif
 	lvgpio4 = 1;
 			}
 	fgpio4 = 1;
@@ -24252,7 +24386,13 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio4)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio4 < (MxPOutP + 64)) {
+///	gpio_set_level((bgpio4 & 0x3f), lvout4);
+#ifdef USE_ODIO
+	if (!lvout4) gpio_set_level((bgpio4 & 0x3f), 0);
+	else gpio_reset_pin(bgpio4 & 0x3f);
+#else
 	gpio_set_level((bgpio4 & 0x3f), lvout4);
+#endif
 	lvgpio4 = 0;
 			}
 	fgpio4 = 1;
@@ -24264,7 +24404,17 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("true",event->data,event->data_len))) {
 	if ((!lvgpio5) || (!r4sppcoms) || (inccmp(strON,event->data,event->data_len))) {
 	if (bgpio5 < (MxPOutP + 64)) {
+///	gpio_set_level((bgpio5 & 0x3f), lvout5 ^ 1);
+#ifdef USE_ODIO
+	if (!lvout5) gpio_set_level((bgpio5 & 0x3f), 1);
+	else {
+	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio5 & 0x3f);
+	gpio_set_level((bgpio5 & 0x3f), 0);
+	}
+#else
 	gpio_set_level((bgpio5 & 0x3f), lvout5 ^ 1);
+#endif
 	lvgpio5 = 1;
 			}
 	fgpio5 = 1;
@@ -24274,7 +24424,13 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 		|| (!incascmp("false",event->data,event->data_len))) {
 	if ((lvgpio5)  || (!r4sppcoms) || (inccmp(strOFF,event->data,event->data_len))) {
 	if (bgpio5 < (MxPOutP + 64)) {
+///	gpio_set_level((bgpio5 & 0x3f), lvout5);
+#ifdef USE_ODIO
+	if (!lvout5) gpio_set_level((bgpio5 & 0x3f), 0);
+	else gpio_reset_pin(bgpio5 & 0x3f);
+#else
 	gpio_set_level((bgpio5 & 0x3f), lvout5);
+#endif
 	lvgpio5 = 0;
 			}
 	fgpio5 = 1;
@@ -24840,10 +24996,8 @@ void wifi_init_sta(void)
 #ifdef USE_TFT
 	if (tft_conn) tfststr("Connection to AP ",DEFWFSSID," failed. Restarting ..."); 
 #endif
-	if (fdebug) {
 	ESP_LOGI(AP_TAG,"Failed to connect to SSID:'%s', password:'%s'", DEFWFSSID, DEFWFPSW);
 	ESP_LOGI(AP_TAG,"Restarting now...");
-	}
 	fflush(stdout);
 	if (floop && mqttConnected) esp_mqtt_client_disconnect(mqttclient);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -25134,15 +25288,15 @@ uint8_t ReadNVS(){
 	nvs_get_str(my_handle,"smqid", MQTT_USER,&nvsize);
 	nvsize = 20;
 	nvs_get_str(my_handle,"smqpsw", MQTT_PASSWORD,&nvsize);
-	nvsize = 16;
+	nvsize = 20;
 	nvs_get_str(my_handle,"sreqnma", BleDevStA.REQ_NAME,&nvsize);
-	nvsize = 16;
+	nvsize = 20;
 	nvs_get_str(my_handle,"sreqnmb", BleDevStB.REQ_NAME,&nvsize);
-	nvsize = 16;
+	nvsize = 20;
 	nvs_get_str(my_handle,"sreqnmc", BleDevStC.REQ_NAME,&nvsize);
-	nvsize = 16;
+	nvsize = 20;
 	nvs_get_str(my_handle,"sreqnmd", BleDevStD.REQ_NAME,&nvsize);
-	nvsize = 16;
+	nvsize = 20;
 	nvs_get_str(my_handle,"sreqnme", BleDevStE.REQ_NAME,&nvsize);
 	nvsize = sizeof(BleMR);
 	nvs_get_blob(my_handle,"sblemd",  BleMR,&nvsize);
@@ -25431,7 +25585,7 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	strcat(bsend,", MAC: ");
 	strcat(bsend,ptr->tBLEAddr);
 	strcat(bsend,", Name: ");
-	if (ptr->DEV_NAME[0]) strcat(bsend,ptr->DEV_NAME);
+	if (ptr->btauthoriz && ptr->DEV_NAME[0]) strcat(bsend,ptr->DEV_NAME);
 	if (ptr->sVer[0] > 0x20) {
 	strcat(bsend,", Ver: ");
 	strcat(bsend, ptr->sVer);
@@ -25756,7 +25910,7 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	strcat(bsend,buff);
 	strcat(bsend,"&deg;C, ");
 	}
-	} else if (ptr->REQ_NAME[0]) strcat(bsend,"Not connected, ");
+	} else if (ptr->DEV_NAME[0]) strcat(bsend,"Not connected, ");
 	else strcat(bsend,"Not defined, ");
 	strcat(bsend,"Json String:</h3><h2>{\"mqtt\":");
 	itoa(mqttConnected,buff,10);
@@ -25863,15 +26017,15 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu active' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
-	(BleDevStA.RQC_NAME[0])? strcat(bsend,BleDevStA.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStA.DEV_NAME[0])? strcat(bsend,BleDevStA.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev2'>&#128246;<span class='showmenulabel'> 2 ");
-	(BleDevStB.RQC_NAME[0])? strcat(bsend,BleDevStB.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStB.DEV_NAME[0])? strcat(bsend,BleDevStB.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev3'>&#128246;<span class='showmenulabel'> 3 ");
-	(BleDevStC.RQC_NAME[0])? strcat(bsend,BleDevStC.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStC.DEV_NAME[0])? strcat(bsend,BleDevStC.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev4'>&#128246;<span class='showmenulabel'> 4 ");
-	(BleDevStD.RQC_NAME[0])? strcat(bsend,BleDevStD.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStD.DEV_NAME[0])? strcat(bsend,BleDevStD.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev5'>&#128246;<span class='showmenulabel'> 5 ");
-	(BleDevStE.RQC_NAME[0])? strcat(bsend,BleDevStE.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStE.DEV_NAME[0])? strcat(bsend,BleDevStE.DEV_NAME) : strcat(bsend,"Not defined");
 	if (ble_mon) strcat(bsend,"</span></a><a class='menu' href='blemon'>&#128246;<span class='showmenulabel'>BLE monitor</span></a>");
 	strcat(bsend,"</span></a><a class='menu' href='setting'>&#9881;<span class='showmenulabel'>Setting</span></a>");
 	strcat(bsend,"<a class='menu' href='restart'>&#128259;<span class='showmenulabel'>Reboot</span></a>");
@@ -26107,6 +26261,8 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend," / ");
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 	itoa(CONFIG_ESP32C3_DEFAULT_CPU_FREQ_MHZ,buff,10);
+#elif  CONFIG_IDF_TARGET_ESP32S3
+	itoa(CONFIG_ESP32S3_DEFAULT_CPU_FREQ_MHZ,buff,10);
 #else
 	itoa(CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ,buff,10);
 #endif
@@ -26131,7 +26287,9 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	itoa(FreeMem,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend," bytes");
-	if (Isscanning || (BleDevStA.REQ_NAME[0] && !BleDevStA.btauthoriz) || (BleDevStB.REQ_NAME[0] && !BleDevStB.btauthoriz) ||(BleDevStC.REQ_NAME[0] && !BleDevStC.btauthoriz)) {
+	if (Isscanning || (BleDevStA.DEV_NAME[0] && !BleDevStA.btauthoriz) || (BleDevStB.DEV_NAME[0] && !BleDevStB.btauthoriz) ||
+	(BleDevStC.DEV_NAME[0] && !BleDevStC.btauthoriz) ||(BleDevStD.DEV_NAME[0] && !BleDevStD.btauthoriz) ||
+	(BleDevStE.DEV_NAME[0] && !BleDevStE.btauthoriz)) {
 	strcat(bsend,"</td></tr><tr><td>BLE found Name / MAC / RSSI</td><td>");
 	strcat(bsend,FND_NAME);
 	strcat(bsend," / ");
@@ -26143,7 +26301,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,"</td></tr><tr><td>BLE activity</td><td>");
 	if (BleDevStA.btopenreq && !BleDevStA.btauthoriz) {
 	strcat(bsend,"Connecting ");
-	strcat(bsend, BleDevStA.RQC_NAME);
+	strcat(bsend, BleDevStA.DEV_NAME);
 	if (!BleDevStA.btopen) strcat(bsend," (Open");
 	else {
 	strcat(bsend," (Auth");
@@ -26156,7 +26314,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,")");
 	} else if (BleDevStB.btopenreq && !BleDevStB.btauthoriz) {
 	strcat(bsend,"Connecting ");
-	strcat(bsend, BleDevStB.RQC_NAME);
+	strcat(bsend, BleDevStB.DEV_NAME);
 	if (!BleDevStB.btopen) strcat(bsend," (Open");
 	else {
 	strcat(bsend," (Auth");
@@ -26169,7 +26327,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,")");
 	} else if (BleDevStC.btopenreq && !BleDevStC.btauthoriz) {
 	strcat(bsend,"Connecting ");
-	strcat(bsend, BleDevStC.RQC_NAME);
+	strcat(bsend, BleDevStC.DEV_NAME);
 	if (!BleDevStC.btopen) strcat(bsend," (Open");
 	else {
 	strcat(bsend," (Auth");
@@ -26182,7 +26340,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,")");
 	} else if (BleDevStD.btopenreq && !BleDevStD.btauthoriz) {
 	strcat(bsend,"Connecting ");
-	strcat(bsend, BleDevStD.RQC_NAME);
+	strcat(bsend, BleDevStD.DEV_NAME);
 	if (!BleDevStD.btopen) strcat(bsend," (Open");
 	else {
 	strcat(bsend," (Auth");
@@ -26195,7 +26353,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,")");
 	} else if (BleDevStE.btopenreq && !BleDevStE.btauthoriz) {
 	strcat(bsend,"Connecting ");
-	strcat(bsend, BleDevStE.RQC_NAME);
+	strcat(bsend, BleDevStE.DEV_NAME);
 	if (!BleDevStE.btopen) strcat(bsend," (Open");
 	else {
 	strcat(bsend," (Auth");
@@ -26229,7 +26387,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	ptr = &BleDevStA;
 	break;
 	}
-	if (ptr->REQ_NAME[0]) {
+	if (ptr->DEV_NAME[0]) {
 	strcat(bsend,"</td></tr><tr><td>BLE ");
 	itoa(i + 1,buff,10);
 	strcat(bsend,buff);
@@ -26401,7 +26559,7 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	itoa(blenum1,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend," ");
-	(ptr->RQC_NAME[0])? strcat(bsend,ptr->RQC_NAME) : strcat(bsend,"Not defined");
+	(ptr->DEV_NAME[0])? strcat(bsend,ptr->DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend," ");
 	if ((ptr->DEV_TYP > 0) && (ptr->DEV_TYP < 10)) strcat(bsend,"Kettle");
 	else if ((ptr->DEV_TYP > 9) && (ptr->DEV_TYP < 11)) strcat(bsend,"Power");
@@ -26421,8 +26579,8 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	else if (ptr->DEV_TYP == 76) strcat(bsend,"Motion");
 	else if (ptr->DEV_TYP == 77) strcat(bsend,"Coffee");
 	strcat(bsend," Control</h3><br/>");
-	if (!ptr->REQ_NAME[0] || !ptr->DEV_TYP || !ptr->btauthoriz) {
-	if (ptr->REQ_NAME[0] && ptr->DEV_TYP && (ptr->DEV_TYP < 128) && !ptr->btauthoriz) {
+	if (!ptr->DEV_NAME[0] || !ptr->DEV_TYP || !ptr->btauthoriz) {
+	if (ptr->DEV_NAME[0] && ptr->DEV_TYP && (ptr->DEV_TYP < 128) && !ptr->btauthoriz) {
 	if ((ptr->DEV_TYP > 0) && (ptr->DEV_TYP < 10)) strcat(bsend,"Kettle");
 	else if ((ptr->DEV_TYP > 9) && (ptr->DEV_TYP < 11)) strcat(bsend,"Power");
 	else if ((ptr->DEV_TYP == 11) || (ptr->DEV_TYP == 15)) strcat(bsend,"Heater");
@@ -26441,7 +26599,7 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	else if (ptr->DEV_TYP == 76) strcat(bsend,"Motion, ");
 	else if (ptr->DEV_TYP == 77) strcat(bsend,"Coffee");
 	strcat(bsend," ");
-	strcat(bsend,ptr->RQC_NAME);
+	strcat(bsend,ptr->DEV_NAME);
 	strcat(bsend," not connected<br/>");
 	} else strcat(bsend,"Device not defined<br/>");
 	strcat(bsend,"<body><form method=\"POST\" action=\"/setignore\">");
@@ -27236,15 +27394,15 @@ static esp_err_t pcfgdev1_get_handler(httpd_req_t *req)
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu active' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
-	(BleDevStA.RQC_NAME[0])? strcat(bsend,BleDevStA.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStA.DEV_NAME[0])? strcat(bsend,BleDevStA.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev2'>&#128246;<span class='showmenulabel'> 2 ");
-	(BleDevStB.RQC_NAME[0])? strcat(bsend,BleDevStB.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStB.DEV_NAME[0])? strcat(bsend,BleDevStB.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev3'>&#128246;<span class='showmenulabel'> 3 ");
-	(BleDevStC.RQC_NAME[0])? strcat(bsend,BleDevStC.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStC.DEV_NAME[0])? strcat(bsend,BleDevStC.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev4'>&#128246;<span class='showmenulabel'> 4 ");
-	(BleDevStD.RQC_NAME[0])? strcat(bsend,BleDevStD.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStD.DEV_NAME[0])? strcat(bsend,BleDevStD.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev5'>&#128246;<span class='showmenulabel'> 5 ");
-	(BleDevStE.RQC_NAME[0])? strcat(bsend,BleDevStE.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStE.DEV_NAME[0])? strcat(bsend,BleDevStE.DEV_NAME) : strcat(bsend,"Not defined");
 	if (ble_mon) strcat(bsend,"</span></a><a class='menu' href='blemon'>&#128246;<span class='showmenulabel'>BLE monitor</span></a>");
 	strcat(bsend,"</span></a><a class='menu' href='setting'>&#9881;<span class='showmenulabel'>Setting</span></a>");
 	strcat(bsend,"<a class='menu' href='restart'>&#128259;<span class='showmenulabel'>Reboot</span></a>");
@@ -27825,15 +27983,15 @@ static esp_err_t pcfgdev2_get_handler(httpd_req_t *req)
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
-	(BleDevStA.RQC_NAME[0])? strcat(bsend,BleDevStA.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStA.DEV_NAME[0])? strcat(bsend,BleDevStA.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu active' href='cfgdev2'>&#128246;<span class='showmenulabel'> 2 ");
-	(BleDevStB.RQC_NAME[0])? strcat(bsend,BleDevStB.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStB.DEV_NAME[0])? strcat(bsend,BleDevStB.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev3'>&#128246;<span class='showmenulabel'> 3 ");
-	(BleDevStC.RQC_NAME[0])? strcat(bsend,BleDevStC.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStC.DEV_NAME[0])? strcat(bsend,BleDevStC.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev4'>&#128246;<span class='showmenulabel'> 4 ");
-	(BleDevStD.RQC_NAME[0])? strcat(bsend,BleDevStD.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStD.DEV_NAME[0])? strcat(bsend,BleDevStD.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev5'>&#128246;<span class='showmenulabel'> 5 ");
-	(BleDevStE.RQC_NAME[0])? strcat(bsend,BleDevStE.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStE.DEV_NAME[0])? strcat(bsend,BleDevStE.DEV_NAME) : strcat(bsend,"Not defined");
 	if (ble_mon) strcat(bsend,"</span></a><a class='menu' href='blemon'>&#128246;<span class='showmenulabel'>BLE monitor</span></a>");
 	strcat(bsend,"</span></a><a class='menu' href='setting'>&#9881;<span class='showmenulabel'>Setting</span></a>");
 	strcat(bsend,"<a class='menu' href='restart'>&#128259;<span class='showmenulabel'>Reboot</span></a>");
@@ -27925,15 +28083,15 @@ static esp_err_t pcfgdev3_get_handler(httpd_req_t *req)
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
-	(BleDevStA.RQC_NAME[0])? strcat(bsend,BleDevStA.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStA.DEV_NAME[0])? strcat(bsend,BleDevStA.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev2'>&#128246;<span class='showmenulabel'> 2 ");
-	(BleDevStB.RQC_NAME[0])? strcat(bsend,BleDevStB.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStB.DEV_NAME[0])? strcat(bsend,BleDevStB.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu active' href='cfgdev3'>&#128246;<span class='showmenulabel'> 3 ");
-	(BleDevStC.RQC_NAME[0])? strcat(bsend,BleDevStC.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStC.DEV_NAME[0])? strcat(bsend,BleDevStC.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev4'>&#128246;<span class='showmenulabel'> 4 ");
-	(BleDevStD.RQC_NAME[0])? strcat(bsend,BleDevStD.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStD.DEV_NAME[0])? strcat(bsend,BleDevStD.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev5'>&#128246;<span class='showmenulabel'> 5 ");
-	(BleDevStE.RQC_NAME[0])? strcat(bsend,BleDevStE.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStE.DEV_NAME[0])? strcat(bsend,BleDevStE.DEV_NAME) : strcat(bsend,"Not defined");
 	if (ble_mon) strcat(bsend,"</span></a><a class='menu' href='blemon'>&#128246;<span class='showmenulabel'>BLE monitor</span></a>");
 	strcat(bsend,"</span></a><a class='menu' href='setting'>&#9881;<span class='showmenulabel'>Setting</span></a>");
 	strcat(bsend,"<a class='menu' href='restart'>&#128259;<span class='showmenulabel'>Reboot</span></a>");
@@ -28027,15 +28185,15 @@ static esp_err_t pcfgdev4_get_handler(httpd_req_t *req)
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
-	(BleDevStA.RQC_NAME[0])? strcat(bsend,BleDevStA.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStA.DEV_NAME[0])? strcat(bsend,BleDevStA.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev2'>&#128246;<span class='showmenulabel'> 2 ");
-	(BleDevStB.RQC_NAME[0])? strcat(bsend,BleDevStB.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStB.DEV_NAME[0])? strcat(bsend,BleDevStB.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev3'>&#128246;<span class='showmenulabel'> 3 ");
-	(BleDevStC.RQC_NAME[0])? strcat(bsend,BleDevStC.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStC.DEV_NAME[0])? strcat(bsend,BleDevStC.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu active' href='cfgdev4'>&#128246;<span class='showmenulabel'> 4 ");
-	(BleDevStD.RQC_NAME[0])? strcat(bsend,BleDevStD.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStD.DEV_NAME[0])? strcat(bsend,BleDevStD.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev5'>&#128246;<span class='showmenulabel'> 5 ");
-	(BleDevStE.RQC_NAME[0])? strcat(bsend,BleDevStE.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStE.DEV_NAME[0])? strcat(bsend,BleDevStE.DEV_NAME) : strcat(bsend,"Not defined");
 	if (ble_mon) strcat(bsend,"</span></a><a class='menu' href='blemon'>&#128246;<span class='showmenulabel'>BLE monitor</span></a>");
 	strcat(bsend,"</span></a><a class='menu' href='setting'>&#9881;<span class='showmenulabel'>Setting</span></a>");
 	strcat(bsend,"<a class='menu' href='restart'>&#128259;<span class='showmenulabel'>Reboot</span></a>");
@@ -28129,15 +28287,15 @@ static esp_err_t pcfgdev5_get_handler(httpd_req_t *req)
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
-	(BleDevStA.RQC_NAME[0])? strcat(bsend,BleDevStA.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStA.DEV_NAME[0])? strcat(bsend,BleDevStA.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev2'>&#128246;<span class='showmenulabel'> 2 ");
-	(BleDevStB.RQC_NAME[0])? strcat(bsend,BleDevStB.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStB.DEV_NAME[0])? strcat(bsend,BleDevStB.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev3'>&#128246;<span class='showmenulabel'> 3 ");
-	(BleDevStC.RQC_NAME[0])? strcat(bsend,BleDevStC.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStC.DEV_NAME[0])? strcat(bsend,BleDevStC.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev4'>&#128246;<span class='showmenulabel'> 4 ");
-	(BleDevStD.RQC_NAME[0])? strcat(bsend,BleDevStD.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStD.DEV_NAME[0])? strcat(bsend,BleDevStD.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu active' href='cfgdev5'>&#128246;<span class='showmenulabel'> 5 ");
-	(BleDevStE.RQC_NAME[0])? strcat(bsend,BleDevStE.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStE.DEV_NAME[0])? strcat(bsend,BleDevStE.DEV_NAME) : strcat(bsend,"Not defined");
 	if (ble_mon) strcat(bsend,"</span></a><a class='menu' href='blemon'>&#128246;<span class='showmenulabel'>BLE monitor</span></a>");
 	strcat(bsend,"</span></a><a class='menu' href='setting'>&#9881;<span class='showmenulabel'>Setting</span></a>");
 	strcat(bsend,"<a class='menu' href='restart'>&#128259;<span class='showmenulabel'>Reboot</span></a>");
@@ -28232,21 +28390,21 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
-	(BleDevStA.RQC_NAME[0])? strcat(bsend,BleDevStA.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStA.DEV_NAME[0])? strcat(bsend,BleDevStA.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev2'>&#128246;<span class='showmenulabel'> 2 ");
-	(BleDevStB.RQC_NAME[0])? strcat(bsend,BleDevStB.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStB.DEV_NAME[0])? strcat(bsend,BleDevStB.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev3'>&#128246;<span class='showmenulabel'> 3 ");
-	(BleDevStC.RQC_NAME[0])? strcat(bsend,BleDevStC.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStC.DEV_NAME[0])? strcat(bsend,BleDevStC.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev4'>&#128246;<span class='showmenulabel'> 4 ");
-	(BleDevStD.RQC_NAME[0])? strcat(bsend,BleDevStD.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStD.DEV_NAME[0])? strcat(bsend,BleDevStD.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev5'>&#128246;<span class='showmenulabel'> 5 ");
-	(BleDevStE.RQC_NAME[0])? strcat(bsend,BleDevStE.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStE.DEV_NAME[0])? strcat(bsend,BleDevStE.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu active' href='blemon'>&#128246;<span class='showmenulabel'>BLE monitor</span></a>");
 	strcat(bsend,"</span></a><a class='menu' href='setting'>&#9881;<span class='showmenulabel'>Setting</span></a>");
 	strcat(bsend,"<a class='menu' href='restart'>&#128259;<span class='showmenulabel'>Reboot</span></a>");
 	strcat(bsend,"<a class='menu' href='update'>&#10548;<span class='showmenulabel'>Load firmware</span></a></div>");
 	strcat(bsend,"</header><body><form method=\"POST\" action=\"/blemonok\"  id=\"frm1\"><table class='normal' width='80%'>");
-	strcat(bsend,"<tr class=\"header\"><th width='30px' align='left'>Pos</th><th width='210px' align='left'>ID</th><th width='140px' align='left'>Name / Type</th><th width='80px' align='left''>RSSI</th><th width='70px' align='left''>Gap</th><th width='70px' align='left''>Last</th><th width='720px' align='left'>Advanced Data / Scan Response</th><th width='150px' align='left''>Timeout / Key</tr>");
+	strcat(bsend,"<tr class=\"header\"><th width='30px' align='left'>Pos</th><th width='210px' align='left'>ID</th><th width='150px' align='left'>Name / Type</th><th width='80px' align='left''>RSSI</th><th width='70px' align='left''>Gap</th><th width='70px' align='left''>Last</th><th width='710px' align='left'>Advanced Data / Scan Response</th><th width='150px' align='left''>Timeout / Key</tr>");
 	if (ble_mon_refr & 2) bmofs = BleMonNum/2;
 	for (int i = bmofs; i < (BleMonNum/2 + bmofs); i++) {
 	(i & 1)? strcat(bsend,"<tr><td class='xbg'>") : strcat(bsend,"<tr><td>");
@@ -28274,7 +28432,7 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
 	memset(buff,0,16);
 	if (BleMR[i].id) {
-	mystrcpy(buff,BleMX[i].name,15);
+	mystrcpy(buff,BleMX[i].name,19);
 	strcat(bsend,buff);	
 	}
 	(i & 1)? strcat(bsend,"</td><td class='xbg'>") : strcat(bsend,"</td><td>");
@@ -28400,6 +28558,98 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	if(BleMX[i].scrsplen) {
 	bin2hex(BleMX[i].scrsp,buff,BleMX[i].scrsplen & 0x1f,0x20);
 	strcat(bsend,buff);	
+	} else if ((BleMR[i].id == 3) || (BleMR[i].id == 11) || ((BleMR[i].id > 6) && (BleMR[i].id < 10))) {
+	strcat(bsend,"Temp: ");	
+	buff[0] = 0;
+	s16_strcat_p2 (BleMX[i].par1, buff);
+	strcat(bsend,buff);	
+	strcat(bsend,"&deg;C, Hum: ");	
+	buff[0] = 0;
+	u32_strcat_p2 (BleMX[i].par2, buff);
+	strcat(bsend,buff);	
+	strcat(bsend,"%");	
+	if ((BleMR[i].id != 9) && (BleMR[i].id != 11)) {
+	strcat(bsend,", Bat: ");	
+	itoa(BleMX[i].par4,buff,10);
+	strcat(bsend,buff);	
+	strcat(bsend,"%");	
+	}
+	} else if (BleMR[i].id == 2) {
+	strcat(bsend,"Weight: ");	
+	buff[0] = 0;
+	u32_strcat_p2 (BleMX[i].par1, buff);
+	strcat(bsend,buff);	
+	if (BleMX[i].par5 & 0x100) strcat(bsend,"lbs");
+	else strcat(bsend,"kg");
+	strcat(bsend,", Prov.weight: ");	
+	buff[0] = 0;
+	u32_strcat_p2 (BleMX[i].par6, buff);
+	strcat(bsend,buff);	
+	if (BleMX[i].par5 & 0x100) strcat(bsend,"lbs");
+	else strcat(bsend,"kg");
+	strcat(bsend,", Impedance: ");	
+	itoa(BleMX[i].par7,buff,10);
+	strcat(bsend,buff);	
+	strcat(bsend,"ohm");	
+	} else if (BleMR[i].id == 5) {
+	strcat(bsend,"Temp: ");	
+	buff[0] = 0;
+	s16_strcat_p1 (BleMX[i].par1, buff);
+	strcat(bsend,buff);	
+	strcat(bsend,"&deg;C, Hum: ");	
+	buff[0] = 0;
+	u32_strcat_p1 (BleMX[i].par2, buff);
+	strcat(bsend,buff);	
+	strcat(bsend,"%, pm25: ");	
+	itoa(BleMX[i].par3,buff,10);
+	strcat(bsend,buff);	
+	strcat(bsend,"ug/m3, pm10: ");	
+	itoa(BleMX[i].par4,buff,10);
+	strcat(bsend,buff);	
+	strcat(bsend,"ug/m3, CO2: ");	
+	itoa(BleMX[i].par5,buff,10);
+	strcat(bsend,buff);	
+	strcat(bsend,"ppm");	
+	} else if (BleMR[i].id == 6) {
+	uint32_t var = (uint16_t)BleMX[i].par2;
+	var = (var << 16) + (uint16_t)BleMX[i].par5;
+	strcat(bsend,"S/N: ");	
+	itoa(var,buff,10);
+	strcat(bsend,buff);	
+	strcat(bsend,", Cnt: ");	
+	var = (uint16_t)BleMX[i].par4;
+	var = ((var << 16) + (uint16_t)BleMX[i].par3) / 10;
+	buff[0] = 0;
+	u32_strcat_p3 (var, buff);
+	strcat(bsend,buff);	
+	strcat(bsend,"m3, Temp: ");	
+	buff[0] = 0;
+	s16_strcat_p1 (BleMX[i].par1, buff);
+	strcat(bsend,buff);	
+	strcat(bsend,"&deg;C, Bat: ");	
+	itoa(BleMX[i].par6,buff,10);
+	strcat(bsend,buff);	
+	strcat(bsend,"%");	
+	} else if (BleMR[i].id == 0x44) {
+	uint8_t tgst = BleMX[i].par1;
+	strcat(bsend,"State: ");	
+	bin2hex(&tgst,buff,1,0);
+	strcat(bsend,buff);	
+	strcat(bsend,", Bat: ");	
+	switch (BleMX[i].par2 & 0x03) {
+	case 3:
+	strcat(bsend,"100%");
+	break;
+	case 2:
+	strcat(bsend,"15%");
+	break;
+	case 1:
+	strcat(bsend,"5%");
+	break;
+	case 0:
+	strcat(bsend,"0%");
+	break;
+	}
 	}
 	strcat(bsend,"</td></tr>");
 	}
@@ -28558,6 +28808,9 @@ uint8_t pinvalid(uint8_t pin) {
 	uint8_t retc = 7;
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 	if (pin > 21) retc = 0;
+#elif  CONFIG_IDF_TARGET_ESP32S3
+	if ((pin > 21) && (pin < 26)) retc = 0;
+	if (pin > 48) retc = 0;
 #else
 	if (pin > 39) retc = 0;
 	if (pin > 33) retc = 3;
@@ -28738,15 +28991,15 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend," for Redmond +</h1>");
 	strcat(bsend,"<div class='menubar'><a class='menu' href='.'>&#8962;<span class='showmenulabel'>Main");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev1'>&#128246;<span class='showmenulabel'> 1 ");
-	(BleDevStA.RQC_NAME[0])? strcat(bsend,BleDevStA.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStA.DEV_NAME[0])? strcat(bsend,BleDevStA.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev2'>&#128246;<span class='showmenulabel'> 2 ");
-	(BleDevStB.RQC_NAME[0])? strcat(bsend,BleDevStB.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStB.DEV_NAME[0])? strcat(bsend,BleDevStB.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev3'>&#128246;<span class='showmenulabel'> 3 ");
-	(BleDevStC.RQC_NAME[0])? strcat(bsend,BleDevStC.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStC.DEV_NAME[0])? strcat(bsend,BleDevStC.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev4'>&#128246;<span class='showmenulabel'> 4 ");
-	(BleDevStD.RQC_NAME[0])? strcat(bsend,BleDevStD.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStD.DEV_NAME[0])? strcat(bsend,BleDevStD.DEV_NAME) : strcat(bsend,"Not defined");
 	strcat(bsend,"</span></a><a class='menu' href='cfgdev5'>&#128246;<span class='showmenulabel'> 5 ");
-	(BleDevStE.RQC_NAME[0])? strcat(bsend,BleDevStE.RQC_NAME) : strcat(bsend,"Not defined");
+	(BleDevStE.DEV_NAME[0])? strcat(bsend,BleDevStE.DEV_NAME) : strcat(bsend,"Not defined");
 	if (ble_mon) strcat(bsend,"</span></a><a class='menu' href='blemon'>&#128246;<span class='showmenulabel'>BLE monitor</span></a>");
 	strcat(bsend,"</span></a><a class='menu active' href='setting'>&#9881;<span class='showmenulabel'>Setting</span></a>");
 	strcat(bsend,"<a class='menu' href='restart'>&#128259;<span class='showmenulabel'>Reboot</span></a>");
@@ -28906,19 +29159,19 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"> flip 180&deg; &ensp;GPIO<input name=\"pnmiso\" type=\"number\" value=\"");
 	itoa(PIN_NUM_MISO,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"39\" size=\"2\">MISO <input name=\"pnmosi\" type=\"number\" value=\"");
+	strcat(bsend,"\" min=\"0\" max=\"48\" size=\"2\">MISO <input name=\"pnmosi\" type=\"number\" value=\"");
 	itoa(PIN_NUM_MOSI,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">MOSI <input name=\"pnclk\" type=\"number\" value=\"");
+	strcat(bsend,"\" min=\"0\" max=\"48\" size=\"2\">MOSI <input name=\"pnclk\" type=\"number\" value=\"");
 	itoa(PIN_NUM_CLK,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">CLK <input name=\"pncs\" type=\"number\" value=\"");
+	strcat(bsend,"\" min=\"0\" max=\"48\" size=\"2\">CLK <input name=\"pncs\" type=\"number\" value=\"");
 	itoa(PIN_NUM_CS,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">CS <input name=\"pndc\" type=\"number\" value=\"");
+	strcat(bsend,"\" min=\"0\" max=\"48\" size=\"2\">CS <input name=\"pndc\" type=\"number\" value=\"");
 	itoa(PIN_NUM_DC,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"33\" size=\"2\">DC <input name=\"pnrst\" type=\"number\" value=\"");
+	strcat(bsend,"\" min=\"0\" max=\"48\" size=\"2\">DC <input name=\"pnrst\" type=\"number\" value=\"");
 	itoa(PIN_NUM_RST,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"63\" size=\"2\">RES <input name=\"pnbckl\" type=\"number\" value=\"");
@@ -29204,15 +29457,15 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	parsuri(buf1,MQTT_TOPP7,buf2,4096,32,0);
 #endif
 	strcpy(buf2,"sreqnma");
-	parsuri(buf1,BleDevStA.REQ_NAME,buf2,4096,16,1);
+	parsuri(buf1,BleDevStA.REQ_NAME,buf2,4096,20,1);
 	strcpy(buf2,"sreqnmb");
-	parsuri(buf1,BleDevStB.REQ_NAME,buf2,4096,16,1);
+	parsuri(buf1,BleDevStB.REQ_NAME,buf2,4096,20,1);
 	strcpy(buf2,"sreqnmc");
-	parsuri(buf1,BleDevStC.REQ_NAME,buf2,4096,16,1);
+	parsuri(buf1,BleDevStC.REQ_NAME,buf2,4096,20,1);
 	strcpy(buf2,"sreqnmd");
-	parsuri(buf1,BleDevStD.REQ_NAME,buf2,4096,16,1);
+	parsuri(buf1,BleDevStD.REQ_NAME,buf2,4096,20,1);
 	strcpy(buf2,"sreqnme");
-	parsuri(buf1,BleDevStE.REQ_NAME,buf2,4096,16,1);
+	parsuri(buf1,BleDevStE.REQ_NAME,buf2,4096,20,1);
 	buf3[0] = 0;
 	strcpy(buf2,"pnpswa");
 	parsuri(buf1,buf3,buf2,4096,4,0);
@@ -30344,6 +30597,8 @@ static httpd_handle_t start_webserver(void)
 //	config.max_resp_headers = 16;
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 	config.stack_size = 5760;
+#elif  CONFIG_IDF_TARGET_ESP32S3
+	config.stack_size = 5760;
 #else
 	config.stack_size = 5376;
 #endif
@@ -31115,22 +31370,32 @@ void app_main(void)
 	for (int i = 0; i < BleMonNum; i++) {
 	if ((BleMR[i].sto) && (BleMR[i].id > 2) && (BleMR[i].id < 12)) BleMX[i].par1 = -1;
 	}
-	strcpy(BleDevStA.RQC_NAME, BleDevStA.REQ_NAME);
-	strcpy(BleDevStB.RQC_NAME, BleDevStB.REQ_NAME);
-	strcpy(BleDevStC.RQC_NAME, BleDevStC.REQ_NAME);
-	strcpy(BleDevStD.RQC_NAME, BleDevStD.REQ_NAME);
-	strcpy(BleDevStE.RQC_NAME, BleDevStE.REQ_NAME);
+	if (BleDevStA.REQ_NAME[0] > 35) { 
+	strcpy(BleDevStA.DEV_NAME, BleDevStA.REQ_NAME);
+	if (strlen(BleDevStA.REQ_NAME) == 12 && hex2bin(BleDevStA.REQ_NAME, binblemac, 6)) strcpy(BleDevStA.tBLEAddr, BleDevStA.REQ_NAME);
+	}
+	if (BleDevStB.REQ_NAME[0] > 35) { 
+	strcpy(BleDevStB.DEV_NAME, BleDevStB.REQ_NAME);
+	if (strlen(BleDevStB.REQ_NAME) == 12 && hex2bin(BleDevStB.REQ_NAME, binblemac, 6)) strcpy(BleDevStB.tBLEAddr, BleDevStB.REQ_NAME);
+	}
+	if (BleDevStC.REQ_NAME[0] > 35) { 
+	strcpy(BleDevStC.DEV_NAME, BleDevStC.REQ_NAME);
+	if (strlen(BleDevStC.REQ_NAME) == 12 && hex2bin(BleDevStC.REQ_NAME, binblemac, 6)) strcpy(BleDevStC.tBLEAddr, BleDevStC.REQ_NAME);
+	}
+	if (BleDevStD.REQ_NAME[0] > 35) { 
+	strcpy(BleDevStD.DEV_NAME, BleDevStD.REQ_NAME);
+	if (strlen(BleDevStD.REQ_NAME) == 12 && hex2bin(BleDevStD.REQ_NAME, binblemac, 6)) strcpy(BleDevStD.tBLEAddr, BleDevStD.REQ_NAME);
+	}
+	if (BleDevStE.REQ_NAME[0] > 35) { 
+	strcpy(BleDevStE.DEV_NAME, BleDevStE.REQ_NAME);
+	if (strlen(BleDevStE.REQ_NAME) == 12 && hex2bin(BleDevStE.REQ_NAME, binblemac, 6)) strcpy(BleDevStE.tBLEAddr, BleDevStE.REQ_NAME);
+	}
 	if ((BleDevStA.DEV_TYP > 15) && (BleDevStA.DEV_TYP < 58)) BleDevStA.bProg = 255;
 	if ((BleDevStB.DEV_TYP > 15) && (BleDevStB.DEV_TYP < 58)) BleDevStB.bProg = 255;
 	if ((BleDevStC.DEV_TYP > 15) && (BleDevStC.DEV_TYP < 58)) BleDevStC.bProg = 255;
 	if ((BleDevStD.DEV_TYP > 15) && (BleDevStD.DEV_TYP < 58)) BleDevStD.bProg = 255;
 	if ((BleDevStE.DEV_TYP > 15) && (BleDevStE.DEV_TYP < 58)) BleDevStE.bProg = 255;
 //
-	if (strlen(BleDevStA.REQ_NAME) == 12 && hex2bin(BleDevStA.REQ_NAME, binblemac, 6)) strcpy(BleDevStA.tBLEAddr, BleDevStA.REQ_NAME);
-	if (strlen(BleDevStB.REQ_NAME) == 12 && hex2bin(BleDevStB.REQ_NAME, binblemac, 6)) strcpy(BleDevStB.tBLEAddr, BleDevStB.REQ_NAME);
-	if (strlen(BleDevStC.REQ_NAME) == 12 && hex2bin(BleDevStC.REQ_NAME, binblemac, 6)) strcpy(BleDevStC.tBLEAddr, BleDevStC.REQ_NAME);
-	if (strlen(BleDevStD.REQ_NAME) == 12 && hex2bin(BleDevStD.REQ_NAME, binblemac, 6)) strcpy(BleDevStD.tBLEAddr, BleDevStD.REQ_NAME);
-	if (strlen(BleDevStE.REQ_NAME) == 12 && hex2bin(BleDevStE.REQ_NAME, binblemac, 6)) strcpy(BleDevStE.tBLEAddr, BleDevStE.REQ_NAME);
 #ifdef USE_TFT
 	if ((PIN_NUM_MISO > 39) || (PIN_NUM_MOSI > 33) || (PIN_NUM_CLK > 33) || 
 	(PIN_NUM_CS > 33) || (PIN_NUM_DC > 33)) tft_conf = 0;
@@ -31183,6 +31448,8 @@ void app_main(void)
 	cntgpio5 = 0;
 	if (bgpio1 > 63) {
 	if (bgpio1 < (MxPOutP + 64)) {
+/*
+///
 #ifdef USE_ODIO
 	if (lvout1) gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_OUTPUT | GPIO_MODE_DEF_OD);
 	else gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_OUTPUT);
@@ -31191,6 +31458,19 @@ void app_main(void)
 #endif
 	mygp_iomux_out(bgpio1 & 0x3f);
 	gpio_set_level((bgpio1 & 0x3f), lvout1);
+*/
+#ifdef USE_ODIO
+	if (lvout1) gpio_reset_pin(bgpio1 & 0x3f);
+	else {
+	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio1 & 0x3f);
+	gpio_set_level((bgpio1 & 0x3f), 0);
+	}
+#else
+	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio1 & 0x3f);
+	gpio_set_level((bgpio1 & 0x3f), lvout1);
+#endif
 	lvgpio1 = 0;
 	} else {
 	gpio_set_direction((bgpio1 & 0x3f), GPIO_MODE_INPUT);
@@ -31200,6 +31480,8 @@ void app_main(void)
 	}
 	if (bgpio2 > 63) {
 	if (bgpio2 < (MxPOutP + 64)) {
+/*
+///
 #ifdef USE_ODIO
 	if (lvout2) gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_OUTPUT | GPIO_MODE_DEF_OD);
 	else gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_OUTPUT);
@@ -31208,6 +31490,19 @@ void app_main(void)
 #endif
 	mygp_iomux_out(bgpio2 & 0x3f);
 	gpio_set_level((bgpio2 & 0x3f), lvout2);
+*/
+#ifdef USE_ODIO
+	if (lvout2) gpio_reset_pin(bgpio2 & 0x3f);
+	else {
+	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio2 & 0x3f);
+	gpio_set_level((bgpio2 & 0x3f), 0);
+	}
+#else
+	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio2 & 0x3f);
+	gpio_set_level((bgpio2 & 0x3f), lvout2);
+#endif
 	lvgpio2 = 0;
 	} else {
 	gpio_set_direction((bgpio2 & 0x3f), GPIO_MODE_INPUT);
@@ -31217,6 +31512,8 @@ void app_main(void)
 	}
 	if (bgpio3 > 63) {
 	if (bgpio3 < (MxPOutP + 64)) {
+/*
+///
 #ifdef USE_ODIO
 	if (lvout3) gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_OUTPUT | GPIO_MODE_DEF_OD);
 	else gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_OUTPUT);
@@ -31225,6 +31522,19 @@ void app_main(void)
 #endif
 	mygp_iomux_out(bgpio3 & 0x3f);
 	gpio_set_level((bgpio3 & 0x3f), lvout3);
+*/
+#ifdef USE_ODIO
+	if (lvout3) gpio_reset_pin(bgpio3 & 0x3f);
+	else {
+	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio3 & 0x3f);
+	gpio_set_level((bgpio3 & 0x3f), 0);
+	}
+#else
+	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio3 & 0x3f);
+	gpio_set_level((bgpio3 & 0x3f), lvout3);
+#endif
 	lvgpio3 = 0;
 	} else {
 	gpio_set_direction((bgpio3 & 0x3f), GPIO_MODE_INPUT);
@@ -31234,6 +31544,8 @@ void app_main(void)
 	}
 	if (bgpio4 > 63) {
 	if (bgpio4 < (MxPOutP + 64)) {
+/*
+///
 #ifdef USE_ODIO
 	if (lvout4) gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_OUTPUT | GPIO_MODE_DEF_OD);
 	else gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_OUTPUT);
@@ -31242,6 +31554,19 @@ void app_main(void)
 #endif
 	mygp_iomux_out(bgpio4 & 0x3f);
 	gpio_set_level((bgpio4 & 0x3f), lvout4);
+*/
+#ifdef USE_ODIO
+	if (lvout4) gpio_reset_pin(bgpio4 & 0x3f);
+	else {
+	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio4 & 0x3f);
+	gpio_set_level((bgpio4 & 0x3f), 0);
+	}
+#else
+	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio4 & 0x3f);
+	gpio_set_level((bgpio4 & 0x3f), lvout4);
+#endif
 	lvgpio4 = 0;
 	} else {
 	gpio_set_direction((bgpio4 & 0x3f), GPIO_MODE_INPUT);
@@ -31251,6 +31576,8 @@ void app_main(void)
 	}
 	if (bgpio5 > 63) {
 	if (bgpio5 < (MxPOutP + 64)) {
+/*
+///
 #ifdef USE_ODIO
 	if (lvout5) gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_OUTPUT | GPIO_MODE_DEF_OD);
 	else gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_OUTPUT);
@@ -31259,6 +31586,19 @@ void app_main(void)
 #endif
 	mygp_iomux_out(bgpio5 & 0x3f);
 	gpio_set_level((bgpio5 & 0x3f), lvout5);
+*/
+#ifdef USE_ODIO
+	if (lvout5) gpio_reset_pin(bgpio5 & 0x3f);
+	else {
+	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio5 & 0x3f);
+	gpio_set_level((bgpio5 & 0x3f), 0);
+	}
+#else
+	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_OUTPUT);
+	mygp_iomux_out(bgpio5 & 0x3f);
+	gpio_set_level((bgpio5 & 0x3f), lvout5);
+#endif
 	lvgpio5 = 0;
 	} else {
 	gpio_set_direction((bgpio5 & 0x3f), GPIO_MODE_INPUT);
