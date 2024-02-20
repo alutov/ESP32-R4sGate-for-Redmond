@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2024.02.18"
+#define AP_VER "2024.02.19"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -24925,7 +24925,7 @@ void wifi_init_sta(void)
 	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
 	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
 	ESP_ERROR_CHECK(esp_wifi_start() );
-	ESP_ERROR_CHECK(esp_wifi_set_dynamic_cs(true));
+	if ((wf_mod & 3) == 3) ESP_ERROR_CHECK(esp_wifi_set_dynamic_cs(true));
 #ifdef USE_TFT
 	if (tft_conn) tfststr("Connecting to AP ",WIFI_SSID," ..."); 
 #endif
@@ -24974,7 +24974,7 @@ void wifi_init_sta(void)
 	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
 	ESP_ERROR_CHECK(esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B|WIFI_PROTOCOL_11G|WIFI_PROTOCOL_11N));
 	ESP_ERROR_CHECK(esp_wifi_start() );
-	ESP_ERROR_CHECK(esp_wifi_set_dynamic_cs(true));
+//	ESP_ERROR_CHECK(esp_wifi_set_dynamic_cs(true));
 #ifdef USE_TFT
 	if (tft_conn) tfststr("Connecting to AP ",DEFWFSSID," ..."); 
 #endif
@@ -28558,7 +28558,9 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	if(BleMX[i].scrsplen) {
 	bin2hex(BleMX[i].scrsp,buff,BleMX[i].scrsplen & 0x1f,0x20);
 	strcat(bsend,buff);	
-	} else if ((BleMR[i].id == 3) || (BleMR[i].id == 11) || ((BleMR[i].id > 6) && (BleMR[i].id < 10))) {
+
+	} else if (BleMX[i].advdatlen) {
+	if ((BleMR[i].id == 3) || (BleMR[i].id == 11) || ((BleMR[i].id > 6) && (BleMR[i].id < 10))) {
 	strcat(bsend,"Temp: ");	
 	buff[0] = 0;
 	s16_strcat_p2 (BleMX[i].par1, buff);
@@ -28649,6 +28651,7 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	case 0:
 	strcat(bsend,"0%");
 	break;
+	}
 	}
 	}
 	strcat(bsend,"</td></tr>");
@@ -29013,9 +29016,11 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if ((wf_mod & 3) == 0) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"0\">802.11b/g/n</option><option ");
 	if ((wf_mod & 3) == 1) strcat(bsend,"selected ");
-	strcat(bsend,"value=\"1\">802.11bg</option><option ");
+	strcat(bsend,"value=\"1\">802.11b/g</option><option ");
 	if ((wf_mod & 3) == 2) strcat(bsend,"selected ");
-	strcat(bsend,"value=\"2\">802.11b</option></select> Mode&emsp;<input type=\"checkbox\" name=\"wfb1\" value=\"1\"");
+	strcat(bsend,"value=\"2\">802.11b</option><option ");
+	if ((wf_mod & 3) == 3) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"3\">802.11b/g/n+dyn_cs</option></select> Mode&emsp;<input type=\"checkbox\" name=\"wfb1\" value=\"1\"");
 	if (wf_bits & 0x01) strcat(bsend,"checked");
 	strcat(bsend,"> Disable \"");
 	strcat(bsend,INIT_WIFI_SSID);
