@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2024.02.19"
+#define AP_VER "2024.02.23"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -4601,6 +4601,73 @@ void MqttPubSub (uint8_t blenum) {
 	if (!fcommtp) strcat(bufd,"/cmd");
 	strcat(bufd,"/heat\",\"temp_step\":\"5\",\"modes\":[\"off\",\"auto\",\"heat\"");
 	if ((ptr->DEV_TYP > 3) && (ptr->DEV_TYP < 10)) strcat(bufd,",\"cool\"");
+	strcat(bufd,"]}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+//
+	strcpy(buft,"homeassistant/water_heater/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/1x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,"wh.temp\",\"icon\":\"mdi:kettle\",\"uniq_id\":\"whtmp_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"Kettle_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	itoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Kettle\",\"mdl\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"mf\":\"");
+	if (ptr->DEV_TYP < 64 ) strcat(bufd,"Redmond");
+	else strcat(bufd,"Xiaomi");
+	strcat(bufd,"\"},\"temp_cmd_t\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
+	strcat(bufd,"/heat_temp\",\"temp_stat_t\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/heat_temp\",\"curr_temp_t\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/temp\",\"min_temp\":\"0\",\"max_temp\":\"100\",\"avty\":[{\"t\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"},{\"t\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/status\"}],\"avty_mode\":\"all\",\"mode_stat_t\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/wstate\",\"mode_cmd_t\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
+	strcat(bufd,"/heat\",\"power_command_topic\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
+//	strcat(bufd,"/boil\",\"precision\":\"1.0\",\"modes\":[\"off\",\"performance\",\"eco\"");
+	strcat(bufd,"/boil\",\"modes\":[\"off\",\"Boil\",\"Heat\"");
+	if ((ptr->DEV_TYP > 3) && (ptr->DEV_TYP < 10)) strcat(bufd,",\"Light\"");
 	strcat(bufd,"]}");
 	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
 //
@@ -18198,6 +18265,15 @@ void MqState(uint8_t blenum) {
 	else if (ptr->bHeat && (ptr->bHeat != 254)) esp_mqtt_client_publish(mqttclient, ldata, "heat", 0, 1, 1);
 	else if (ptr->bStNl && (ptr->bStNl != 254)) esp_mqtt_client_publish(mqttclient, ldata, "cool", 0, 1, 1);
 	else esp_mqtt_client_publish(mqttclient, ldata, "off", 0, 1, 1);
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/wstate");
+	if (ptr->bState && (ptr->bState != 254)) esp_mqtt_client_publish(mqttclient, ldata, "Boil", 0, 1, 1);
+	else if (ptr->bHeat && (ptr->bHeat != 254)) esp_mqtt_client_publish(mqttclient, ldata, "Heat", 0, 1, 1);
+	else if (ptr->bStNl && (ptr->bStNl != 254)) esp_mqtt_client_publish(mqttclient, ldata, "Light", 0, 1, 1);
+	else esp_mqtt_client_publish(mqttclient, ldata, "off", 0, 1, 1);
 	}
 	if  (ptr->bprevHtemp != ptr->bHtemp) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
@@ -20254,7 +20330,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 1;
 	}	
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_HEAT_OFF");
-	} else if (!incascmp("auto",data,data_len)) {
+	} else if (!incascmp("auto",data,data_len) || !incascmp("boil",data,data_len)) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom)) {
 	if (ptr->bHtemp) {
 	if (ptr->DEV_TYP == 1) {	
@@ -20273,7 +20349,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_AUTO_ON");
-	} else if (!incascmp("cool",data,data_len)) {
+	} else if (!incascmp("cool",data,data_len) || !incascmp("light",data,data_len)) {
 	if ((!ptr->bStNl) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
 	ptr->r4slppar1 = 0;
 	ptr->r4slpcom = 5;
@@ -30076,6 +30152,12 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	mqtdel = 20;
 	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
 	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+	strcpy(buf1,"homeassistant/water_heater/");
+	strcat(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
 	strcpy(buf1,"homeassistant/light/");
 	strcat(buf1,buf2);
 	strcat(buf1,"/#");
@@ -30154,6 +30236,12 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	mqtdel = 20;
 	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
 	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+	strcpy(buf1,"homeassistant/water_heater/");
+	strcat(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
 	strcpy(buf1,"homeassistant/light/");
 	strcat(buf1,buf2);
 	strcat(buf1,"/#");
@@ -30220,6 +30308,12 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
 	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
 	strcpy(buf1,"homeassistant/climate/");
+	strcat(buf1,buf2);
+	strcat(buf1,"/#");
+	mqtdel = 20;
+	esp_mqtt_client_subscribe(mqttclient, buf1, 0);
+	while (--mqtdel > 1) vTaskDelay(20 / portTICK_PERIOD_MS);
+	strcpy(buf1,"homeassistant/water_heater/");
 	strcat(buf1,buf2);
 	strcat(buf1,"/#");
 	mqtdel = 20;

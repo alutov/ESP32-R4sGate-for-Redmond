@@ -41,7 +41,7 @@ const unsigned char widtbl_f16[224] =         // character width table
         6, 6, 6, 6, 6, 6, 6, 6,             //C0 - C7
         6, 6, 6, 6, 6, 6, 6, 6,             //C8 - CF
         6, 6, 6, 6, 6, 6, 6, 6,             //D0 - D7
-        6, 6, 6, 6, 6, 6, 6, 6,             //D8 - DF
+        6, 6, 6, 6, 8, 8, 8, 8,             //D8 - DF
         8, 8, 8, 8, 8, 14, 14, 14,          //E0 - E7
         14,6, 8, 8, 8, 8, 8, 8,             //E8 - EF
         8, 8, 8, 8, 8, 6, 8, 8,             //F0 - F7
@@ -76,13 +76,8 @@ const unsigned char chr_f16_23[16] =         // 1 unsigned char per row
 
 const unsigned char chr_f16_24[16] =         // 1 unsigned char per row
 {
-#ifdef TFT_ESPI_FONT2_DOLLAR
         0x00, 0x00, 0x28, 0x38, 0x6C, 0xAA, 0xA8, 0x68, 0x3C, 0x2A, 0xAA,    // row 1 - 11
         0x6C, 0x38, 0x28, 0x00, 0x00                                         // row 12 - 16
-#else   // GBP sign
-        0x00, 0x00, 0x00, 0x3C, 0x42, 0x40, 0x40, 0x70, 0x40, 0x70, 0x40,    // row 1 - 11
-        0x40, 0xFE, 0x00, 0x00, 0x00                                         // row 12 - 16
-#endif
 };
 
 const unsigned char chr_f16_25[16] =         // 1 unsigned char per row
@@ -874,36 +869,51 @@ const unsigned char chr_f16_BF[16] =         // 1 unsigned char per row
         0x44, 0x84, 0x00, 0x00, 0x00                                         // row 12 - 16
 };
 
+const unsigned char chr_f16_DC[16] =         // 1 unsigned char per row
+{
+        0x00, 0x00, 0x00, 0x3C, 0x42, 0x02, 0x7E, 0x08, 0x10, 0x7E, 0x40,    // row 1 - 11
+        0x42, 0x3C, 0x00, 0x00, 0x00                                         // row 12 - 16
+};
+const unsigned char chr_f16_DD[16] =         // 1 unsigned char per row
+{
+        0x00, 0x00, 0x00, 0x7C, 0x42, 0x42, 0x42, 0x42, 0xFC, 0x40, 0xF8,    // row 1 - 11
+        0x40, 0x40, 0x00, 0x00, 0x00                                         // row 12 - 16
+};
+const unsigned char chr_f16_DE[16] =         // 1 unsigned char per row
+{
+        0x00, 0x00, 0x00, 0x3C, 0x42, 0x40, 0xF8, 0x40, 0x40, 0xF8, 0x40,    // row 1 - 11
+        0x42, 0x3C, 0x00, 0x00, 0x00                                         // row 12 - 16
+};
+const unsigned char chr_f16_DF[16] =         // 1 unsigned char per row
+{
+        0x00, 0x00, 0x00, 0x3C, 0x42, 0x40, 0x40, 0x70, 0x40, 0x70, 0x40,    // row 1 - 11
+        0x40, 0xFE, 0x00, 0x00, 0x00                                         // row 12 - 16
+};
 const unsigned char chr_f16_E0[16] =         // 1 unsigned char per row
 {
         0x00, 0x30, 0xfc, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84,    // row 1 - 11
         0x84, 0x84, 0xfc, 0x00, 0x00                                         // row 12 - 16
 };
-
 const unsigned char chr_f16_E1[16] =         // 1 unsigned char per row
 {
         0x00, 0x30, 0xfc, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84, 0xfc,    // row 1 - 11
         0xfc, 0xfc, 0xfc, 0x00, 0x00                                         // row 12 - 16
 };
-
 const unsigned char chr_f16_E2[16] =         // 1 unsigned char per row
 {
         0x00, 0x30, 0xfc, 0x84, 0x84, 0x84, 0x84, 0x84, 0xfc, 0xfc, 0xfc,    // row 1 - 11
         0xfc, 0xfc, 0xfc, 0x00, 0x00                                         // row 12 - 16
 };
-
 const unsigned char chr_f16_E3[16] =         // 1 unsigned char per row
 {
         0x00, 0x30, 0xfc, 0x84, 0x84, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc,    // row 1 - 11
         0xfc, 0xfc, 0xfc, 0x00, 0x00                                         // row 12 - 16
 };
-
 const unsigned char chr_f16_E4[16] =         // 1 unsigned char per row
 {
         0x00, 0x30, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc,    // row 1 - 11
         0xfc, 0xfc, 0xfc, 0x00, 0x00                                         // row 12 - 16
 };
-
 const unsigned char chr_f16_E5[32] =         // 2 unsigned chars per row
 {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,    // row 1 - 6
@@ -970,8 +980,6 @@ const unsigned char chr_f16_F4[16] =         // 1 unsigned char per row
         0x92, 0x00, 0x00, 0x00, 0x00                                         // row 12 - 16
 };
 
-
-
 const unsigned char chr_f16_F6[16] =         // 1 unsigned char per row
 {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x40, 0xFE, 0x40, 0x20, 0x00,    // row 1 - 11
@@ -1023,9 +1031,6 @@ const unsigned char chr_f16_FF[16] =         // 1 unsigned char per row
         0x00, 0x00, 0x00, 0x00, 0x00                                         // row 12 - 16
 };
 
-
-
-
 const unsigned char* const chrtbl_f16[224] =       // character pointer table
 {
         chr_f16_20, chr_f16_21, chr_f16_22, chr_f16_23, chr_f16_24, chr_f16_25, chr_f16_26, chr_f16_27, 
@@ -1054,7 +1059,7 @@ const unsigned char* const chrtbl_f16[224] =       // character pointer table
         chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, //C0 - C7
         chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, //C8 - CF
         chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, //D0 - D7
-        chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, //D8 - DF
+        chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_20, chr_f16_DC, chr_f16_DD, chr_f16_DE, chr_f16_DF, //D8 - DF
         chr_f16_E0, chr_f16_E1, chr_f16_E2, chr_f16_E3, chr_f16_E4, chr_f16_E5, chr_f16_E6, chr_f16_E7, //E0 - E7
         chr_f16_E8, chr_f16_20, chr_f16_F2, chr_f16_F2, chr_f16_EC, chr_f16_F3, chr_f16_EE, chr_f16_EF, //E8 - EF
         chr_f16_F0, chr_f16_F1, chr_f16_F2, chr_f16_F3, chr_f16_F4, chr_f16_20, chr_f16_F6, chr_f16_F7, //F0 - F7

@@ -798,6 +798,18 @@ uint16_t decodeUTF8(uint8_t *buf, uint16_t *index, uint16_t remaining)
 	case 0x2744:
 	c = 0xf4;	
 	break;
+	case 0x20a4:
+	c = 0xdf;	
+	break;
+	case 0x20ac:
+	c = 0xde;	
+	break;
+	case 0x20bd:
+	c = 0xdd;	
+	break;
+	case 0x20b4:
+	c = 0xdc;	
+	break;
 	default:
 //if (fdebug) ESP_LOGI(AP_TAG,"sym=0x%X", c);
 	c = 0x20;	
@@ -1641,6 +1653,10 @@ uint8_t tftinit()
 	uint8_t result = 0;
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 	if ((PIN_NUM_MOSI > 21) || (PIN_NUM_MISO > 21) || (PIN_NUM_CLK > 21) || (PIN_NUM_CS > 21)) return result;
+#elif  CONFIG_IDF_TARGET_ESP32S3
+	if ((PIN_NUM_MOSI > 48) || (PIN_NUM_MISO > 48) || (PIN_NUM_CLK > 48) || (PIN_NUM_CS > 48)) return result;
+	if (((PIN_NUM_MOSI > 21) && (PIN_NUM_MOSI < 26)) ||((PIN_NUM_MISO > 21) && (PIN_NUM_MISO < 26)) ||
+	((PIN_NUM_CLK > 21) && (PIN_NUM_CLK < 26)) || ((PIN_NUM_CS > 21) && (PIN_NUM_CS < 26))) return result;
 #else
 	if ((PIN_NUM_MOSI > 33) || (PIN_NUM_MISO > 39) || (PIN_NUM_CLK > 33) || (PIN_NUM_CS > 33)) return result;
 #endif
@@ -1691,6 +1707,9 @@ uint8_t tftinit()
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 	itoa(CONFIG_ESP32C3_DEFAULT_CPU_FREQ_MHZ,buf,10);
 	sumx = drawString("esp32c3/", 0, 0, 4);
+#elif  CONFIG_IDF_TARGET_ESP32S3
+	itoa(CONFIG_ESP32S3_DEFAULT_CPU_FREQ_MHZ,buf,10);
+	sumx = drawString("esp32s3/", 0, 0, 4);
 #else
 	itoa(CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ,buf,10);
 	sumx = drawString("esp32/", 0, 0, 4);
