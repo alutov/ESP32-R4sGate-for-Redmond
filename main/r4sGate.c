@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2024.02.23"
+#define AP_VER "2024.02.26"
 #define NVS_VER 6  //NVS config version (even only)
 
 // Init WIFI setting
@@ -4665,9 +4665,14 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
 	if (!fcommtp) strcat(bufd,"/cmd");
-//	strcat(bufd,"/boil\",\"precision\":\"1.0\",\"modes\":[\"off\",\"performance\",\"eco\"");
-	strcat(bufd,"/boil\",\"modes\":[\"off\",\"Boil\",\"Heat\"");
+//	strcat(bufd,"/boil\",\"precision\":\"1.0\",\"modes\":[\"");
+	strcat(bufd,"/boil\",\"modes\":[\"");
+	if (fbhlwh) {
+	strcat(bufd,"off\",\"Boil\",\"Heat\"");
 	if ((ptr->DEV_TYP > 3) && (ptr->DEV_TYP < 10)) strcat(bufd,",\"Light\"");
+	} else {
+	strcat(bufd,"off\",\"performance\",\"eco\"");
+	}
 	strcat(bufd,"]}");
 	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
 //
@@ -7664,7 +7669,10 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"Redmond\"},\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"Redmond\"},\"dev_cla\":\"");
+	if (ptr->DEV_TYP == 61) strcat(bufd,"opening");
+	else strcat(bufd,"smoke");
+	strcat(bufd,"\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -7859,7 +7867,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"Redmond\"},\"dev_cla\":\"pressure\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"Redmond\"},\"dev_cla\":\"atmospheric_pressure\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -7932,8 +7940,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-//	strcat(bufd,"\",\"mf\":\"Redmond\"},\"dev_cla\":\"pressure\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
-	strcat(bufd,"\",\"mf\":\"Redmond\"},\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"Redmond\"},\"dev_cla\":\"atmospheric_pressure\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -8635,7 +8642,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"HiLink\"},\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"HiLink\"},\"dev_cla\":\"distance\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -8671,7 +8678,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"HiLink\"},\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"HiLink\"},\"dev_cla\":\"distance\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -8707,7 +8714,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"HiLink\"},\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"HiLink\"},\"dev_cla\":\"distance\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -8815,7 +8822,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"HiLink\"},\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"HiLink\"},\"dev_cla\":\"motion\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -8851,7 +8858,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"HiLink\"},\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"HiLink\"},\"dev_cla\":\"occupancy\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -9791,7 +9798,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"stat_cla\":\"total_increasing\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -9827,7 +9834,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"stat_cla\":\"total_increasing\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -9863,7 +9870,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"stat_cla\":\"total_increasing\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -9899,7 +9906,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"dev_cla\":\"volume\",\"unit_of_meas\":\"L\",\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"dev_cla\":\"volume\",\"unit_of_meas\":\"L\",\"stat_cla\":\"total_increasing\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -9935,7 +9942,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"stat_cla\":\"total_increasing\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -9971,7 +9978,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"stat_cla\":\"total_increasing\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -10007,7 +10014,7 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"Delonghi\"},\"stat_cla\":\"total_increasing\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -17531,7 +17538,7 @@ void MqSState() {
 	strcat(llwtd,"Xiaomi");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
-	strcat(llwtd,"\"},\"stat_cla\":\"measurement\",\"stat_t\":\"");
+	strcat(llwtd,"\"},\"dev_cla\":\"weight\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/");
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
@@ -17570,7 +17577,7 @@ void MqSState() {
 	strcat(llwtd,"Xiaomi");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
-	strcat(llwtd,"\"},\"stat_cla\":\"measurement\",\"stat_t\":\"");
+	strcat(llwtd,"\"},\"dev_cla\":\"weight\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/");
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
@@ -18270,10 +18277,16 @@ void MqState(uint8_t blenum) {
 	strcat(ldata,ptr->tBLEAddr);
 	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/wstate");
+	if (fbhlwh) {
 	if (ptr->bState && (ptr->bState != 254)) esp_mqtt_client_publish(mqttclient, ldata, "Boil", 0, 1, 1);
 	else if (ptr->bHeat && (ptr->bHeat != 254)) esp_mqtt_client_publish(mqttclient, ldata, "Heat", 0, 1, 1);
 	else if (ptr->bStNl && (ptr->bStNl != 254)) esp_mqtt_client_publish(mqttclient, ldata, "Light", 0, 1, 1);
 	else esp_mqtt_client_publish(mqttclient, ldata, "off", 0, 1, 1);
+	} else {
+	if (ptr->bState && (ptr->bState != 254)) esp_mqtt_client_publish(mqttclient, ldata, "performance", 0, 1, 1);
+	else if (ptr->bHeat && (ptr->bHeat != 254)) esp_mqtt_client_publish(mqttclient, ldata, "eco", 0, 1, 1);
+	else esp_mqtt_client_publish(mqttclient, ldata, "off", 0, 1, 1);
+	}
 	}
 	if  (ptr->bprevHtemp != ptr->bHtemp) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
@@ -20307,7 +20320,8 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	} else if (!memcmp(topic+topoff, "heat", topic_len-topoff)) {
 	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
 	if ((!incascmp("1",data,data_len)) || (!incascmp("on",data,data_len))
-		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))) {
+		|| (!incascmp("true",data,data_len)) || (!incascmp("heat",data,data_len))
+		|| (!incascmp("eco",data,data_len))) {
 	if ((!ptr->bHeat) || (!fcommtp) || (!ptr->r4sppcom) || (inccmp(strON,data,data_len))) {
 	uint8_t temp = ptr->bHtemp;
 	if ((temp < 35) || (temp > 98)) temp = ptr->bLtemp;
@@ -20332,7 +20346,8 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	ptr->r4slpcom = 1;
 	}	
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_HEAT_OFF");
-	} else if (!incascmp("auto",data,data_len) || !incascmp("boil",data,data_len)) {
+	} else if (!incascmp("auto",data,data_len) || !incascmp("boil",data,data_len)
+		|| !incascmp("performance",data,data_len) || !incascmp("electric",data,data_len)) {
 	if ((!ptr->bState) || (!fcommtp) || (!ptr->r4sppcom)) {
 	if (ptr->bHtemp) {
 	if (ptr->DEV_TYP == 1) {	
@@ -20367,7 +20382,10 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	uint8_t temp = atoi(tbuff);
 	if (temp && (temp < 40) && (ptr->DEV_TYP == 2)) temp = 0;
 	if (temp && (temp < 35)) temp = 0;
-	if  ((!fcommtp) || (!ptr->r4sppcom) || ((temp != ptr->bHtemp) && temp && ptr->bHtemp)) {
+	if (!temp && (ptr->bHtemp == 100)) {
+	ptr->r4slppar1 = 0;
+	ptr->r4slpcom = 1;
+	} else if ((!fcommtp) || (!ptr->r4sppcom) || ((temp != ptr->bHtemp) && temp && ptr->bHtemp)) {
 	if (!ptr->bState && (temp == 100)) {
 	if (ptr->bHtemp && (ptr->bHtemp < 100)) {
 	if (ptr->DEV_TYP == 1) {	
@@ -21988,7 +22006,7 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,"Xiaomi");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
-	strcat(llwtd,"\"},\"stat_cla\":\"measurement\",\"stat_t\":\"");
+	strcat(llwtd,"\"},\"dev_cla\":\"weight\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/");
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
@@ -22099,7 +22117,7 @@ void HDiscBlemon(bool mqtttst)
 	strcat(llwtd,"Xiaomi");
 	strcat(llwtd,"\",\"via_device\":\"ESP32_");
 	strcat(llwtd,tESP32Addr);
-	strcat(llwtd,"\"},\"stat_cla\":\"measurement\",\"stat_t\":\"");
+	strcat(llwtd,"\"},\"dev_cla\":\"weight\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/");
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
@@ -22897,7 +22915,7 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	}
 	strcat(llwtd,"\",\"cns\":[[\"mac\",\"");
 	strcat(llwtd,tESP32Addr1);
-	strcat(llwtd,"\"]],\"mf\":\"Espressif\"},\"dev_cla\":\"pressure\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
+	strcat(llwtd,"\"]],\"mf\":\"Espressif\"},\"dev_cla\":\"atmospheric_pressure\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/i2c");
 	bin2hex(&i2c_addr[i],tbuff,1,0);
@@ -22937,7 +22955,7 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	}
 	strcat(llwtd,"\",\"cns\":[[\"mac\",\"");
 	strcat(llwtd,tESP32Addr1);
-	strcat(llwtd,"\"]],\"mf\":\"Espressif\"},\"dev_cla\":\"pressure\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
+	strcat(llwtd,"\"]],\"mf\":\"Espressif\"},\"dev_cla\":\"atmospheric_pressure\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/i2c");
 	bin2hex(&i2c_addr[i],tbuff,1,0);
@@ -25193,6 +25211,7 @@ uint8_t ReadNVS(){
 	fmwss = 0;
 	fmut = 0;
 	ftvoc = 0;
+	fbhlwh = 0; 
 	lvout1 = 0;
 	lvout2 = 0;
 	lvout3 = 0;
@@ -25237,6 +25256,7 @@ uint8_t ReadNVS(){
 	if (nvtemp & 0x8000000) fmut = 1;
 	if (nvtemp & 0x20000000) wf_mod |= 0x01;
 	if (nvtemp & 0x40000000) wf_mod |= 0x02;
+	if (nvtemp & 0x80000000) fbhlwh = 1;
 	nvtemp = 0;
 	nvs_get_u64(my_handle, "bhx1", &nvtemp);
 	bZeroHx6 = nvtemp & 0xffffffff;
@@ -25540,6 +25560,7 @@ void WriteNVS () {
 	if (fmut) nvtemp = nvtemp | 0x8000000;
 	if (wf_mod & 0x01) nvtemp = nvtemp | 0x20000000;
 	if (wf_mod & 0x02) nvtemp = nvtemp | 0x40000000;
+	if (fbhlwh) nvtemp = nvtemp | 0x80000000;
 	nvs_set_u64(my_handle, "cmbits", nvtemp);
 	nvtemp = bDivHx6;
 	nvtemp = (nvtemp << 32) | bZeroHx6;
@@ -29165,11 +29186,14 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (wf_bits & 0x04) strcat(bsend,"checked");
 	strcat(bsend,"> Disconnect BLE if no WIFI&emsp;<input type=\"checkbox\" name=\"chk9\" value=\"9\"");
 	if (volperc) strcat(bsend,"checked");
-	strcat(bsend,"> Volume in Percent &emsp;<input type=\"checkbox\" name=\"skpmd\" value=\"1\"");
+	strcat(bsend,"> Volume in Percent&emsp;<input type=\"checkbox\" name=\"skpmd\" value=\"1\"");
 	if (fkpmd) strcat(bsend,"checked");
-	strcat(bsend,"> Keep kettle mode &emsp;<input type=\"checkbox\" name=\"sfmut\" value=\"1\"");
+	strcat(bsend,"> Keep kettle mode&emsp;<input type=\"checkbox\" name=\"sfmut\" value=\"1\"");
 	if (fmut) strcat(bsend,"checked");
-	strcat(bsend,"> Mute instead Beep<br/>");
+	strcat(bsend,"> Mute instead Beep&emsp;<input type=\"checkbox\" name=\"sbhlwh\" value=\"1\"");
+	if (fbhlwh) strcat(bsend,"checked");
+	strcat(bsend,"> Boil/Heat/Light in HA Water Heater<br/>");
+
 	strcat(bsend, "<h3>System Setting</h3><br/>");
 
 	strcat(bsend, "<input name=\"auth\" type=\"text\" value=\"");
@@ -29823,6 +29847,11 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	parsuri(buf1,buf3,buf2,4096,2,0);
 	fmut = 0;
 	if (buf3[0] == 0x31) fmut = 1;
+	buf3[0] = 0;
+	strcpy(buf2,"sbhlwh");
+	parsuri(buf1,buf3,buf2,4096,2,0);
+	fbhlwh = 0;
+	if (buf3[0] == 0x31) fbhlwh = 1;
 	buf3[0] = 0;
 	strcpy(buf2,"chk0");
 	parsuri(buf1,buf3,buf2,4096,2,0);
@@ -31434,6 +31463,7 @@ void app_main(void)
 	fmsslhost = 0;
 	fmwss = 0;
 	ftvoc = 0;
+	fbhlwh = 0;
 	bcertofs = 0;
 	bcertsz = 0;
 	foffln = 0;

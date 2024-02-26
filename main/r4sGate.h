@@ -462,6 +462,7 @@ uint8_t macauth = 0;
 uint8_t volperc = 0;
 uint8_t fkpmd = 0;
 uint8_t ftvoc = 0;
+uint8_t fbhlwh = 0; 
 uint8_t floop = 0;
 uint32_t OtaBytes;
 
