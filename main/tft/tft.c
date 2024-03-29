@@ -1790,12 +1790,15 @@ void tftclock()
 	}
 	setTextColor(TFT_WHITE, TFT_BLACK);
 	drawString(stime,0,0,7);
-	setTextColor(TFT_GREEN, TFT_BLACK);
 	sumx = 220;
-	if (timeinfo.tm_year > 100) sumx += drawString(sday,sumx,26,4);
+	if (timeinfo.tm_year > 100) {
+	if (fstmirtc & 0x7f) setTextColor(TFT_YELLOW, TFT_BLACK);
+	else setTextColor(TFT_GREEN, TFT_BLACK);
+	sumx += drawString(sday,sumx,26,4);
 	fillRect(sumx, 26,250-sumx,26,TFT_BLACK);
 	sumx = 220;
-	if (timeinfo.tm_year > 100) sumx += drawString(sdate,sumx,0,4);
+	sumx += drawString(sdate,sumx,0,4);
+	} else fillRect(sumx, 26,250-sumx,26,TFT_BLACK);
 	setTextColor(TFT_WHITE, TFT_BLACK);
 }
 
@@ -2220,10 +2223,19 @@ void tfblestate(uint8_t tmr)
 	itoa(blstnum1,buff,10);
 	strcat(buf,buff);
 	}
-	strcat(buf,": Offline");
+	strcat(buf,": ");
+	if (ptr->btopenreq) {
+	if (!ptr->btopen) strcat(buf,"Open ");
+	else strcat(buf,"Auth ");
+	if (ptr->DEV_NAME[0]) {
+	strcat(buf,ptr->DEV_NAME);
+	}
+	} else {
+	strcat(buf,"Offline");
 	if (FND_NAME[0]) {
 	strcat(buf,", found: ");
 	strcat(buf,FND_NAME);
+	}
 	}
 	sumx += drawString(buf, sumx, 224, 2);
 	fillRect(sumx,224,320-sumx,16,TFT_BLACK);
