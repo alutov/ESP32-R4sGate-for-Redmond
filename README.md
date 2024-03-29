@@ -5,11 +5,12 @@ ENG | [RUS](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 > **[A script based on a PHP server on a local network with Internet access to display the weather on the gateway screen.](https://github.com/artt652/Weather-for-ESP32-R4S-gate).**<br>
 >**In versions starting from 2022.06.03, the device topics in gateway number 0 have been changed from “r4s/#” to “r4s0/#”. In new versions, topics in "r4s/#" are used to track tags by multiple gateways. When upgrading from older versions, you need to enable BLE Monitor in the settings (the gateway deletes the contents of "r4s/#" only when the monitor is turned on), selecting Passive, Active or Auto, check the Hass Discovery and Delete Mqtt Topics items and save the settings. After the reboot, the gateway will delete unnecessary topics and create them again. Then, if necessary, BLE Monitor can be disabled. Then fix the devices in automations, scripts, etc.**
 
-#### Current version is 2024.02.26 for [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) and [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin) and [ESP32S3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/S3/build/r4sGate.bin).
+#### Current version is 2024.03.29 for [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) and [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin) and [ESP32S3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/S3/build/r4sGate.bin).
+* 2024.03.29. The project was built using esp-idf version 5.2.1. Added LYWSD02MMC and HHCCJCY01 support in BLE Monitor. 
 * 2024.02.26. Some corrections in HA water heater entity and device class of sensors.
 * 2024.02.23. Currency symbols ₤, €, ₽, ₴ have been added. Home Assistant water heater entity for kettle has been added.
 * 2024.02.19. Wi-Fi modes in settings have been fixed.
-* 2024.02.18. The project was built using esp-idf version 5.2, esp32s3 support added(not tested yet). In the passive scanning mode of the ble monitor, information for known devices has been added. Minor fixes.
+* 2024.02.18. The project was built using esp-idf version 5.2, esp32s3 support added. In the passive scanning mode of the ble monitor, information for known devices has been added. Minor fixes.
 * 2024.02.10. The project was built using esp-idf version 5.2-rc1. Minor fixes.
 * 2024.02.05. At startup, the gateway scans all WIFI APs with the required parameters and selects the AP with the best level. Relevant for mesh systems.
 * 2024.02.04. Added selection of WIFI 802.11b/g/n mode in settings.
