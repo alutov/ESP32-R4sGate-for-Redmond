@@ -161,7 +161,9 @@ Picture 7. Settings page.
 * Xiaomi LYWSD03MMC thermometers with original firmware, firmware from [atc1441 in custom mode](https://github.com/atc1441/ATC_MiThermometer) and firmware [from pvvx in custom and Mija mode](https://github.com/pvvx/ATC_MiThermometer). Keys for LYWSD03MMC original version can be obtained from the [Xiaomi cloud](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor?tab=readme-ov-file). (400 seconds)
 * Xiaomi Thermometers LYWSDCGQ (400 seconds)
 * Xiaomi LYWSD02 thermometer watch (400 seconds)
+* Xiaomi LYWSD02MMC thermometer watch (400 seconds). Keys for LYWSD02MMC can be obtained from the [Xiaomi cloud](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor?tab=readme-ov-file).
 * Xiaomi Mi Scale (400 seconds)
+* HHCCJCY01 Mi flora sensor (400 seconds)
 * Qingping Air Monitor Lite(CGDN1) (400 seconds)
 * Elehant water and gas meters (400 seconds)
 * Samsung Smart Tag (120 seconds).
@@ -183,7 +185,7 @@ Pcture 8. Program stsk.
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/blemon1.jpg) 
 Picture 9. BLE Monitor page.
 
- Added determination of the best signal from a tag (beacon) among several gateways. The algorithm works like this. Each gateway monitors the **r4s/DevId/rssi topic**. If he has a signal from a tag (beacon) with a high level, he writes his level to this topic, as well as his number to the **r4s/DevId/gtnum topic**. After which the gateway periodically, once every 6 seconds, maintains its signal level in the topic, that is, it becomes the leader. The remaining gateways check the level and whether there is an update. If any gateway detects no level update for more than 30 seconds, or its level is greater, it becomes the master. The best level and gateway number can be seen in the second RSSI line on the BLE monitor page. The entities of each device also have the best level and gateway number:<br>
+ Added determination of the best signal from a tag (beacon) among several gateways. The algorithm works like this. Each gateway monitors the **r4s/DevId/rssi topic**. If he has a signal from a tag (beacon) with a high level, he writes his level to this topic, as well as his number to the **r4s/DevId/gtnum topic**. After which the gateway periodically, once every 6 seconds, maintains its signal level in the topic, that is, it becomes the master. The remaining gateways check the level and whether there is an update. If any gateway detects no level update for more than 30 seconds, or its level is greater, it becomes the master. The best level and gateway number can be seen in the second RSSI line on the BLE monitor page. The entities of each device also have the best level and gateway number:<br>
 ![PROJECT_PHOTO](https://github.com/alutov/ESP32-R4sGate-for-Redmond/blob/master/jpg/blemon2.jpg)  
  Picture 10. Tag entities in Home Assistant.
  
