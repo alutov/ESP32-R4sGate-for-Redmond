@@ -6,7 +6,7 @@ ENG | [RUS](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 >**In versions starting from 2022.06.03, the device topics in gateway number 0 have been changed from “r4s/#” to “r4s0/#”. In new versions, topics in "r4s/#" are used to track tags by multiple gateways. When upgrading from older versions, you need to enable BLE Monitor in the settings (the gateway deletes the contents of "r4s/#" only when the monitor is turned on), selecting Passive, Active or Auto, check the Hass Discovery and Delete Mqtt Topics items and save the settings. After the reboot, the gateway will delete unnecessary topics and create them again. Then, if necessary, BLE Monitor can be disabled. Then fix the devices in automations, scripts, etc.**
 
 #### Current version is 2024.07.28 for [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) and [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin) and [ESP32S3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/S3/build/r4sGate.bin).
-* 2024.07.28. The project was built using esp-idf version 5.3. Web login and password instead of basic64 coded string in setting. Minor fixes.
+* 2024.07.28. The project was built using esp-idf version 5.3. Web login and password instead of Bsae 64 coded string in setting. Minor fixes.
 * 2024.03.29. The project was built using esp-idf version 5.2.1. Added LYWSD02MMC and HHCCJCY01 support to BLE monitor. All parameters names and id for known devices in BLE monitor are the same for all gateways and are filled in only by the master gateway. After the update, I recommend selecting **Delete Mqtt topics** in the settings and clicking **Ok**.
 * 2024.02.26. Some corrections in HA water heater entity and device class of sensors.
 * 2024.02.23. Currency symbols ₤, €, ₽, ₴ have been added. Home Assistant water heater entity for kettle has been added.
@@ -94,7 +94,7 @@ ENG | [RUS](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
      
 * **AM43 blinds** A-OK and similar)
 
-&emsp;The gateway supports 5 simultaneous BLE connections. Device management is also possible from the gateway web interface. The web interface is [simply protected with a password from Raerten](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/67). To do this, the string in the form login:password must be encrypted in Base 64 and then entered into the Basic Auth field in the settings. The password string is output to the log when the gateway starts.<br/>
+&emsp;The gateway supports 5 simultaneous BLE connections. Device management is also possible from the gateway web interface. The web interface is [simply protected with a password from Raerten](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/67). The login and password are output to the log when the gateway starts.<br/>
 &emsp;Home Assistant Mqtt Discovery is supported. To enable it, you need to check **Hass Discovery** in the settings. It is possible to delete all data created by the gateway in Mqtt and devices in Home Assistant. To do this, select the **Delete Mqtt topics** option in the **Setting** tab and then click **Save setting** . After rebooting the gateway, only devices connected to the gateway will be recreated. Recommended when connecting the gateway for the first time and reconfiguring by removing devices.<br/> 
 
 <details>
@@ -156,7 +156,7 @@ Picture 6. Home page.
 Picture 7. Settings page.
  
 ## 4. BLE Monitor
-&emsp;The monitor allows you to track tags (beacons) with static MAC addresses. The presence/absence of a tag and rssi is displayed.<br>
+&emsp;The monitor allows you to track tags (beacons) with static MAC addresses. The presence/absence of a tag and rssi are displayed.<br>
 **Additionally supported:**
 * BLE beacons of the Home Assistant application on smartphones (binding by uuid, timeout for me is 60 seconds)
 * Xiaomi LYWSD03MMC thermometers with original firmware, firmware from [atc1441 in custom mode](https://github.com/atc1441/ATC_MiThermometer) and firmware [from pvvx in custom and Mija mode](https://github.com/pvvx/ATC_MiThermometer). Keys for LYWSD03MMC original version can be obtained from the [Xiaomi cloud](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor?tab=readme-ov-file). (400 seconds)
