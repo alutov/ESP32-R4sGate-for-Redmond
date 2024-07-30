@@ -387,6 +387,8 @@ char MQTT_SERVER[65];                       // MQTT Server
 char WIFI_SSID[33];                         // network SSID for ESP32 to connect to
 char WIFI_PASSWORD[65];                     // password for the network above
 char NTP_SERVER[33];                        // NTP Server
+char WebLogin[16];
+char WebPassword[32];
 
 uint16_t t_ppcons = 0;
 
@@ -435,7 +437,6 @@ char MQTT_VALP7[16];
 char tESP32Addr[16];                        //esp mac
 char tESP32Addr1[32];                       //esp mac
 
-char AUTH_BASIC[51];
 char bufcert[2000];
 uint16_t bcertofs;
 uint16_t bcertsz;
@@ -469,6 +470,7 @@ uint8_t floop = 0;
 uint32_t OtaBytes;
 
 bool mqttConnected = false;
+uint8_t t_mqtsup = 0;
 
 int   iRssiESP = 0;
 int   iprevRssiESP = 0;

@@ -6,8 +6,8 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2024.03.29"
-#define NVS_VER 6  //NVS config version (even only)
+#define AP_VER "2024.07.28"
+#define NVS_VER 8  //NVS config version (even only)
 
 // Init WIFI setting
 #define INIT_WIFI_SSID "r4s"
@@ -4026,6 +4026,10 @@ static IRAM_ATTR bool hw_timer_callback(gptimer_handle_t timer, const gptimer_al
 	if (BleDevStC.t_ppcon && (BleDevStC.t_ppcon != 30)) BleDevStC.t_ppcon--;
 	if (BleDevStD.t_ppcon && (BleDevStD.t_ppcon != 30)) BleDevStD.t_ppcon--;
 	if (BleDevStE.t_ppcon && (BleDevStE.t_ppcon != 30)) BleDevStE.t_ppcon--;
+	if (t_mqtsup) {
+	t_mqtsup--;
+	if ((t_mqtsup == 45)) iprevRssiESP = 0;
+	}
 	if (t_clock) t_clock--;
 	if (t_lasts) t_lasts--;
 	if (t_ppcons && (t_ppcons != 25)) t_ppcons--;
@@ -11260,14 +11264,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
 	ptr->readDataLen = length;
 	ptr->readDataHandle = p_data->read.handle;
-	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73) && (p_data->read.handle == gl_profile_tab[blenum].mcuver_handle)) {
-	if (length && (length < sizeof(ptr->sVer))) {
-	memset(ptr->sVer, 0, sizeof(ptr->sVer));
-	memcpy(ptr->sVer, p_data->read.value, length);
-	}
-//
-	ptr->t_ppcon = 40;
-	}
 }
 	break;
 	case ESP_GATTC_NOTIFY_EVT:
@@ -11526,64 +11522,6 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	if (ret_status != ESP_GATT_OK){
 			conerr = 1;
             		if (fdebug) ESP_LOGE(AP_TAG, "Write_auth_xi_ack %d error", blenum1);
-            	}
-	buff2[0] = 0x03;
-	buff2[1] = 0x01;
-	if (fdebug) {
-	ESP_LOGI(AP_TAG, "Write_setup_xi %d:", blenum1);
-	esp_log_buffer_hex(AP_TAG, buff2, 2);
-	}
-        if (!conerr) ret_status = esp_ble_gattc_write_char( gattc_if,
-                                  gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].setup_handle,
-                                  2,
-                                  buff2,
-                                  ESP_GATT_WRITE_TYPE_RSP,
-                                  ESP_GATT_AUTH_REQ_NONE);
-            	if (ret_status != ESP_GATT_OK){
-			conerr = 1;
-            		if (fdebug) ESP_LOGE(AP_TAG, "Write_setup_xi %d error", blenum1);
-            	}
-	buff2[0] = 0x00;
-	if (fdebug) {
-	ESP_LOGI(AP_TAG, "Write_boil_xi %d:", blenum1);
-	esp_log_buffer_hex(AP_TAG, buff2, 1);
-	}
-        if (!conerr) ret_status = esp_ble_gattc_write_char( gattc_if,
-                                  gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].boil_handle,
-                                  1,
-                                  buff2,
-                                  ESP_GATT_WRITE_TYPE_RSP,
-                                  ESP_GATT_AUTH_REQ_NONE);
-            	if (ret_status != ESP_GATT_OK){
-			conerr = 1;
-            		if (fdebug) ESP_LOGE(AP_TAG, "Write_boil_xi %d error", blenum1);
-            	}
-	buff2[0] = 0x17;
-	if (fdebug) {
-	ESP_LOGI(AP_TAG, "Write_time_xi %d:", blenum1);
-	esp_log_buffer_hex(AP_TAG, buff2, 1);
-	}
-        if (!conerr) ret_status = esp_ble_gattc_write_char( gattc_if,
-                                  gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].time_handle,
-                                  1,
-                                  buff2,
-                                  ESP_GATT_WRITE_TYPE_RSP,
-                                  ESP_GATT_AUTH_REQ_NONE);
-            	if (ret_status != ESP_GATT_OK){
-			conerr = 1;
-            		if (fdebug) ESP_LOGE(AP_TAG, "Write_time_xi %d error", blenum1);
-            	}
-
-        if (!conerr) ret_status = esp_ble_gattc_read_char( gattc_if,
-                                  gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].mcuver_handle,
-                                  ESP_GATT_AUTH_REQ_NONE);
-            	if (ret_status != ESP_GATT_OK){
-			conerr = 1;
-            		if (fdebug) ESP_LOGE(AP_TAG, "Read_ver_req %d error", blenum1);
             	}
 
 	if (!conerr) {
@@ -11884,8 +11822,10 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	break;
     }
 //	if ((conerr || (wf_retry_cnt && (wf_bits & 0x04)) || f_update) && ptr->btopen) esp_ble_gattc_close(gl_profile_tab[blenum].gattc_if,gl_profile_tab[blenum].conn_id);
-	if ((conerr || (wf_retry_cnt && (wf_bits & 0x04)) || f_update) && ptr->btopen) esp_ble_gap_disconnect(gl_profile_tab[blenum].remote_bda);
-
+	if ((conerr || (wf_retry_cnt && (wf_bits & 0x04)) || f_update) && ptr->btopenreq && ptr->btopen) {
+        ptr->btopenreq = false;
+	esp_ble_gap_disconnect(gl_profile_tab[blenum].remote_bda);
+	}
 }
 
 //*** Gattc event handler end ********************
@@ -11895,6 +11835,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 {
 	uint8_t *adv_name = NULL;
 	uint8_t adv_name_len = 0;
+	uint8_t  conerr = 0;
 	uint16_t SHandle = 0;
 	uint8_t blenum = 255;
 	uint8_t blenum1 = 255;
@@ -11931,7 +11872,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 	if (blenum < 5) {
 	ptr->iRssi = param->read_rssi_cmpl.rssi;
 //if (fdebug) ESP_LOGI(AP_TAG,"read %d-RSSI: %d", blenum1, param->read_rssi_cmpl.rssi); //test #2 with data from read_rssi_cmpl
-	if ((ptr->r4sConnErr < 4) && (ptr->btauthoriz)) {
+	if ((ptr->r4sConnErr < 4) && (ptr->btopenreq) && (ptr->btauthoriz)) {
 	if ((ptr->sendDataLen > 0) && (ptr->sendDataLen < BLE_OUTPUT_BUFFSIZE)) {
 	SHandle = gl_profile_tab[blenum].txchar_handle;
 	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73)) {
@@ -11992,32 +11933,47 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                                   ESP_GATT_WRITE_TYPE_RSP,
                                   ESP_GATT_AUTH_REQ_NONE);
 	}
-	if (ret_status != ESP_GATT_OK){
+	if (ret_status != ESP_GATT_OK) {
 	if (fdebug) ESP_LOGE(AP_TAG, "Write_char_data %d error", blenum1);
-	ptr->r4sConnErr++;
+	conerr = 1;
 	}  else {
-if (fdebug) {
-//	ESP_LOGI(AP_TAG, "Connection Error: %d", ptr->r4sConnErr);
+	if (fdebug) {
 	ESP_LOGI(AP_TAG, "Send %d, Handle 0x%X, Data:", blenum1, SHandle);
 	esp_log_buffer_hex(AP_TAG, ptr->sendData, ptr->sendDataLen);
 	}
 	}
 	ptr->sendDataLen = 0;
-	} else if ((ptr->DEV_TYP == 73) && !ptr->sendDataLen) {
+	} else if (!ptr->sendDataLen) {
+	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73)&& (ptr->sendDataHandle == 7)) {
+        esp_gatt_status_t ret_status = esp_ble_gattc_read_char( gl_profile_tab[blenum].gattc_if,
+                                  gl_profile_tab[blenum].conn_id,
+                                  gl_profile_tab[blenum].mcuver_handle,
+                                  ESP_GATT_AUTH_REQ_NONE);
+        if (ret_status != ESP_GATT_OK) {
+	conerr = 1;
+	if (fdebug) ESP_LOGE(AP_TAG, "Read_ver_req %d error", blenum1);
+        }
+
+	} else if (ptr->DEV_TYP == 73) {
         esp_gatt_status_t ret_status = esp_ble_gattc_read_char( gl_profile_tab[blenum].gattc_if,
                                   gl_profile_tab[blenum].conn_id,
                                   gl_profile_tab[blenum].rxchar_handle,
                                   ESP_GATT_AUTH_REQ_NONE);
-            	if (ret_status != ESP_GATT_OK){
-	ptr->r4sConnErr++;
-            		if (fdebug) ESP_LOGE(AP_TAG, "Read_char_data_req %d error", blenum1);
-            	}  else {
+        if (ret_status != ESP_GATT_OK) {
+	conerr = 1;
+	if (fdebug) ESP_LOGE(AP_TAG, "Read_char_data_req %d error", blenum1);
+        }  else {
 //if (fdebug) ESP_LOGI(AP_TAG, "Read_char_data_req %d  Ok", blenum1);
 	}
 	}
+	}
 
 
-	} else if (ptr->btauthoriz) esp_ble_gattc_close(gl_profile_tab[blenum].gattc_if,gl_profile_tab[blenum].conn_id);	
+	} else conerr = 1;
+	if ((conerr || (wf_retry_cnt && (wf_bits & 0x04)) || f_update) && ptr->btopenreq && ptr->btopen) {
+        ptr->btopenreq = false;
+	esp_ble_gap_disconnect(gl_profile_tab[blenum].remote_bda);
+	}
 	}
 	break;
 
@@ -12163,6 +12119,7 @@ if (fdebug) {
 	FND_NAME[0] = 0;
 	FND_ADDR[0] = 0;
 	FND_ADDRx[0] = 0;
+	FND_RSSI = 0;
 	esp_ble_gap_start_scanning(duration);
 	StartStopScanReq = true;
 	if (fdebug) ESP_LOGI(AP_TAG, "Scan starting");
@@ -13086,6 +13043,7 @@ bool mMiRewarm(uint8_t blenum) {
 	ptr->sendDataHandle = 4;  //setup
 	ptr->sendData[0] = 0;
 	ptr->sendData[1] = ptr->bHtemp;
+	if (ptr->sendData[1] < 40) ptr->sendData[1] = 40;
 	ptr->sendDataLen = 2;
 	esp_ble_gap_read_rssi(gl_profile_tab[PROFILE_A_APP_ID].remote_bda);
 	ptr->notifyDataLen = -1;
@@ -13097,6 +13055,7 @@ bool mMiRewarm(uint8_t blenum) {
 	ptr->sendDataHandle = 4;  //setup
 	ptr->sendData[0] = 1;
 	ptr->sendData[1] = ptr->bHtemp;
+	if (ptr->sendData[1] < 40) ptr->sendData[1] = 40;
 	ptr->sendDataLen = 2;
 	esp_ble_gap_read_rssi(gl_profile_tab[PROFILE_A_APP_ID].remote_bda);
 	ptr->notifyDataLen = -1;
@@ -17066,7 +17025,39 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,"}");    
 	}
 	} else if (ptr->btauthoriz && (ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73)) {
+//????
+	if (!ptr->sVer[0]) {
+	uint8_t timeout = 200; 	// 200*10 = 2 seconds
 	ptr->sendDataLen = 0;
+	ptr->sendDataHandle = 7;  //mcuver
+	ptr->readDataLen = -1;
+	esp_ble_gap_read_rssi(gl_profile_tab[blenum].remote_bda);
+	while (--timeout && (ptr->readDataLen == -1)) vTaskDelay(10 / portTICK_PERIOD_MS);
+	if (ptr->readDataLen && (ptr->readDataLen < sizeof(ptr->sVer))) {
+	memset(ptr->sVer, 0, sizeof(ptr->sVer));
+	memcpy(ptr->sVer, ptr->readData, ptr->readDataLen);
+	}
+	ptr->sendDataLen = 0;
+	ptr->sendDataHandle = 4;  //setup
+	ptr->sendData[0] = 0x03;
+	ptr->sendData[1] = 0x01;
+	ptr->sendDataLen = 2;
+	esp_ble_gap_read_rssi(gl_profile_tab[blenum].remote_bda);
+	ptr->sendDataLen = 0;
+	ptr->sendDataHandle = 6;  //boil
+	ptr->sendData[0] = 0x00;
+	ptr->sendDataLen = 1;
+	esp_ble_gap_read_rssi(gl_profile_tab[blenum].remote_bda);
+	ptr->sendDataLen = 0;
+	ptr->sendDataHandle = 5;  //time
+	ptr->sendData[0] = 0x18;
+	ptr->sendDataLen = 1;
+	esp_ble_gap_read_rssi(gl_profile_tab[blenum].remote_bda);
+	if (!ptr->sVer[0]) ptr->sVer[0] = 0x20;
+	ptr->notifyDataLen = -1;
+	}
+	ptr->sendDataLen = 0;
+	ptr->sendDataHandle = 0;  //rssi only
 	esp_ble_gap_read_rssi(gl_profile_tab[blenum].remote_bda);
 	if (ptr->notifyDataLen == 12) {
 	if (fdebug) {
@@ -17113,7 +17104,7 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,"}");
 	if (!ptr->xshedcom && (ptr->notifyData[0] == 0x02) && (ptr->notifyData[1] == 0x02) && (ptr->notifyData[6] == 0x00)) mMiOfft(blenum);
-	else if (tmpint > 500) mMiRewarm(blenum);
+	else if (tmpint > 250) mMiRewarm(blenum);
 	else if (!ptr->xshedcom && (ptr->notifyData[10] != 0x18)) mMiSWtime(blenum);
 //	else if (!ptr->xshedcom && (ptr->notifyData[0] == 0x03) && ((ptr->notifyData[10] != 0x18) || !ptr->notifyData[2])) mMiSWtime(blenum);
 	else if (ptr->xshedcom == 2) {
@@ -17694,7 +17685,7 @@ void HDiscBlerec(uint8_t i, char *llwtd, uint8_t finit)
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
 	else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"mf\":\"");
-	if ((BleMR[i].id == 2) || ((BleMR[i].id > 7) && (BleMR[i].id < 12))) strcat(llwtd,"Xiaomi");
+	if ((BleMR[i].id == 2) || (BleMR[i].id == 26) || ((BleMR[i].id > 7) && (BleMR[i].id < 17))) strcat(llwtd,"Xiaomi");
 	else if ((BleMR[i].id == 3) || (BleMR[i].id == 7)) strcat(llwtd,"Xiaomi & pvvx & atc1441");
 	else if (BleMR[i].id == 5) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 6) strcat(llwtd,"Elehant");
@@ -17754,7 +17745,7 @@ void HDiscBlerec(uint8_t i, char *llwtd, uint8_t finit)
 	else if (BleMR[i].id == 0x44) strcat(llwtd,"Smart Tag");
 	else strcat(llwtd,"Unknown");
 	strcat(llwtd,"\",\"mf\":\"");
-	if ((BleMR[i].id == 2) || ((BleMR[i].id > 7) && (BleMR[i].id < 12))) strcat(llwtd,"Xiaomi");
+	if ((BleMR[i].id == 2) || (BleMR[i].id == 26) || ((BleMR[i].id > 7) && (BleMR[i].id < 17))) strcat(llwtd,"Xiaomi");
 	else if ((BleMR[i].id == 3) || (BleMR[i].id == 7)) strcat(llwtd,"Xiaomi & pvvx & atc1441");
 	else if (BleMR[i].id == 5) strcat(llwtd,"Xiaomi");
 	else if (BleMR[i].id == 6) strcat(llwtd,"Elehant");
@@ -24371,6 +24362,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	SnPi2c[i].ppar8 = ~SnPi2c[i].par8;
 */
 	}
+	t_mqtsup = 255;
 	mqttConnected = true;
 	NumMqConn++;
 	if (!NumMqConn) NumMqConn--;
@@ -24399,6 +24391,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 	ESP_LOGI(AP_TAG,"DATA=%.*s", event->data_len, event->data);
 	}
 */
+	t_mqtsup = 255;
        	if (mqtdel && (event->topic_len) && (event->topic_len < 128)) {
 	char ttopic[128];
 	memset(ttopic,0,128);
@@ -24487,13 +24480,11 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 #endif
 	if (fdebug) ESP_LOGI(AP_TAG, "Prepare to restart system!");
 	if (floop) floop = 0;
-/*
 	else {
 	if (mqttConnected) esp_mqtt_client_disconnect(mqttclient);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
 	}
-*/
 #ifdef USE_TFT
 	} else if (event->data_len && (event->data_len < 5)){
 	uint16_t duty = 255;
@@ -25569,8 +25560,10 @@ uint8_t ReadNVS(){
 	memset (BleMR,0,sizeof(BleMR));
 	f_nvs = 1;
 	}
-	nvsize = 50;
-	nvs_get_str(my_handle, "auth", AUTH_BASIC, &nvsize);
+	nvsize = 15;
+	nvs_get_str(my_handle, "wblog", WebLogin, &nvsize);
+	nvsize = 31;
+	nvs_get_str(my_handle, "wbpsw", WebPassword, &nvsize);
 	nvsize = 32;
 	nvs_get_str(my_handle,"sntp", NTP_SERVER,&nvsize);
 #ifdef USE_TFT
@@ -25749,7 +25742,8 @@ void WriteNVS () {
 	nvs_set_str(my_handle, "sreqnmc", BleDevStC.REQ_NAME);
 	nvs_set_str(my_handle, "sreqnmd", BleDevStD.REQ_NAME);
 	nvs_set_str(my_handle, "sreqnme", BleDevStE.REQ_NAME);
-	nvs_set_str(my_handle, "auth", AUTH_BASIC);
+	nvs_set_str(my_handle, "wblog", WebLogin);
+	nvs_set_str(my_handle, "wbpsw", WebPassword);
 	nvs_set_str(my_handle, "sntp", NTP_SERVER);
 #ifdef USE_TFT
 	nvs_set_str(my_handle, "smtopp1", MQTT_TOPP1);
@@ -26202,27 +26196,55 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	strcat(bsend,"}</h2>");
 }
 
+uint8_t base64_encode(char *in, uint8_t inlen, char *out, uint8_t outlen)
+{
+	uint8_t olen = 4 * ((inlen + 2) / 3);
+	if ((out == NULL) || !outlen || (outlen <= olen)) return 0;
+	memset (out, 0, outlen);
+	char encoding_table[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+				'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+				'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+				'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+				'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+				'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+				'w', 'x', 'y', 'z', '0', '1', '2', '3',
+				'4', '5', '6', '7', '8', '9', '+', '/'};
+	int mod_table[] = {0, 2, 1};
+	uint32_t triple;
+	for (int i = 0, j = 0; i < inlen;) {
+	triple = i < inlen ? in[i++] : 0;
+	triple = (triple << 8) + (i < inlen ? in[i++] : 0);
+	triple = (triple << 8) + (i < inlen ? in[i++] : 0);
+        out[j++] = encoding_table[(triple >> 3 * 6) & 0x3F];
+        out[j++] = encoding_table[(triple >> 2 * 6) & 0x3F];
+        out[j++] = encoding_table[(triple >> 1 * 6) & 0x3F];
+        out[j++] = encoding_table[(triple >> 0 * 6) & 0x3F];
+    }
+	for (int i = 0; i < mod_table[inlen % 3]; i++) out[olen - 1 - i] = '=';
+	return 1;
+}
 
 
 //*************** http server *******************
 
 static bool test_auth(httpd_req_t *req) {
-	if (!AUTH_BASIC[0])
+	if (!WebLogin[0] || !WebPassword[0])
 		return true;
-
-	char buf_auth[51] = {0};
-	char auth[56] = {0};
-
-	strcat(auth, "Basic ");
-	strcat(auth, AUTH_BASIC);
+	char logpsw[48] = {0};
+	char buf_auth[72] = {0};
+	char auth[78] = {0};
+	strcat(logpsw, WebLogin);
+	strcat(logpsw, ":");
+	strcat(logpsw, WebPassword);
+	strcpy(auth, "Basic ");
+	base64_encode(logpsw,strlen(logpsw),&auth[6], sizeof(auth) - 6);
 
 	int buf_len;
-
 	buf_len = httpd_req_get_hdr_value_len(req, "Authorization") + 1;
 	if (buf_len > 1)
 	{
-		if (buf_len > 49)
-			buf_len = 49;
+		if (buf_len > 72)
+			buf_len = 72;
 		/* Copy null terminated value string into buffer */
 		if (httpd_req_get_hdr_value_str(req, "Authorization", buf_auth, buf_len) == ESP_OK)
 		{
@@ -26238,7 +26260,6 @@ static bool test_auth(httpd_req_t *req) {
 
 	return false;
 }
-
 
 /* HTTP GET main handler */
 static esp_err_t pmain_get_handler(httpd_req_t *req)
@@ -26562,9 +26583,11 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend," / ");
 	strcat(bsend,FND_ADDR);
 	strcat(bsend," / ");
+	if (FND_RSSI) {
 	itoa(FND_RSSI,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend," dB");
+	}
 	strcat(bsend,"</td></tr><tr><td>BLE activity</td><td>");
 	if (BleDevStA.btopenreq && !BleDevStA.btauthoriz) {
 	strcat(bsend,"Connecting ");
@@ -26692,13 +26715,19 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,"11G");
 	break;
 	case 3:
-	strcat(bsend,"HT20");
+	strcat(bsend,"11A");
 	break;
 	case 4:
-	strcat(bsend,"HT40");
+	strcat(bsend,"HT20");
 	break;
 	case 5:
+	strcat(bsend,"HT40");
+	break;
+	case 6:
 	strcat(bsend,"HE20");
+	break;
+	case 7:
+	strcat(bsend,"VHT20");
 	break;
 	default:
 	strcat(bsend,"Unknown");
@@ -29426,14 +29455,17 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 
 	strcat(bsend, "<h3>System Setting</h3><br/>");
 
-	strcat(bsend, "<input name=\"auth\" type=\"text\" value=\"");
-	if (AUTH_BASIC[0]) strcat(bsend, AUTH_BASIC);
-	strcat(bsend, "\" size=\"15\">Basic Auth&emsp;");
+	strcat(bsend, "<input name=\"wblog\" type=\"text\" value=\"");
+	if (WebLogin[0]) strcat(bsend, WebLogin);
+	strcat(bsend, "\" size=\"10\">Login&emsp;");
+	strcat(bsend, "<input name=\"wbpsw\"  type=\"password\" value=\"");
+	if (WebPassword[0]) strcat(bsend, WebPassword);
+	strcat(bsend, "\" size=\"10\">Password&emsp;");
 
 	strcat(bsend, "<input name=\"r4snum\" type=\"number\" value=\"");
 	itoa(R4SNUM,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"99\" size=\"3\">Gate Number&emsp;<input name=\"timzon\" type=\"number\" value=\"");
+	strcat(bsend,"\" min=\"0\" max=\"99\" size=\"2\">Gate Number&emsp;<input name=\"timzon\" type=\"number\" value=\"");
 	uint8_t TmZn = TimeZone;
 	if (TmZn >127) {
 	TmZn = ~TmZn;
@@ -29465,7 +29497,7 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	strcat(bsend,"> Uart Debug<br/>");
 	strcat(bsend,"<input name=\"sntp\" value=\"");
 	if (NTP_SERVER[0]) strcat(bsend,NTP_SERVER);
-	strcat(bsend,"\"size=\"14\">NTP&emsp;");
+	strcat(bsend,"\"size=\"14\" placeholder=\"pool.ntp.org\">NTP&emsp;");
 #ifdef USE_TFT
 // read nvs
 	nvs_handle_t my_handle;
@@ -29949,8 +29981,10 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	strcpy(buf2,"timzon");
 	parsuri(buf1,buf3,buf2,4096,4,0);
 	if (buf3[0]) TimeZone = atoi(buf3);
-	strcpy(buf2, "auth");
-	parsuri(buf1, AUTH_BASIC, buf2, 4096, 50,0);
+	strcpy(buf2, "wblog");
+	parsuri(buf1, WebLogin, buf2, 4096, 15,0);
+	strcpy(buf2, "wbpsw");
+	parsuri(buf1, WebPassword, buf2, 4096, 31,0);
 	strcpy(buf2, "sntp");
 	parsuri(buf1, NTP_SERVER, buf2, 4096, 33,0);
 	buf3[0] = 0;
@@ -30646,13 +30680,11 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 #endif
 	if (fdebug) ESP_LOGI(AP_TAG, "Prepare to restart system!");
 	if (floop) floop = 0;
-/*
 	else {
 	if (mqttConnected) esp_mqtt_client_disconnect(mqttclient);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
 	}
-*/
 	}
 	return ESP_OK;
 }
@@ -30720,13 +30752,11 @@ static esp_err_t prestart_get_handler(httpd_req_t *req)
 #endif
 	if (fdebug) ESP_LOGI(AP_TAG, "Prepare to restart system!");
 	if (floop) floop = 0;
-/*
 	else {
 	if (mqttConnected) esp_mqtt_client_disconnect(mqttclient);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
 	}
-*/
 	return ESP_OK;
 }
 static const httpd_uri_t prestart = {
@@ -30913,13 +30943,11 @@ Content-Type: application/octet-stream\r\n\r\n
 #endif
 	if (fdebug) ESP_LOGI(AP_TAG, "Prepare to restart system!");
 	if (floop) floop = 0;
-/*
 	else {
 	if (mqttConnected) esp_mqtt_client_disconnect(mqttclient);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	esp_restart();
 	}
-*/
 	}
 	return ESP_OK;
 }
@@ -31051,8 +31079,10 @@ void lpcomstat(uint8_t blenum) {
 	break;
 	}
 	if (ptr->t_ppcon == 30) {
-	if (!ptr->btauthoriz && ptr->btopen && ptr->btopenreq && ptr->get_server) esp_ble_gap_disconnect(gl_profile_tab[blenum].remote_bda);
-	else MqttPubSub(blenum);	
+	if (!ptr->btauthoriz && ptr->btopen && ptr->btopenreq && ptr->get_server) {
+        ptr->btopenreq = false;
+	esp_ble_gap_disconnect(gl_profile_tab[blenum].remote_bda);
+	} else MqttPubSub(blenum);	
         ptr->t_ppcon = 29;
 	}
 	if (fkpmd && ptr->bKeep && ptr->bCtemp && (ptr->DEV_TYP < 10) && ptr->btauthoriz && !ptr->r4slpcom) {
@@ -31638,7 +31668,8 @@ void app_main(void)
 	memset (WIFI_SSID,0,sizeof(WIFI_SSID));
 	memset (WIFI_PASSWORD,0,sizeof(WIFI_PASSWORD));
 	memset (NTP_SERVER,0,sizeof(NTP_SERVER));
-	memset (AUTH_BASIC,0,sizeof(AUTH_BASIC));
+	memset (WebLogin,0,sizeof(WebLogin));
+	memset (WebPassword,0,sizeof(WebPassword));
 #ifdef USE_TFT
 	memset (MQTT_TOPP1,0,sizeof(MQTT_TOPP1));
 	memset (MQTT_TOPP2,0,sizeof(MQTT_TOPP2));
@@ -32157,8 +32188,15 @@ void app_main(void)
 	esp_restart();
 	}
 	if (fdebug) ESP_LOGI(AP_TAG,"%s init bluetooth\n", __func__);
+///*
+//5.2
 	esp_bluedroid_config_t bluedroid_cfg = BT_BLUEDROID_INIT_CONFIG_DEFAULT();
 	ret = esp_bluedroid_init_with_cfg(&bluedroid_cfg);
+//*/
+/*
+//5.1
+	ret = esp_bluedroid_init();
+*/
 	if (ret) {
 	if (fdebug) ESP_LOGI(AP_TAG,"%s init bluetooth failed: %s\n", __func__, esp_err_to_name(ret));
 	fflush(stdout);
@@ -32171,7 +32209,7 @@ void app_main(void)
 	esp_restart();
 	}
 
-	ESP_LOGI(AP_TAG,"Basic Auth string: %s",AUTH_BASIC);
+	if (WebLogin[0] && WebPassword[0]) ESP_LOGI(AP_TAG,"WEB login: %s, password: %s", WebLogin, WebPassword);
 	memset(binblemac, 0, sizeof(binblemac));
 	esp_read_mac(binblemac, ESP_MAC_BT);
 	if (fdebug) {
@@ -32514,13 +32552,14 @@ void app_main(void)
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	floop = 0;
 	} else if (floop && MQTT_SERVER[0] && (wf_bits & 0x08) && !wf_retry_cnt && !f_update) {
-	if (mqttConnected) {
+	if (mqttConnected && t_mqtsup) {
 	if (floop < 32) floop = 32;
 	} else {
 	if (floop > 1) floop--;
 	else {
 	floop = 32;
 	esp_wifi_disconnect();
+	wf_retry_cnt |= 0x01;
 	if (fdebug) ESP_LOGI(AP_TAG,"Mqtt not connected, try reconnect Wifi.");
 	}
 	}
@@ -32540,12 +32579,20 @@ void app_main(void)
 	}
 	} else if (blstnum == 253) tfststr("Wifi ", "disconnected", ". Restarting ..."); 
 #endif
-	if (mqttConnected) esp_mqtt_client_disconnect(mqttclient);
+	if (!wf_retry_cnt && mqttConnected) {
+	char buft[32];
+	strcpy(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/status");
+	esp_mqtt_client_publish(mqttclient, buft, "offline", 0, 1, 1);
+	vTaskDelay(500 / portTICK_PERIOD_MS);
+	esp_mqtt_client_disconnect(mqttclient);
+	}
 	if (mqttclient != NULL) esp_mqtt_client_stop(mqttclient);
 	if (fstmirtc == 0x81) {
 	struct timeval stnow = { .tv_sec = 0};
 	settimeofday(&stnow, NULL);
 	}
+	esp_wifi_stop();
 	vTaskDelay(2000 / portTICK_PERIOD_MS);
 	esp_restart();
 }

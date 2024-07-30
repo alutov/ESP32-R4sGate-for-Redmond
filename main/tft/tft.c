@@ -1,4 +1,4 @@
-// tft proc for idf 5.2
+// tft proc for idf 5.3
 
 #include "wallpaper.h"          //screen cat
 #include "tjpgd.c"              //jpeg decode
@@ -1804,16 +1804,16 @@ void tftclock()
 
 void blstnum_inc() {
 	if (blstnum > 127) return;
-	else if (BleDevStA.REQ_NAME[0] || BleDevStB.REQ_NAME[0] || BleDevStC.REQ_NAME[0] || BleDevStD.REQ_NAME[0] || BleDevStE.REQ_NAME[0]) {
+	else if ((BleDevStA.REQ_NAME[0] > 35) || (BleDevStB.REQ_NAME[0] > 35) || (BleDevStC.REQ_NAME[0] > 35) || (BleDevStD.REQ_NAME[0] > 35) || (BleDevStE.REQ_NAME[0] > 35)) {
 	int i = 0;
 	while (i < 5) {
 	blstnum++;
 	if (blstnum > 4) blstnum = 0;
-	if ((blstnum == 0) && BleDevStA.REQ_NAME[0]) i = 5;
-	if ((blstnum == 1) && BleDevStB.REQ_NAME[0]) i = 5;
-	if ((blstnum == 2) && BleDevStC.REQ_NAME[0]) i = 5;
-	if ((blstnum == 3) && BleDevStD.REQ_NAME[0]) i = 5;
-	if ((blstnum == 4) && BleDevStE.REQ_NAME[0]) i = 5;
+	if ((blstnum == 0) && (BleDevStA.REQ_NAME[0] > 35)) i = 5;
+	if ((blstnum == 1) && (BleDevStB.REQ_NAME[0] > 35)) i = 5;
+	if ((blstnum == 2) && (BleDevStC.REQ_NAME[0] > 35)) i = 5;
+	if ((blstnum == 3) && (BleDevStD.REQ_NAME[0] > 35)) i = 5;
+	if ((blstnum == 4) && (BleDevStE.REQ_NAME[0] > 35)) i = 5;
 	i++;
 	}
 	} else blstnum = 127;
@@ -1903,7 +1903,7 @@ void tfblestate(uint8_t tmr)
 	}
 
 	if (tmr < 41) {
-	if (f_update || BleDevStA.REQ_NAME[0] || BleDevStB.REQ_NAME[0] || BleDevStC.REQ_NAME[0] || BleDevStD.REQ_NAME[0] || BleDevStE.REQ_NAME[0]) mpos = 196;
+	if (f_update || (BleDevStA.REQ_NAME[0] > 35) || (BleDevStB.REQ_NAME[0] > 35) || (BleDevStC.REQ_NAME[0] > 35) || (BleDevStD.REQ_NAME[0] > 35) || (BleDevStE.REQ_NAME[0] > 35)) mpos = 196;
 	if (!wf_retry_cnt && (MQTT_VALP1[0] || MQTT_VALP4[0] || MQTT_VALP6[0])) {
 	setTextColor(TFT_GREEN, TFT_BLACK);
   	sumx = 0;
@@ -1957,7 +1957,7 @@ void tfblestate(uint8_t tmr)
 	} else setTextColor(TFT_RED, TFT_BLACK);
   	sumx = 0;
 
-	if (ptr->REQ_NAME[0] && (blstnum < 5)) {
+	if ((ptr->REQ_NAME[0] > 35) && (blstnum < 5)) {
 	if (!iRssiESP || (iRssiESP < -80)) sumx += drawString("\xe5 ", sumx, 224, 2);
 	else if (iRssiESP < -70) sumx += drawString("\xe6 ", sumx, 224, 2);
 	else if (iRssiESP < -60) sumx += drawString("\xe7 ", sumx, 224, 2);
