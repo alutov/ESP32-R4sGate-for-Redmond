@@ -85,7 +85,7 @@ ENG | [RUS](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 <summary>Preferred option for integrating a kettle from Home Assistant into a Yandex smart home is to use the water heater entity.</summary>
 
 &emsp; In the settings you can choose 2 control options:
-1. Using built-in water heater entity commands **performance** for boil and **eco** for heat.
+1. Using water heater entity built-in commands **performance** for boil and **eco** for heat.
 2. Using custom commands **boil**, **heat** and **light**.
 
 &emsp; In both cases, the command **turn on the kettle** sets the boiling mode, and the command **set the kettle temperature** sets the heating mode.
