@@ -1,12 +1,12 @@
 /* 
 *************************************************************
-	ESP32 r4sGate for Redmond+ main for idf 5.2
+	ESP32 r4sGate for Redmond+ main for idf 5.4
 	Lutov Andrey  Donetsk
 Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2025.01.18"
+#define AP_VER "2025.01.25"
 #define NVS_VER 8  //NVS config version (even only)
 
 // Init WIFI setting
@@ -4078,7 +4078,10 @@ static IRAM_ATTR bool hw_timer_callback(gptimer_handle_t timer, const gptimer_al
 	if (BleDevStE.t_ppcon && (BleDevStE.t_ppcon != 30)) BleDevStE.t_ppcon--;
 	if (t_mqtsup) {
 	t_mqtsup--;
-	if ((t_mqtsup == 45)) iprevRssiESP = 0;
+	if ((t_mqtsup == 45)) {
+	bprevStateS = ~bStateS;
+	t_lasts = 0;
+	}
 	}
 	if (t_clock) t_clock--;
 	if (t_lasts) t_lasts--;
@@ -10872,7 +10875,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
 	ptr->btopen = false;
         ptr->btopenreq = false;
-	if (ptr->DEV_TYP == 73) ptr->t_ppcon = 50;
+	if ((ptr->DEV_TYP > 70) && (ptr->DEV_TYP < 74)) ptr->t_ppcon = 50;
 	else ptr->t_ppcon = 10;
 	start_scan();
 	} else {
@@ -32672,7 +32675,7 @@ void lpcomstat(uint8_t blenum) {
 	else ptr->t_rspdel = 10;
 	} else if ((ptr->DEV_TYP > 60) && (ptr->DEV_TYP < 63)) ptr->t_rspdel = 18000;
 	else if (ptr->DEV_TYP == 63) ptr->t_rspdel = 600;
-	else if (ptr->DEV_TYP == 71) ptr->t_rspdel = 20;
+	else if (ptr->DEV_TYP == 71) ptr->t_rspdel = 30;
 	else if ((ptr->DEV_TYP > 71) && (ptr->DEV_TYP < 74)) ptr->t_rspdel = 100;
 	else if ((ptr->DEV_TYP > 73) && (ptr->DEV_TYP < 76)) ptr->t_rspdel = 6000;
 	else if (ptr->DEV_TYP == 76) ptr->t_rspdel = 10;
