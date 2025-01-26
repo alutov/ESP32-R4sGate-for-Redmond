@@ -4,7 +4,9 @@ ENG | [RUS](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 
 > **[A script based on a PHP server on a local network with Internet access to display the weather on the gateway screen.](https://github.com/artt652/Weather-for-ESP32-R4S-gate).**<br>
 
-#### Current version is 2025.01.18 for [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) and [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin) and [ESP32S3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/S3/build/r4sGate.bin).
+#### Current version is 2025.01.25 for [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) and [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin) and [ESP32S3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/S3/build/r4sGate.bin).
+
+* 2025.01.25. Fixed [issue  #219](https://github.com/alutov/ESP32-R4sGate-for-Redmond/issues/219).
 * 2025.01.18. The project was built using esp-idf version 5.4. [BTHome THB1, THB2, THB3, BTH01, TH05, TH05F pvvx custom firmware](https://github.com/pvvx/THB2) support added. [Мир С-05](https://mir-omsk.ru/products/single-phase-mirs05out/?ysclid=m65ykv5jjh864985275) electricity meters support added.
  
 ## 1. Opportunities
