@@ -4,8 +4,9 @@ ENG | [RUS](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 
 > **[A script based on a PHP server on a local network with Internet access to display the weather on the gateway screen.](https://github.com/artt652/Weather-for-ESP32-R4S-gate).**<br>
 
-#### Current version is 2025.01.25 for [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) and [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin) and [ESP32S3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/S3/build/r4sGate.bin).
+#### Current version is 2025.02.16 for [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) and [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin) and [ESP32S3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/S3/build/r4sGate.bin).
 
+* 2025.02.16. BTHome mode in [pvvx custom firmware](https://github.com/pvvx/ATC_MiThermometer) support added.
 * 2025.01.25. Fixed [issue  #219](https://github.com/alutov/ESP32-R4sGate-for-Redmond/issues/219).
 * 2025.01.18. The project was built using esp-idf version 5.4. [BTHome THB1, THB2, THB3, BTH01, TH05, TH05F pvvx custom firmware](https://github.com/pvvx/THB2) support added. [Мир С-05](https://mir-omsk.ru/products/single-phase-mirs05out/?ysclid=m65ykv5jjh864985275) electricity meters support added.
  
@@ -83,7 +84,7 @@ ENG | [RUS](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 
 **Electricity meters**
 
-* **Mir c-05** /Мир С-05
+* **Mir C-05** /Мир С-05
 
 &emsp;The gateway supports 5 simultaneous BLE connections. Device management is also possible from the gateway web interface. The web interface is [simply protected with a password from Raerten](https://github.com/alutov/ESP32-R4sGate-for-Redmond/pull/67). The login and password are output to the log when the gateway starts.<br/>
 &emsp;Home Assistant Mqtt Discovery is supported. To enable it, you need to check **Hass Discovery** in the settings. It is possible to delete all data created by the gateway in Mqtt and devices in Home Assistant. To do this, select the **Delete Mqtt topics** option in the **Setting** tab and then click **Save setting** . After rebooting the gateway, only devices connected to the gateway will be recreated. Recommended when connecting the gateway for the first time and reconfiguring by removing devices.<br/> 
@@ -160,7 +161,7 @@ Picture 7. Settings page.
 &emsp;The monitor allows you to track tags (beacons) with static MAC addresses. The presence/absence of a tag and rssi are displayed.<br>
 **Additionally supported:**
 * BLE beacons of the Home Assistant application on smartphones (binding by uuid, timeout for me is 60 seconds)
-* Xiaomi LYWSD03MMC thermometers with original firmware, firmware from [atc1441 in custom mode](https://github.com/atc1441/ATC_MiThermometer) and firmware [from pvvx in custom and Mija mode](https://github.com/pvvx/ATC_MiThermometer). Keys for LYWSD03MMC original version can be obtained from the [Xiaomi cloud](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor?tab=readme-ov-file). (400 seconds)
+* Xiaomi LYWSD03MMC thermometers with original firmware, firmware from [atc1441 in custom mode](https://github.com/atc1441/ATC_MiThermometer) and firmware [from pvvx in custom, BTHome and Mija mode](https://github.com/pvvx/ATC_MiThermometer). Keys for LYWSD03MMC original version can be obtained from the [Xiaomi cloud](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor?tab=readme-ov-file). (400 seconds)
 * Xiaomi Thermometers LYWSDCGQ (400 seconds)
 * Xiaomi LYWSD02 thermometer watch (400 seconds)
 * Xiaomi LYWSD02MMC thermometer watch (400 seconds). Keys for LYWSD02MMC can be obtained from the [Xiaomi cloud](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor?tab=readme-ov-file).
@@ -168,7 +169,7 @@ Picture 7. Settings page.
 * HHCCJCY01 Mi flora sensor (400 seconds)
 * Qingping Air Monitor Lite(CGDN1) (400 seconds)
 * Elehant water and gas meters (400 seconds)
-* THB1, THB2, THB3, BTH01, TH05, TH05F with BTHome pvvx custom firmware
+* THB1, THB2, THB3, BTH01, TH05, TH05F with [BTHome pvvx custom firmware](https://github.com/pvvx/THB2) (400 seconds)
 * Samsung Smart Tag (120 seconds).
      
 &emsp;To activate the monitor, in the **Setting** tab , set the **BLE Monitoring** option to **Active** or **Passive** for active or passive scanning and click **Save setting**. An active scanner provides more information, but uses more power on the devices being scanned. Passive mode is recommended for tag scanning. It should be taken into account that in **Auto** mode , when searching for devices before connecting, the scanner always works in active mode, and then switches to passive mode.<br> 
