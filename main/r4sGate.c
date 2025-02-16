@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2025.01.25"
+#define AP_VER "2025.02.16"
 #define NVS_VER 8  //NVS config version (even only)
 
 // Init WIFI setting
@@ -12946,8 +12946,25 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 	uint8_t id = 1;
 	uint8_t found = 0;
 	switch (scan_result->scan_rst.adv_data_len) {
+	case 14:
+//0d 16 1c 18 02 00 b4 02 10 01 03 0c f4 0a
+//             4        7       10
+//0d 16 d2 fc 40 00 36 0c 1b 0b 10 01 11 01
+//                      7
+	if (!memcmp(&scan_result->scan_rst.ble_adv[0],"\x0d\x16\x1c\x18",4) || !memcmp(&scan_result->scan_rst.ble_adv[0],"\x0d\x16\xd2\xfc\x40\x00",6)) id = 3;
+	break;
+	case 15:
+	if (!memcmp(&scan_result->scan_rst.ble_adv[0],"\x0e\x16\xd2\xfc\x40\x00",6)) id = 3;
+//0e 16 d2 fc 40 00 25 01 4f 02 dc 07 03 a5 0e
+//                      7     9       12
+	break;
 	case 17:
 	if (!memcmp(&scan_result->scan_rst.ble_adv[0],"\x10\x16\x1a\x18",4)) id = 3;
+	break;
+	case 18:
+//11 16 1c 18 02 00 bb 23 02 ab 07 03 03 4e 0f 02 01 43
+//             4        7          11          15
+	if (!memcmp(&scan_result->scan_rst.ble_adv[0],"\x11\x16\x1c\x18",4)) id = 3;
 	break;
 	case 19:
 	if (!memcmp(&scan_result->scan_rst.ble_adv[0],"\x12\x16\x1a\x18",4)) id = 3;
@@ -12957,7 +12974,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 	break;
 	case 21:
 //14 ff ff ff 80 08 a0 01 02 01 aa fb 00 f2 a5 0c 00 58 81 0a 14
-//  0        3    5              10       13             18    20
+// 0        3    5              10       13             18    20
 	if (!(scan_result->scan_rst.bda[0] & 0x01) && !memcmp(&scan_result->scan_rst.ble_adv[0],"\x14\xff\xff\xff\x80",5)) id = 6;
 //02 01 06 11 16 d2 fc 40 00 e2 01 3d 02 5a 09 03 c5 13 0c 3b 0a
 //         3                    10    12       15       18
@@ -13111,6 +13128,25 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 	BleMX[i].par4 = BleMX[i].advdat[16];
 	BleMX[i].par5 = BleMX[i].advdat[17];
 	BleMX[i].par6 = BleMX[i].advdat[18];
+	}
+	} else if (!memcmp(&BleMX[i].advdat[1],"\x16\x1c\x18",3)) {
+	if ((BleMX[i].advdat[0] == 0x11) && (BleMX[i].advdat[8] == 0x02) && (BleMX[i].advdat[12] == 0x03)
+	&& (BleMX[i].advdat[16] == 0x01)) {
+	BleMX[i].par1 = BleMX[i].advdat[9] + (BleMX[i].advdat[10] << 8);
+	if (BleMX[i].par1 == -1) BleMX[i].par1 = 0;
+	BleMX[i].par2 = BleMX[i].advdat[13] + (BleMX[i].advdat[14] << 8);
+	BleMX[i].par4 = BleMX[i].advdat[17];
+	} else if ((BleMX[i].advdat[0] == 0x0d) && (BleMX[i].advdat[11] == 0x0c)) {
+	BleMX[i].par3 = BleMX[i].advdat[12] + (BleMX[i].advdat[13] << 8);
+	}
+	} else if (!memcmp(&BleMX[i].advdat[1],"\x16\xd2\xfc\x40\x00",5)) {
+	if ((BleMX[i].advdat[7] == 1) && (BleMX[i].advdat[9] == 2) && (BleMX[i].advdat[12] == 3)) {
+	BleMX[i].par1 = BleMX[i].advdat[10] + (BleMX[i].advdat[11] << 8);
+	if (BleMX[i].par1 == -1) BleMX[i].par1 = 0;
+	BleMX[i].par2 = BleMX[i].advdat[13] + (BleMX[i].advdat[14] << 8);
+	BleMX[i].par4 = BleMX[i].advdat[8];
+	} else if (BleMX[i].advdat[7] == 0x0c) {
+	BleMX[i].par3 = BleMX[i].advdat[8] + (BleMX[i].advdat[9] << 8);
 	}
 	} else if ((BleMX[i].advdat[10] == 1) && (BleMX[i].advdat[12] == 2) && (BleMX[i].advdat[15] == 3) && (BleMX[i].advdat[18] == 0x0c)) {
 	BleMX[i].par1 = BleMX[i].advdat[13] + (BleMX[i].advdat[14] << 8);
@@ -13314,6 +13350,25 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 	BleMX[i].par4 = BleMX[i].advdat[16];
 	BleMX[i].par5 = BleMX[i].advdat[17];
 	BleMX[i].par6 = BleMX[i].advdat[18];
+	}
+	} else if (!memcmp(&BleMX[i].advdat[1],"\x16\x1c\x18",3)) {
+	if ((BleMX[i].advdat[0] == 0x11) && (BleMX[i].advdat[8] == 0x02) && (BleMX[i].advdat[12] == 0x03)
+	&& (BleMX[i].advdat[16] == 0x01)) {
+	BleMX[i].par1 = BleMX[i].advdat[9] + (BleMX[i].advdat[10] << 8);
+	if (BleMX[i].par1 == -1) BleMX[i].par1 = 0;
+	BleMX[i].par2 = BleMX[i].advdat[13] + (BleMX[i].advdat[14] << 8);
+	BleMX[i].par4 = BleMX[i].advdat[17];
+	} else if ((BleMX[i].advdat[0] == 0x0d) && (BleMX[i].advdat[11] == 0x0c)) {
+	BleMX[i].par3 = BleMX[i].advdat[12] + (BleMX[i].advdat[13] << 8);
+	}
+	} else if (!memcmp(&BleMX[i].advdat[1],"\x16\xd2\xfc\x40\x00",5)) {
+	if ((BleMX[i].advdat[7] == 1) && (BleMX[i].advdat[9] == 2) && (BleMX[i].advdat[12] == 3)) {
+	BleMX[i].par1 = BleMX[i].advdat[10] + (BleMX[i].advdat[11] << 8);
+	if (BleMX[i].par1 == -1) BleMX[i].par1 = 0;
+	BleMX[i].par2 = BleMX[i].advdat[13] + (BleMX[i].advdat[14] << 8);
+	BleMX[i].par4 = BleMX[i].advdat[8];
+	} else if (BleMX[i].advdat[7] == 0x0c) {
+	BleMX[i].par3 = BleMX[i].advdat[8] + (BleMX[i].advdat[9] << 8);
 	}
 	} else if ((BleMX[i].advdat[10] == 1) && (BleMX[i].advdat[12] == 2) && (BleMX[i].advdat[15] == 3) && (BleMX[i].advdat[18] == 0x0c)) {
 	BleMX[i].par1 = BleMX[i].advdat[13] + (BleMX[i].advdat[14] << 8);
