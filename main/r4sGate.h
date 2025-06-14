@@ -49,6 +49,7 @@
 #include "phy_init_data.h"
 #include "soc/efuse_reg.h"
 #include "driver/rmt.h"
+#include "driver/uart.h"
 #include "driver/i2c.h"
 
 //5.0
@@ -438,6 +439,7 @@ char MQTT_TOPP4[33];
 char MQTT_TOPP5[33];
 char MQTT_TOPP6[33];
 char MQTT_TOPP7[33];
+char MQTT_TOPP8[33];
 char MQTT_VALP1[16];
 char MQTT_VALP2[16];
 char MQTT_VALP3[16];
@@ -445,6 +447,7 @@ char MQTT_VALP4[16];
 char MQTT_VALP5[16];
 char MQTT_VALP6[16];
 char MQTT_VALP7[16];
+char MQTT_VALP8[16];
 #endif
 
 
@@ -546,6 +549,30 @@ uint16_t bprevStatG8h = 0;
 uint16_t bStatG8h = 0;
 uint8_t  bgpio9 = 0;
 uint8_t  bgpio10 = 0;
+uint8_t  bgpio11 = 0;
+uint8_t  bgpio12 = 0;
+uint8_t  bgpio13 = 0;
+uint8_t  mb1_adr = 0;
+uint8_t  mb2_adr = 0;
+uint32_t mb1_offs = 0;
+uint16_t mb2_mxlev = 0;
+uint8_t  mb2_cpin = 0;
+uint32_t mb1_ttfl = 0;
+uint32_t mb1_prttfl = 0;
+uint16_t mb1_flrt = 0;
+uint16_t mb1_prflrt = 0;
+uint16_t mb2_wlevcm = 0;
+uint16_t mb2_prwlevcm = 0;
+uint16_t mb2_wlevp = 0;
+uint16_t mb2_prwlevp = 0;
+uint8_t  mb2_pump = 0;
+uint8_t  mb2_prpump = 0;
+uint8_t  mb1_stat = 0;
+uint8_t  mb1_prstat = 0;
+uint8_t  mb2_stat = 0;
+uint8_t  mb2_prstat = 0;
+uint32_t mb_errcnt = 0;
+//uint8_t  MbDevNum = 0;
 uint8_t  f_rmds = 0;
 uint32_t s_i2cdev = 0;
 uint32_t f_i2cdev = 0;

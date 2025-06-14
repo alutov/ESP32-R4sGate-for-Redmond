@@ -1939,15 +1939,24 @@ void tfblestate(uint8_t tmr)
 	if (MQTT_VALP6[0]) {
 	setTextColor(TFT_YELLOW, TFT_BLACK);
 	sumx += drawString(MQTT_VALP6,sumx,mpos,4);
+  	sumx += drawString("'", sumx, mpos, 4);
+	setTextColor(TFT_GREEN, TFT_BLACK);
+	if (MQTT_VALP7[0] || MQTT_VALP8[0]) sumx += drawString("/", sumx, mpos, 4);
+	if (sumx > sumz) fillRect(sumz, mpos+26,sumx-sumz,2,TFT_BLACK);
+	sumz = sumx;
 	if (MQTT_VALP7[0]) {
-  	sumx += drawString("'/", sumx, mpos, 4);
-	sumy = sumx;
 	sumx += drawString(MQTT_VALP7,sumx, mpos,2);
   	sumx += drawString("%", sumx, mpos, 2);
-	fillRect(sumy, mpos+16,sumx-sumy,10,TFT_BLACK);
-	} else sumx += drawString("' ", sumx, mpos, 4);
 	}
-	if (sumx > sumz) fillRect(sumz, mpos+26,sumx-sumz,2,TFT_BLACK);
+	if (MQTT_VALP8[0]) {
+	sumz += drawString(MQTT_VALP8,sumz,mpos+13,2);
+	}
+	}
+	if (sumx > sumz) fillRect(sumz, mpos+13,sumx-sumz,15,TFT_BLACK);
+	else if (sumz > sumx) {
+	fillRect(sumx, mpos,sumz-sumx,13,TFT_BLACK);
+	sumx = sumz;
+	}
 	if (sumx < 320) fillRect(sumx, mpos,320-sumx,28,TFT_BLACK);
 	}
 	if (mqttConnected) setTextColor(TFT_GREEN, TFT_BLACK);
@@ -2674,7 +2683,7 @@ uint8_t tftjpg()
 	sumx += drawString("JPG ", sumx, 52, 2);
 	itoa(MyHttpUridx + 1,buf,10);
 	sumx += drawString(buf, sumx, 52, 2);
-	sumx += drawString(": Adjust memory:", sumx, 52, 2);
+	sumx += drawString(": adjust memory", sumx, 52, 2);
 	} else {
 	setTextColor(TFT_YELLOW, TFT_BLACK);
 	sumx = 0;
