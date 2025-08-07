@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2025.06.14"
+#define AP_VER "2025.08.07"
 #define NVS_VER 8  //NVS config version (even only)
 
 // Init WIFI setting
@@ -67,7 +67,7 @@ void utoat (uint32_t val, char* cout, size_t len)
 }
 */
 // convert string to uint32 
-uint8_t str_u32(uint32_t *uout, uint8_t *cin)
+uint8_t str_u32(uint32_t *uout, uint8_t prec, uint8_t *cin)
 {
 	uint8_t ret = 0;
 	uint32_t var1 = 0;
@@ -90,14 +90,21 @@ uint8_t str_u32(uint32_t *uout, uint8_t *cin)
 	} else if ((a > 0x2f) && (a < 0x3a)) {
 	tmp[j] = a;
 	ret |= 0x20;
-	if (ret & 0x40) ret++;
+	if (ret & 0x40) {
+	ret++;
+	if (prec && ((ret & 0x0f) == prec)) i = 12;
+	}
 	j++;	
 	} else i = 12;
 	i++;	
 	}
-	if (ret && 0x20) {
-	var1 = atoi(tmp);
-//	ret &= 0xdf;
+	while ((ret & 0x40) && prec && ((ret & 0x0f) < prec)) {
+	tmp[j] = 0x30;
+	j++;
+	ret++;
+	}
+	if (ret & 0x20) {
+	var1 = atol(tmp);
 	*uout = var1;
 	}
 	return ret;
@@ -990,6 +997,13 @@ uint8_t ecmab2st(char *smd, uint32_t bmd, uint8_t idx)
 	break;
 	default:
 	strcat(smd,"Unknown");
+/*
+	strcat(smd,"Unknown(");
+	char buf[8];
+	utoa(btmsk,buf,10);
+	strcat(smd,buf);
+	strcat(smd,")");
+*/
 	break;
 	}
 	return 1;
@@ -1002,7 +1016,7 @@ void mygp_iomux_out (uint8_t gpio)
 
 }
 //******************* xiaomi ******************
-//https://github.com/aprosvetova/xiaomi-kettle
+//https://https://github.com/anna-oake/xiaomi-kettle
 void mixA(uint8_t  *cin, uint8_t  *cout, int prid)
 {
 	if (cin == NULL || cout == NULL) return;
@@ -1149,7 +1163,21 @@ uint16_t i3740_crc(uint8_t *data, uint8_t datalen) {
 	}
 	return crc;
 }
-
+//****************** ce208 ********************
+uint8_t ce_parity(uint8_t data) {
+	uint8_t a, b, c;
+	a = data & 0x7f;
+	b = 1;
+	c = 0;	
+	for (uint8_t i = 0; i < 7; i++) {
+	if (a & b) c++;
+	b <<= 1;
+	}
+	if (c & 1) {
+	a |= 0x80;
+	}
+	return a;
+}
 //****************** modbus *******************
 uint16_t mb_crc(uint8_t *data, uint8_t datalen) {
 	if (!datalen) return 0;
@@ -1202,16 +1230,15 @@ uint8_t mb_rsp(uint8_t *buf, uint8_t buflen, uint8_t timeout)
 	readlen = readlen - 2;
 	tcrc = (buf[readlen + 1] << 8) | buf[readlen];
 	if (tcrc == mb_crc(buf, readlen)) {
-//	if (fdebug) {
+	if (fdebug) {
 	ESP_LOGI(AP_TAG, "Read from UART:");
 	ESP_LOG_BUFFER_HEX(AP_TAG, buf, readlen + 2);
-//	}
+	}
 	} else {
 	readlen = 0;
 	mb_errcnt++;
 	if (!mb_errcnt) mb_errcnt--;
-//	if (fdebug) ESP_LOGI(AP_TAG, "Read CRC error, data ignored");
-	ESP_LOGI(AP_TAG, "Read CRC error, data ignored");
+	if (fdebug) ESP_LOGI(AP_TAG, "Read CRC error, data ignored");
 	}
 	} else readlen = 0;
 	} //rx_size
@@ -1223,7 +1250,6 @@ void    mb_rddev()
 	if (bgpio11 > 63) {
 	uint8_t buf[64];
 	uint8_t len;
-//???
 /*
 01 04 14  00 00  3f 00  xx xx  xx xx  xx xx  xx xx  xx xx  xx xx  xx xx  xx xx
                                                                   9
@@ -4321,7 +4347,7 @@ static IRAM_ATTR bool hw_timer_callback(gptimer_handle_t timer, const gptimer_al
 	BleDevStA.r4slppar1 = 0;
 	BleDevStA.r4slpcom = 63;
 	}
-	} else if ((BleDevStA.DEV_TYP > 63) && (BleDevStA.DEV_TYP < 71)) { 
+	} else if ((BleDevStA.DEV_TYP > 63) && (BleDevStA.DEV_TYP < 69)) { 
 	if (!BleDevStA.bState) {
 	BleDevStA.r4slppar1 = 0;
 	BleDevStA.r4slpcom = 65;
@@ -4401,7 +4427,7 @@ static IRAM_ATTR bool hw_timer_callback(gptimer_handle_t timer, const gptimer_al
 	BleDevStB.r4slppar1 = 0;
 	BleDevStB.r4slpcom = 63;
 	}
-	} else if ((BleDevStB.DEV_TYP > 63) && (BleDevStB.DEV_TYP < 71)) { 
+	} else if ((BleDevStB.DEV_TYP > 63) && (BleDevStB.DEV_TYP < 69)) { 
 	if (!BleDevStB.bState) {
 	BleDevStB.r4slppar1 = 0;
 	BleDevStB.r4slpcom = 65;
@@ -4482,7 +4508,7 @@ static IRAM_ATTR bool hw_timer_callback(gptimer_handle_t timer, const gptimer_al
 	BleDevStC.r4slppar1 = 0;
 	BleDevStC.r4slpcom = 63;
 	}
-	} else if ((BleDevStC.DEV_TYP > 63) && (BleDevStC.DEV_TYP < 71)) { 
+	} else if ((BleDevStC.DEV_TYP > 63) && (BleDevStC.DEV_TYP < 69)) { 
 	if (!BleDevStC.bState) {
 	BleDevStC.r4slppar1 = 0;
 	BleDevStC.r4slpcom = 65;
@@ -4597,7 +4623,7 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(buft,ptr->tBLEAddr);
 	strcat(buft,"/name");
 	esp_mqtt_client_publish(mqttclient, buft, ptr->DEV_NAME, 0, 1, 1);
-	if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71))) {
+	if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69))) {
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
 	strcat(buft,ptr->tBLEAddr);
@@ -8177,7 +8203,7 @@ void MqttPubSub (uint8_t blenum) {
 //
 	}
 
-	} else if ( ptr->DEV_TYP == 71) {
+	} else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 72)) {
 	if (FDHass) {
 	strcpy(buft,"homeassistant/sensor/");
 	strcat(buft,MQTT_BASE_TOPIC);
@@ -8187,13 +8213,17 @@ void MqttPubSub (uint8_t blenum) {
 	strcpy(bufd,"{\"name\":\"");
 	strcat(bufd,"rssi\",\"icon\":\"mdi:bluetooth\",\"uniq_id\":\"rssi_");
 	strcat(bufd,ptr->tBLEAddr);
-	strcat(bufd,"\",\"dev\":{\"ids\":[\"Mir_");
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"Mir_");
+	else strcat(bufd,"Enm_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\"],\"name\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	utoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Mir\",\"mdl\":\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,".Mir");
+	else strcat(bufd,".Enm");
+	strcat(bufd,"\",\"mdl\":\"");
 	strcat(bufd,ptr->DEV_NAME);
 	if (ptr->sVer[0] > 0x20) {
 	strcat(bufd,"\",\"sw\":\"");
@@ -8201,7 +8231,10 @@ void MqttPubSub (uint8_t blenum) {
 	}
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
-	strcat(bufd,"\",\"mf\":\"NPO Mir\"},\"dev_cla\":\"signal_strength\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
+	strcat(bufd,"\",\"mf\":\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"NPO Mir");
+	else strcat(bufd,"Energomera");
+	strcat(bufd,"\"},\"dev_cla\":\"signal_strength\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
 	strcat(bufd,ptr->tBLEAddr);
@@ -8222,13 +8255,17 @@ void MqttPubSub (uint8_t blenum) {
 	strcpy(bufd,"{\"name\":\"");
 	strcat(bufd,"energy.active.direct\",\"icon\":\"mdi:circle-slice-3\",\"uniq_id\":\"enrgacd_");
 	strcat(bufd,ptr->tBLEAddr);
-	strcat(bufd,"\",\"dev\":{\"ids\":[\"Mir_");
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"Mir_");
+	else strcat(bufd,"Enm_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\"],\"name\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	utoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Mir\",\"mdl\":\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,".Mir");
+	else strcat(bufd,".Enm");
+	strcat(bufd,"\",\"mdl\":\"");
 	strcat(bufd,ptr->DEV_NAME);
 	if (ptr->sVer[0] > 0x20) {
 	strcat(bufd,"\",\"sw\":\"");
@@ -8237,7 +8274,8 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
 	strcat(bufd,"\",\"mf\":\"");
-	strcat(bufd,"NPO Mir");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"NPO Mir");
+	else strcat(bufd,"Energomera");
 	strcat(bufd,"\"},\"dev_cla\":\"energy\",\"stat_cla\":\"total_increasing\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
@@ -8260,13 +8298,17 @@ void MqttPubSub (uint8_t blenum) {
 	strcpy(bufd,"{\"name\":\"");
 	strcat(bufd,"energy.active.reverse\",\"icon\":\"mdi:circle-slice-3\",\"uniq_id\":\"enrgacr_");
 	strcat(bufd,ptr->tBLEAddr);
-	strcat(bufd,"\",\"dev\":{\"ids\":[\"Mir_");
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"Mir_");
+	else strcat(bufd,"Enm_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\"],\"name\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	utoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Mir\",\"mdl\":\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,".Mir");
+	else strcat(bufd,".Enm");
+	strcat(bufd,"\",\"mdl\":\"");
 	strcat(bufd,ptr->DEV_NAME);
 	if (ptr->sVer[0] > 0x20) {
 	strcat(bufd,"\",\"sw\":\"");
@@ -8275,7 +8317,8 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
 	strcat(bufd,"\",\"mf\":\"");
-	strcat(bufd,"NPO Mir");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"NPO Mir");
+	else strcat(bufd,"Energomera");
 	strcat(bufd,"\"},\"dev_cla\":\"energy\",\"stat_cla\":\"total_increasing\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
@@ -8298,13 +8341,17 @@ void MqttPubSub (uint8_t blenum) {
 	strcpy(bufd,"{\"name\":\"");
 	strcat(bufd,"energy.reactive.direct\",\"icon\":\"mdi:circle-slice-3\",\"uniq_id\":\"enrgred_");
 	strcat(bufd,ptr->tBLEAddr);
-	strcat(bufd,"\",\"dev\":{\"ids\":[\"Mir_");
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"Mir_");
+	else strcat(bufd,"Enm_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\"],\"name\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	utoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Mir\",\"mdl\":\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,".Mir");
+	else strcat(bufd,".Enm");
+	strcat(bufd,"\",\"mdl\":\"");
 	strcat(bufd,ptr->DEV_NAME);
 	if (ptr->sVer[0] > 0x20) {
 	strcat(bufd,"\",\"sw\":\"");
@@ -8313,7 +8360,8 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
 	strcat(bufd,"\",\"mf\":\"");
-	strcat(bufd,"NPO Mir");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"NPO Mir");
+	else strcat(bufd,"Energomera");
 //	strcat(bufd,"\"},\"dev_cla\":\"energy\",\"stat_cla\":\"total_increasing\",\"stat_t\":\"");
 	strcat(bufd,"\"},\"stat_cla\":\"total_increasing\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
@@ -8337,13 +8385,17 @@ void MqttPubSub (uint8_t blenum) {
 	strcpy(bufd,"{\"name\":\"");
 	strcat(bufd,"energy.reactive.reverse\",\"icon\":\"mdi:circle-slice-3\",\"uniq_id\":\"enrgrer_");
 	strcat(bufd,ptr->tBLEAddr);
-	strcat(bufd,"\",\"dev\":{\"ids\":[\"Mir_");
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"Mir_");
+	else strcat(bufd,"Enm_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\"],\"name\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	utoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Mir\",\"mdl\":\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,".Mir");
+	else strcat(bufd,".Enm");
+	strcat(bufd,"\",\"mdl\":\"");
 	strcat(bufd,ptr->DEV_NAME);
 	if (ptr->sVer[0] > 0x20) {
 	strcat(bufd,"\",\"sw\":\"");
@@ -8352,7 +8404,8 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
 	strcat(bufd,"\",\"mf\":\"");
-	strcat(bufd,"NPO Mir");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"NPO Mir");
+	else strcat(bufd,"Energomera");
 //	strcat(bufd,"\"},\"dev_cla\":\"energy\",\"stat_cla\":\"total_increasing\",\"stat_t\":\"");
 	strcat(bufd,"\"},\"stat_cla\":\"total_increasing\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
@@ -8376,13 +8429,17 @@ void MqttPubSub (uint8_t blenum) {
 	strcpy(bufd,"{\"name\":\"");
 	strcat(bufd,"power.active\",\"icon\":\"mdi:flash-outline\",\"uniq_id\":\"pwrac_");
 	strcat(bufd,ptr->tBLEAddr);
-	strcat(bufd,"\",\"dev\":{\"ids\":[\"Mir_");
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"Mir_");
+	else strcat(bufd,"Enm_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\"],\"name\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	utoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Mir\",\"mdl\":\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,".Mir");
+	else strcat(bufd,".Enm");
+	strcat(bufd,"\",\"mdl\":\"");
 	strcat(bufd,ptr->DEV_NAME);
 	if (ptr->sVer[0] > 0x20) {
 	strcat(bufd,"\",\"sw\":\"");
@@ -8391,7 +8448,8 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
 	strcat(bufd,"\",\"mf\":\"");
-	strcat(bufd,"NPO Mir");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"NPO Mir");
+	else strcat(bufd,"Energomera");
 	strcat(bufd,"\"},\"dev_cla\":\"power\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
@@ -8414,13 +8472,17 @@ void MqttPubSub (uint8_t blenum) {
 	strcpy(bufd,"{\"name\":\"");
 	strcat(bufd,"power.apparent\",\"icon\":\"mdi:flash-outline\",\"uniq_id\":\"pwrap_");
 	strcat(bufd,ptr->tBLEAddr);
-	strcat(bufd,"\",\"dev\":{\"ids\":[\"Mir_");
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"Mir_");
+	else strcat(bufd,"Enm_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\"],\"name\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	utoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Mir\",\"mdl\":\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,".Mir");
+	else strcat(bufd,".Enm");
+	strcat(bufd,"\",\"mdl\":\"");
 	strcat(bufd,ptr->DEV_NAME);
 	if (ptr->sVer[0] > 0x20) {
 	strcat(bufd,"\",\"sw\":\"");
@@ -8429,7 +8491,8 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
 	strcat(bufd,"\",\"mf\":\"");
-	strcat(bufd,"NPO Mir");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"NPO Mir");
+	else strcat(bufd,"Energomera");
 //	strcat(bufd,"\"},\"dev_cla\":\"power\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(bufd,"\"},\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
@@ -8453,13 +8516,17 @@ void MqttPubSub (uint8_t blenum) {
 	strcpy(bufd,"{\"name\":\"");
 	strcat(bufd,"power.factor\",\"icon\":\"mdi:flash-outline\",\"uniq_id\":\"pwrf_");
 	strcat(bufd,ptr->tBLEAddr);
-	strcat(bufd,"\",\"dev\":{\"ids\":[\"Mir_");
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"Mir_");
+	else strcat(bufd,"Enm_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\"],\"name\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	utoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Mir\",\"mdl\":\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,".Mir");
+	else strcat(bufd,".Enm");
+	strcat(bufd,"\",\"mdl\":\"");
 	strcat(bufd,ptr->DEV_NAME);
 	if (ptr->sVer[0] > 0x20) {
 	strcat(bufd,"\",\"sw\":\"");
@@ -8468,7 +8535,8 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
 	strcat(bufd,"\",\"mf\":\"");
-	strcat(bufd,"NPO Mir");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"NPO Mir");
+	else strcat(bufd,"Energomera");
 	strcat(bufd,"\"},\"dev_cla\":\"power_factor\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
@@ -8491,13 +8559,17 @@ void MqttPubSub (uint8_t blenum) {
 	strcpy(bufd,"{\"name\":\"");
 	strcat(bufd,"voltage\",\"icon\":\"mdi:alpha-v-circle-outline\",\"uniq_id\":\"volt_");
 	strcat(bufd,ptr->tBLEAddr);
-	strcat(bufd,"\",\"dev\":{\"ids\":[\"Mir_");
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"Mir_");
+	else strcat(bufd,"Enm_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\"],\"name\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	utoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Mir\",\"mdl\":\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,".Mir");
+	else strcat(bufd,".Enm");
+	strcat(bufd,"\",\"mdl\":\"");
 	strcat(bufd,ptr->DEV_NAME);
 	if (ptr->sVer[0] > 0x20) {
 	strcat(bufd,"\",\"sw\":\"");
@@ -8506,7 +8578,8 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
 	strcat(bufd,"\",\"mf\":\"");
-	strcat(bufd,"NPO Mir");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"NPO Mir");
+	else strcat(bufd,"Energomera");
 	strcat(bufd,"\"},\"dev_cla\":\"voltage\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
@@ -8529,13 +8602,17 @@ void MqttPubSub (uint8_t blenum) {
 	strcpy(bufd,"{\"name\":\"");
 	strcat(bufd,"current\",\"icon\":\"mdi:alpha-a-circle-outline\",\"uniq_id\":\"curr_");
 	strcat(bufd,ptr->tBLEAddr);
-	strcat(bufd,"\",\"dev\":{\"ids\":[\"Mir_");
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"Mir_");
+	else strcat(bufd,"Enm_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\"],\"name\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	utoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Mir\",\"mdl\":\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,".Mir");
+	else strcat(bufd,".Enm");
+	strcat(bufd,"\",\"mdl\":\"");
 	strcat(bufd,ptr->DEV_NAME);
 	if (ptr->sVer[0] > 0x20) {
 	strcat(bufd,"\",\"sw\":\"");
@@ -8544,7 +8621,8 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
 	strcat(bufd,"\",\"mf\":\"");
-	strcat(bufd,"NPO Mir");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"NPO Mir");
+	else strcat(bufd,"Energomera");
 	strcat(bufd,"\"},\"dev_cla\":\"current\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
@@ -8567,13 +8645,17 @@ void MqttPubSub (uint8_t blenum) {
 	strcpy(bufd,"{\"name\":\"");
 	strcat(bufd,"frequency\",\"icon\":\"mdi:sine-wave\",\"uniq_id\":\"freq_");
 	strcat(bufd,ptr->tBLEAddr);
-	strcat(bufd,"\",\"dev\":{\"ids\":[\"Mir_");
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"Mir_");
+	else strcat(bufd,"Enm_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\"],\"name\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	utoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Mir\",\"mdl\":\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,".Mir");
+	else strcat(bufd,".Enm");
+	strcat(bufd,"\",\"mdl\":\"");
 	strcat(bufd,ptr->DEV_NAME);
 	if (ptr->sVer[0] > 0x20) {
 	strcat(bufd,"\",\"sw\":\"");
@@ -8582,7 +8664,8 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
 	strcat(bufd,"\",\"mf\":\"");
-	strcat(bufd,"NPO Mir");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"NPO Mir");
+	else strcat(bufd,"Energomera");
 	strcat(bufd,"\"},\"dev_cla\":\"frequency\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
@@ -8605,13 +8688,17 @@ void MqttPubSub (uint8_t blenum) {
 	strcpy(bufd,"{\"name\":\"");
 	strcat(bufd,"temperature\",\"icon\":\"mdi:thermometer\",\"uniq_id\":\"temp_");
 	strcat(bufd,ptr->tBLEAddr);
-	strcat(bufd,"\",\"dev\":{\"ids\":[\"Mir_");
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"Mir_");
+	else strcat(bufd,"Enm_");
 	strcat(bufd,ptr->tBLEAddr);
 	strcat(bufd,"\"],\"name\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	utoa(blenum1,tbuff,10);
 	strcat(bufd,tbuff);
-	strcat(bufd,".Mir\",\"mdl\":\"");
+	if (ptr->DEV_TYP == 71) strcat(bufd,".Mir");
+	else strcat(bufd,".Enm");
+	strcat(bufd,"\",\"mdl\":\"");
 	strcat(bufd,ptr->DEV_NAME);
 	if (ptr->sVer[0] > 0x20) {
 	strcat(bufd,"\",\"sw\":\"");
@@ -8620,7 +8707,8 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"\",\"via_device\":\"ESP32_");
 	strcat(bufd,tESP32Addr);
 	strcat(bufd,"\",\"mf\":\"");
-	strcat(bufd,"NPO Mir");
+	if (ptr->DEV_TYP == 71) strcat(bufd,"NPO Mir");
+	else strcat(bufd,"Energomera");
 	strcat(bufd,"\"},\"dev_cla\":\"temperature\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(bufd,MQTT_BASE_TOPIC);
 	strcat(bufd,"/");
@@ -10754,15 +10842,22 @@ struct gattc_profile_inst {
     uint16_t service2_end_handle;
     uint16_t service3_start_handle;
     uint16_t service3_end_handle;
-    uint16_t rxchar_handle;      //0 redm rxchar, xiaomi status
-    uint16_t txchar_handle;      //1 redm txchar, xiaomi authinit
-    uint16_t auth_handle;        //2
-    uint16_t ver_handle;         //3
-    uint16_t setup_handle;       //4
-    uint16_t time_handle;        //5
-    uint16_t boil_handle;        //6
-    uint16_t mcuver_handle;      //7
-    uint16_t update_handle;      //8
+    uint16_t char0_handle;      //0 redm rxchar, xiaomi status
+    uint16_t char1_handle;      //1 redm txchar, xiaomi authinit
+    uint16_t char2_handle;      //2 auth
+    uint16_t char3_handle;      //3 ver
+    uint16_t char4_handle;      //4 setup
+    uint16_t char5_handle;      //5 time
+    uint16_t char6_handle;      //6 boil
+    uint16_t char7_handle;      //7 mcuver
+    uint16_t char8_handle;      //8 update
+    uint16_t char9_handle;      //9
+/*
+    uint16_t char10_handle;     //10
+    uint16_t char11_handle;     //11
+    uint16_t char12_handle;     //12
+    uint16_t char13_handle;     //13
+*/
     esp_bd_addr_t remote_bda;
 };
 
@@ -10987,6 +11082,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(uint8_t));
 	esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
 	esp_ble_set_encryption(param->connect.remote_bda, 1);
+	} else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 71)) {
+	if (fdebug) ESP_LOGI(AP_TAG, "CONNECT_EVT %d, set%s Bond and%s Encryption", blenum1,"no"," no");
+	esp_ble_auth_req_t auth_req = ESP_LE_AUTH_NO_BOND;     //default authentication
+	esp_ble_io_cap_t iocap = ESP_IO_CAP_NONE;           //set the IO capability to No output No input
+	esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(uint8_t));
+	esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
+//	esp_ble_set_encryption(param->connect.remote_bda, 1);
 	} else if ((ptr->DEV_TYP > 73) && (ptr->DEV_TYP < 77)) {
 	if (fdebug) ESP_LOGI(AP_TAG, "CONNECT_EVT %d, set%s Bond and%s Encryption", blenum1," no","");
 	esp_ble_auth_req_t auth_req = ESP_LE_AUTH_REQ_SC_ONLY;     //default authentication
@@ -11012,7 +11114,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
 	ptr->btopen = false;
         ptr->btopenreq = false;
-	if ((ptr->DEV_TYP > 70) && (ptr->DEV_TYP < 74)) ptr->t_ppcon = 60;
+	if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 74)) ptr->t_ppcon = 60;
 	else ptr->t_ppcon = 10;
 	start_scan();
 	} else {
@@ -11047,7 +11149,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	    .uuid = {.uuid128 = REMOTE_SERVICE_UUID,},
 	};
 	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service_uuid);
-	} else if (ptr->DEV_TYP < 71) {
+	} else if (ptr->DEV_TYP < 69) {
 	esp_bt_uuid_t filter_service_uuid = {
 	    .len = ESP_UUID_LEN_128,
 	    .uuid = {.uuid128 = XREMOTE_SERVICE_UUID,},
@@ -11068,6 +11170,12 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service1_uuid);
 	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service2_uuid);
 	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service3_uuid);
+	} else if (ptr->DEV_TYP < 71) {
+	esp_bt_uuid_t filter_service_uuid = {
+	    .len = ESP_UUID_LEN_128,
+	    .uuid = {.uuid128 = CEREMOTE_SERVICE_UUID,},
+	};
+	esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &filter_service_uuid);
 	} else if (ptr->DEV_TYP == 71) {
 	esp_bt_uuid_t filter_service_uuid = {
 	    .len = ESP_UUID_LEN_128,
@@ -11153,7 +11261,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
 		gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
 	}
-	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71)) {
+	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69)) {
 	const uint8_t uid1[16] = XREMOTE_SERVICE_UUID;
 	if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (!memcmp(&p_data->search_res.srvc_id.uuid.uuid.uuid128, uid1,16))) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Xiaomi Service%d %d found", 1, blenum1);
@@ -11172,6 +11280,14 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		ptr->get_server = true;
 		gl_profile_tab[blenum].service3_start_handle = p_data->search_res.start_handle;
 		gl_profile_tab[blenum].service3_end_handle = p_data->search_res.end_handle;
+	}
+	} else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 71)) {
+	const uint8_t uid1[16] = CEREMOTE_SERVICE_UUID;
+	if ((p_data->search_res.srvc_id.uuid.len == ESP_UUID_LEN_128) && (!memcmp(&p_data->search_res.srvc_id.uuid.uuid.uuid128, uid1,16))) {
+	if (fdebug) ESP_LOGI(AP_TAG, "Energomera Service %d found", blenum1);
+		ptr->get_server = true;
+		gl_profile_tab[blenum].service_start_handle = p_data->search_res.start_handle;
+		gl_profile_tab[blenum].service_end_handle = p_data->search_res.end_handle;
 	}
 	} else if (ptr->DEV_TYP == 71) {
 	const uint8_t uid1[16] = MRREMOTE_SERVICE_UUID;
@@ -11262,7 +11378,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	if (fdebug) ESP_LOGE(AP_TAG, "esp_ble_gattc_get_attr%d_count error", 1);
     	}
 
-	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 74)) {
+	if (((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69)) || ((ptr->DEV_TYP > 70) && (ptr->DEV_TYP < 74))) {
             if (!conerr) status = esp_ble_gattc_get_attr_count( gattc_if,
                                                                      p_data->search_cmpl.conn_id,
                                                                      ESP_GATT_DB_CHARACTERISTIC,
@@ -11290,8 +11406,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
     	}
 	count = count + count1;
 	count1 = 0;		
-	}
-	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71)) {
+	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69)) {
             if (!conerr) status = esp_ble_gattc_get_attr_count( gattc_if,
                                                                      p_data->search_cmpl.conn_id,
                                                                      ESP_GATT_DB_CHARACTERISTIC,
@@ -11305,6 +11420,8 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
     	}
 	count = count + count1;
 	}
+	}
+
         if (conerr) count = 0;
     	if (count > 0) {
 		char_elem_result = malloc(sizeof(esp_gattc_char_elem_t) * count);
@@ -11353,9 +11470,8 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		int i = 0; 
                 while (!conerr && count1 && (i < count1)) {
 		if (char_elem_result[i].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY) {	
-			gl_profile_tab[blenum].rxchar_handle = char_elem_result[i].char_handle;
+			gl_profile_tab[blenum].char0_handle = char_elem_result[i].char_handle;
 			esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[i].char_handle);
-			if (fdebug) ESP_LOGI(AP_TAG, "Register_for_notify %d", blenum1);
 			i = count1;
 		}
 		i++;
@@ -11364,7 +11480,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		count = count1 + count2;
                 while (!conerr && count2 && (i < count)) {
 		if (char_elem_result[i].properties & ESP_GATT_CHAR_PROP_BIT_WRITE) {	
-                        gl_profile_tab[blenum].txchar_handle = char_elem_result[i].char_handle;
+                        gl_profile_tab[blenum].char1_handle = char_elem_result[i].char_handle;
 			i = count;
 		}
 		i++;
@@ -11373,10 +11489,10 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 
 
 	if (fdebug) {
-	ESP_LOGI(AP_TAG, "Rx char count = %d, handle = 0x%X", count1, gl_profile_tab[blenum].rxchar_handle);
-	ESP_LOGI(AP_TAG, "Tx char count = %d, handle = 0x%X", count2, gl_profile_tab[blenum].txchar_handle);
+	ESP_LOGI(AP_TAG, "Rx char count = %d, handle = 0x%X", count1, gl_profile_tab[blenum].char0_handle);
+	ESP_LOGI(AP_TAG, "Tx char count = %d, handle = 0x%X", count2, gl_profile_tab[blenum].char1_handle);
 		}
-		} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71) && (count > 8)) {
+		} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69) && (count > 8)) {
 		if (!conerr) {
 		esp_bt_uuid_t xremote_filter_status_uuid = {
 		    .len = ESP_UUID_LEN_128,
@@ -11532,21 +11648,300 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	}
                 if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
-                        gl_profile_tab[blenum].rxchar_handle = char_elem_result[0].char_handle;
+                        gl_profile_tab[blenum].char0_handle = char_elem_result[0].char_handle;
                         esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[0].char_handle);
-                        gl_profile_tab[blenum].txchar_handle = char_elem_result[1].char_handle;
-                        gl_profile_tab[blenum].auth_handle = char_elem_result[2].char_handle;
-                        gl_profile_tab[blenum].ver_handle = char_elem_result[3].char_handle;
-                        gl_profile_tab[blenum].setup_handle = char_elem_result[4].char_handle;
-                        gl_profile_tab[blenum].time_handle = char_elem_result[5].char_handle;
-                        gl_profile_tab[blenum].boil_handle = char_elem_result[6].char_handle;
-                        gl_profile_tab[blenum].mcuver_handle = char_elem_result[7].char_handle;
-                        gl_profile_tab[blenum].update_handle = char_elem_result[8].char_handle;
+                        gl_profile_tab[blenum].char1_handle = char_elem_result[1].char_handle;
+                        gl_profile_tab[blenum].char2_handle = char_elem_result[2].char_handle;
+                        gl_profile_tab[blenum].char3_handle = char_elem_result[3].char_handle;
+                        gl_profile_tab[blenum].char4_handle = char_elem_result[4].char_handle;
+                        gl_profile_tab[blenum].char5_handle = char_elem_result[5].char_handle;
+                        gl_profile_tab[blenum].char6_handle = char_elem_result[6].char_handle;
+                        gl_profile_tab[blenum].char7_handle = char_elem_result[7].char_handle;
+                        gl_profile_tab[blenum].char8_handle = char_elem_result[8].char_handle;
 	if (fdebug) {
-		ESP_LOGI(AP_TAG, "Update handle = 0x%X", gl_profile_tab[blenum].update_handle);
-		ESP_LOGI(AP_TAG, "Register_for_notify %d", blenum1);
+		ESP_LOGI(AP_TAG, "Update handle = 0x%X", gl_profile_tab[blenum].char8_handle);
 		}
             	}
+		} else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 71) && (count > 8)) {
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_TX_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "tx", blenum1);
+            	}
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_RX0_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result+1),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "rx0", blenum1);
+            	}
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_RX1_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result+2),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "rx1", blenum1);
+            	}
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_RX2_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result+3),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "rx2", blenum1);
+            	}
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_RX3_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result+4),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "rx3", blenum1);
+            	}
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_RX4_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result+5),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "rx4", blenum1);
+            	}
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_RX5_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result+6),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "rx5", blenum1);
+            	}
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_RX6_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result+7),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "rx6", blenum1);
+            	}
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_RX7_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result+8),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "rx7", blenum1);
+            	}
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_RX8_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result+9),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "rx8", blenum1);
+            	}
+            	}
+/*
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_RX9_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result+10),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "rx9", blenum1);
+            	}
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_RX10_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result+11),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "rx10", blenum1);
+            	}
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_RX11_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result+12),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "rx11", blenum1);
+            	}
+            	}
+		if (!conerr) {
+		esp_bt_uuid_t ceremote_filter_char_uuid = {
+		    .len = ESP_UUID_LEN_128,
+		    .uuid = {.uuid128 = CEREMOTE_RX12_UUID,},
+		};
+		status = esp_ble_gattc_get_char_by_uuid( gattc_if,
+							     p_data->search_cmpl.conn_id,
+                                                             gl_profile_tab[blenum].service_start_handle,
+                                                             gl_profile_tab[blenum].service_end_handle,
+                                                             ceremote_filter_char_uuid,
+                                                             (char_elem_result+13),
+                                                             &count);
+            	if (status != ESP_GATT_OK) {
+			conerr = 1;
+		if (fdebug) ESP_LOGE(AP_TAG, "Get_%s_by_uuid %d error", "rx12", blenum1);
+            	}
+            	}
+*/
+
+                if (conerr) count = 0;
+            	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
+                        gl_profile_tab[blenum].char0_handle = char_elem_result[0].char_handle;
+                        esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[0].char_handle);
+                        gl_profile_tab[blenum].char1_handle = char_elem_result[1].char_handle;
+                        gl_profile_tab[blenum].char2_handle = char_elem_result[2].char_handle;
+                        gl_profile_tab[blenum].char3_handle = char_elem_result[3].char_handle;
+                        gl_profile_tab[blenum].char4_handle = char_elem_result[4].char_handle;
+                        gl_profile_tab[blenum].char5_handle = char_elem_result[5].char_handle;
+                        gl_profile_tab[blenum].char6_handle = char_elem_result[6].char_handle;
+                        gl_profile_tab[blenum].char7_handle = char_elem_result[7].char_handle;
+                        gl_profile_tab[blenum].char8_handle = char_elem_result[8].char_handle;
+                        gl_profile_tab[blenum].char9_handle = char_elem_result[9].char_handle;
+/*
+                        gl_profile_tab[blenum].char10_handle = char_elem_result[10].char_handle;
+                        gl_profile_tab[blenum].char11_handle = char_elem_result[11].char_handle;
+                        gl_profile_tab[blenum].char12_handle = char_elem_result[12].char_handle;
+                        gl_profile_tab[blenum].char13_handle = char_elem_result[13].char_handle;
+*/
+		if (fdebug) {
+		ESP_LOGI(AP_TAG, "Tx handle = 0x%X", gl_profile_tab[blenum].char0_handle);
+		ESP_LOGI(AP_TAG, "Rx0 handle = 0x%X",  gl_profile_tab[blenum].char1_handle);
+		ESP_LOGI(AP_TAG, "Rx1 handle = 0x%X",  gl_profile_tab[blenum].char2_handle);
+		ESP_LOGI(AP_TAG, "Rx2 handle = 0x%X",  gl_profile_tab[blenum].char3_handle);
+		ESP_LOGI(AP_TAG, "Rx3 handle = 0x%X",  gl_profile_tab[blenum].char4_handle);
+		ESP_LOGI(AP_TAG, "Rx4 handle = 0x%X",  gl_profile_tab[blenum].char5_handle);
+		ESP_LOGI(AP_TAG, "Rx5 handle = 0x%X",  gl_profile_tab[blenum].char6_handle);
+		ESP_LOGI(AP_TAG, "Rx6 handle = 0x%X",  gl_profile_tab[blenum].char7_handle);
+		ESP_LOGI(AP_TAG, "Rx7 handle = 0x%X",  gl_profile_tab[blenum].char8_handle);
+		ESP_LOGI(AP_TAG, "Rx8 handle = 0x%X",  gl_profile_tab[blenum].char9_handle);
+/*
+		ESP_LOGI(AP_TAG, "Rx9 handle = 0x%X",  gl_profile_tab[blenum].char10_handle);
+		ESP_LOGI(AP_TAG, "Rx10 handle = 0x%X",  gl_profile_tab[blenum].char11_handle);
+		ESP_LOGI(AP_TAG, "Rx11 handle = 0x%X",  gl_profile_tab[blenum].char12_handle);
+		ESP_LOGI(AP_TAG, "Rx12 handle = 0x%X",  gl_profile_tab[blenum].char13_handle);
+*/
+		}
+		}
 		} else if ((ptr->DEV_TYP == 71) && (count > 3)) {
 		if (!conerr) {
 		esp_bt_uuid_t mrremote_filter_char_uuid = {
@@ -11621,10 +12016,10 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	}
                 if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
-                        gl_profile_tab[blenum].rxchar_handle = char_elem_result[0].char_handle;
-                        gl_profile_tab[blenum].txchar_handle = char_elem_result[1].char_handle;
-                        gl_profile_tab[blenum].auth_handle = char_elem_result[2].char_handle;
-                        gl_profile_tab[blenum].setup_handle = char_elem_result[3].char_handle;
+                        gl_profile_tab[blenum].char0_handle = char_elem_result[0].char_handle;
+                        gl_profile_tab[blenum].char1_handle = char_elem_result[1].char_handle;
+                        gl_profile_tab[blenum].char2_handle = char_elem_result[2].char_handle;
+                        gl_profile_tab[blenum].char4_handle = char_elem_result[3].char_handle;
 //
 		int  write_char_data_len;
 	        uint8_t write_char_data[4];
@@ -11636,7 +12031,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		}
 	        status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].txchar_handle,
+                                  gl_profile_tab[blenum].char1_handle,
                                   write_char_data_len,
                                   write_char_data,
                                   ESP_GATT_WRITE_TYPE_RSP,
@@ -11657,7 +12052,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		}
 	        status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].auth_handle,
+                                  gl_profile_tab[blenum].char2_handle,
                                   write_char_data_len,
                                   write_char_data,
                                   ESP_GATT_WRITE_TYPE_RSP,
@@ -11671,11 +12066,10 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		if (!conerr) {
 		esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[0].char_handle);
 		if (fdebug) {
-		ESP_LOGI(AP_TAG, "Char handle = 0x%X", gl_profile_tab[blenum].rxchar_handle);
-		ESP_LOGI(AP_TAG, "Init handle = 0x%X",  gl_profile_tab[blenum].txchar_handle);
-		ESP_LOGI(AP_TAG, "Auth handle = 0x%X", gl_profile_tab[blenum].auth_handle);
-		ESP_LOGI(AP_TAG, "Nusd handle = 0x%X", gl_profile_tab[blenum].setup_handle);
-		ESP_LOGI(AP_TAG, "Register_for_notify %d", blenum1);
+		ESP_LOGI(AP_TAG, "Char handle = 0x%X", gl_profile_tab[blenum].char0_handle);
+		ESP_LOGI(AP_TAG, "Init handle = 0x%X",  gl_profile_tab[blenum].char1_handle);
+		ESP_LOGI(AP_TAG, "Auth handle = 0x%X", gl_profile_tab[blenum].char2_handle);
+		ESP_LOGI(AP_TAG, "Nusd handle = 0x%X", gl_profile_tab[blenum].char4_handle);
 		}
 		}
 		}
@@ -11772,19 +12166,18 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	}
                 if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
-                        gl_profile_tab[blenum].rxchar_handle = char_elem_result[0].char_handle;
+                        gl_profile_tab[blenum].char0_handle = char_elem_result[0].char_handle;
                         esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[0].char_handle);
-                        gl_profile_tab[blenum].txchar_handle = char_elem_result[1].char_handle;
-                        gl_profile_tab[blenum].auth_handle = char_elem_result[2].char_handle;
-                        gl_profile_tab[blenum].time_handle = char_elem_result[3].char_handle;
-                        gl_profile_tab[blenum].setup_handle = char_elem_result[4].char_handle;
+                        gl_profile_tab[blenum].char1_handle = char_elem_result[1].char_handle;
+                        gl_profile_tab[blenum].char2_handle = char_elem_result[2].char_handle;
+                        gl_profile_tab[blenum].char5_handle = char_elem_result[3].char_handle;
+                        gl_profile_tab[blenum].char4_handle = char_elem_result[4].char_handle;
 		if (fdebug) {
-		ESP_LOGI(AP_TAG, "Rx char handle = 0x%X", gl_profile_tab[blenum].rxchar_handle);
-		ESP_LOGI(AP_TAG, "Tx char handle = 0x%X",  gl_profile_tab[blenum].txchar_handle);
-		ESP_LOGI(AP_TAG, "Auth handle = 0x%X", gl_profile_tab[blenum].auth_handle);
-		ESP_LOGI(AP_TAG, "Time handle = 0x%X", gl_profile_tab[blenum].time_handle);
-		ESP_LOGI(AP_TAG, "Setup handle = 0x%X", gl_profile_tab[blenum].setup_handle);
-		ESP_LOGI(AP_TAG, "Register_for_notify %d", blenum1);
+		ESP_LOGI(AP_TAG, "Rx char handle = 0x%X", gl_profile_tab[blenum].char0_handle);
+		ESP_LOGI(AP_TAG, "Tx char handle = 0x%X",  gl_profile_tab[blenum].char1_handle);
+		ESP_LOGI(AP_TAG, "Auth handle = 0x%X", gl_profile_tab[blenum].char2_handle);
+		ESP_LOGI(AP_TAG, "Time handle = 0x%X", gl_profile_tab[blenum].char5_handle);
+		ESP_LOGI(AP_TAG, "Setup handle = 0x%X", gl_profile_tab[blenum].char4_handle);
 		}
 		}
 
@@ -11808,11 +12201,10 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	}
 		if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
-                        gl_profile_tab[blenum].rxchar_handle = char_elem_result[0].char_handle;
+                        gl_profile_tab[blenum].char0_handle = char_elem_result[0].char_handle;
                         esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[0].char_handle);
 		if (fdebug) {
-		ESP_LOGI(AP_TAG, "Rx/Tx char handle = 0x%X", gl_profile_tab[blenum].rxchar_handle);
-		ESP_LOGI(AP_TAG, "Register_for_notify %d", blenum1);
+		ESP_LOGI(AP_TAG, "Rx/Tx char handle = 0x%X", gl_profile_tab[blenum].char0_handle);
 		}
 		}
 
@@ -11854,13 +12246,12 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	}
                 if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
-                        gl_profile_tab[blenum].rxchar_handle = char_elem_result[0].char_handle;
+                        gl_profile_tab[blenum].char0_handle = char_elem_result[0].char_handle;
                         esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[0].char_handle);
-                        gl_profile_tab[blenum].txchar_handle = char_elem_result[1].char_handle;
+                        gl_profile_tab[blenum].char1_handle = char_elem_result[1].char_handle;
 		if (fdebug) {
-		ESP_LOGI(AP_TAG, "Rx char handle = 0x%X", gl_profile_tab[blenum].rxchar_handle);
-		ESP_LOGI(AP_TAG, "Tx char handle = 0x%X",  gl_profile_tab[blenum].txchar_handle);
-		ESP_LOGI(AP_TAG, "Register_for_notify %d", blenum1);
+		ESP_LOGI(AP_TAG, "Rx char handle = 0x%X", gl_profile_tab[blenum].char0_handle);
+		ESP_LOGI(AP_TAG, "Tx char handle = 0x%X",  gl_profile_tab[blenum].char1_handle);
 		}
 		}
 
@@ -11903,13 +12294,12 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	}
                 if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
-                        gl_profile_tab[blenum].rxchar_handle = char_elem_result[0].char_handle;
+                        gl_profile_tab[blenum].char0_handle = char_elem_result[0].char_handle;
                         esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[0].char_handle);
-                        gl_profile_tab[blenum].txchar_handle = char_elem_result[1].char_handle;
+                        gl_profile_tab[blenum].char1_handle = char_elem_result[1].char_handle;
 		if (fdebug) {
-		ESP_LOGI(AP_TAG, "Rx char handle = 0x%X", gl_profile_tab[blenum].rxchar_handle);
-		ESP_LOGI(AP_TAG, "Tx char handle = 0x%X",  gl_profile_tab[blenum].txchar_handle);
-		ESP_LOGI(AP_TAG, "Register_for_notify %d", blenum1);
+		ESP_LOGI(AP_TAG, "Rx char handle = 0x%X", gl_profile_tab[blenum].char0_handle);
+		ESP_LOGI(AP_TAG, "Tx char handle = 0x%X",  gl_profile_tab[blenum].char1_handle);
 		}
 		}
 
@@ -11933,11 +12323,10 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	}
 		if (conerr) count = 0;
             	if ((count > 0) && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)){
-                        gl_profile_tab[blenum].rxchar_handle = char_elem_result[0].char_handle;
+                        gl_profile_tab[blenum].char0_handle = char_elem_result[0].char_handle;
                         esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, char_elem_result[0].char_handle);
 		if (fdebug) {
-		ESP_LOGI(AP_TAG, "Rx/Tx char handle = 0x%X", gl_profile_tab[blenum].rxchar_handle);
-		ESP_LOGI(AP_TAG, "Register_for_notify %d", blenum1);
+		ESP_LOGI(AP_TAG, "Rx/Tx char handle = 0x%X", gl_profile_tab[blenum].char0_handle);
 		}
 		}
 
@@ -11966,7 +12355,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
                                                                          ESP_GATT_DB_DESCRIPTOR,
                                                                          gl_profile_tab[blenum].service_start_handle,
                                                                          gl_profile_tab[blenum].service_end_handle,
-                                                                         gl_profile_tab[blenum].rxchar_handle,
+                                                                         gl_profile_tab[blenum].char0_handle,
                                                                          &count);
     	if (ret_status != ESP_GATT_OK){
 		conerr = 1;
@@ -11999,13 +12388,13 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
                                                                      gl_profile_tab[blenum].conn_id,
                                                                      descr_elem_result[0].handle,
                                                                      sizeof(notify_en),
-                                                                     (uint8_t *)&notify_en,
+                                                                     (uint8_t  *)&notify_en,
                                                                      ESP_GATT_WRITE_TYPE_RSP,
                                                                      ESP_GATT_AUTH_REQ_NONE);
             	if (ret_status != ESP_GATT_OK){
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Write_char_descr %d error", blenum1);
-            	}
+            	} else if (fdebug)ESP_LOGI(AP_TAG, "Register_for_notify %d", blenum1);
             	}
                     /* free descr_elem_result */
                     free(descr_elem_result);
@@ -12014,7 +12403,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 		conerr = 1;
 		if (fdebug) ESP_LOGE(AP_TAG, "Decsr %d not found", blenum1);
     	}
-	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71) && ptr->xbtauth) {
+	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69) && ptr->xbtauth) {
             count = 0;
             notify_en = 1; 
             esp_gatt_status_t ret_status = esp_ble_gattc_get_attr_count( gattc_if,
@@ -12022,7 +12411,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
                                                                          ESP_GATT_DB_DESCRIPTOR,
                                                                          gl_profile_tab[blenum].service1_start_handle,
                                                                          gl_profile_tab[blenum].service1_end_handle,
-                                                                         gl_profile_tab[blenum].auth_handle,
+                                                                         gl_profile_tab[blenum].char2_handle,
                                                                          &count);
     	if (ret_status != ESP_GATT_OK){
 		conerr = 1;
@@ -12062,7 +12451,8 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	if (ret_status != ESP_GATT_OK){
 			conerr = 1;
 			if (fdebug) ESP_LOGE(AP_TAG, "Write_char_descr1 %d error", blenum1);
-            	}
+            	} else if (fdebug) ESP_LOGI(AP_TAG, "Register_for_notify1 %d", blenum1);
+
                     /* free descr_elem_result */
                     free(descr_elem_result);
         	}
@@ -12083,18 +12473,34 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ESP_LOG_BUFFER_HEX(AP_TAG, p_data->read.value, p_data->read.value_len);
 	ESP_LOGI(AP_TAG, "Read char handle = 0x%X", p_data->read.handle);
 	}
+
 */
+
+	if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 71) && !ptr->btauthoriz) {
+	if (p_data->read.value_len == 20) {
+	ptr->t_rspdel = 0;
+	ptr->t_ppcon = 40;
+	memset(ptr->sVer, 0, sizeof(ptr->sVer));
+	ptr->btauthoriz = true;
+	ptr->r4sConnErr = 0;
+	ptr->r4sAuthCount = 0;
+	ptr->f_Sync = 255;
+	ptr->NumConn++;
+	if (!ptr->NumConn) ptr->NumConn--;
+	bin2hex(gl_profile_tab[blenum].remote_bda, ptr->tBLEAddr,6,0);
+	if (fdebug) ESP_LOGI(AP_TAG, "Authorize %d Energomera ok", blenum1);
+	}
+	} else {
 	int length = p_data->read.value_len;
 	if (length > BLE_INPUT_BUFFSIZE) length = BLE_INPUT_BUFFSIZE;
-	if (length > 0) {
-	memcpy(ptr->readData, p_data->read.value, length);
-	}
+	if (length > 0) memcpy(ptr->readData, p_data->read.value, length);
 	ptr->readDataLen = length;
 	ptr->readDataHandle = p_data->read.handle;
+	}
 }
 	break;
 	case ESP_GATTC_NOTIFY_EVT:
-	if ((p_data->notify.is_notify) && (p_data->notify.handle == gl_profile_tab[blenum].rxchar_handle)) {
+	if ((p_data->notify.is_notify) && (p_data->notify.handle == gl_profile_tab[blenum].char0_handle)) {
 /*
 	if (fdebug) {
 	ESP_LOGI(AP_TAG, "Notify %d:", blenum1);
@@ -12334,7 +12740,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
 */
 	}
-	} else if (!ptr->btauthoriz && (p_data->notify.is_notify) && (p_data->notify.handle == gl_profile_tab[blenum].auth_handle)) {
+	} else if (!ptr->btauthoriz && (p_data->notify.is_notify) && (p_data->notify.handle == gl_profile_tab[blenum].char2_handle)) {
 	if (fdebug) {
 	ESP_LOGI(AP_TAG, "Read_auth %d:", blenum1);
 	ESP_LOG_BUFFER_HEX(AP_TAG, p_data->notify.value, p_data->notify.value_len);
@@ -12378,7 +12784,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
         esp_gatt_status_t ret_status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].auth_handle,
+                                  gl_profile_tab[blenum].char2_handle,
                                   4,
                                   buff1,
                                   ESP_GATT_WRITE_TYPE_RSP,
@@ -12398,12 +12804,12 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ptr->NumConn++;
 	if (!ptr->NumConn) ptr->NumConn--;
 	bin2hex(gl_profile_tab[blenum].remote_bda, ptr->tBLEAddr,6,0);
-	esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, gl_profile_tab[blenum].rxchar_handle);
+	esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, gl_profile_tab[blenum].char0_handle);
 	}
 	} else {
 	conerr = 1;
 	if (fdebug) ESP_LOGI(AP_TAG, "Invalid %d Xiaomi product Id", blenum1);
-	if ((ptr->DEV_TYP == 70) && (ptr->MiKettleID < 10000)) ptr->MiKettleID++;
+	if ((ptr->DEV_TYP == 68) && (ptr->MiKettleID < 10000)) ptr->MiKettleID++;
 	}
 	free(bufftab);
 	}
@@ -12440,8 +12846,8 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
         write_char_data[9] = binblemac [4];
         write_char_data[10] = binblemac [5];
 	}
-	if ((ptr->DEV_TYP < 71) && !ptr->xbtauth) {
-	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71)) {
+	if ((ptr->DEV_TYP < 69) && !ptr->xbtauth) {
+	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69)) {
         write_char_data[0] = 0x90;
         write_char_data[1] = 0xca;
         write_char_data[2] = 0x85;
@@ -12454,7 +12860,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
         esp_gatt_status_t ret_status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].txchar_handle,
+                                  gl_profile_tab[blenum].char1_handle,
                                   write_char_data_len,
                                   write_char_data,
                                   ESP_GATT_WRITE_TYPE_RSP,
@@ -12463,11 +12869,11 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             		if (fdebug) ESP_LOGE(AP_TAG, "Write_auth %d error", blenum1);
 			conerr = 1;
             	}
-	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71)) {
+	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69)) {
 	ptr->xbtauth = 1;
-	esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, gl_profile_tab[blenum].auth_handle);
+	esp_ble_gattc_register_for_notify (gattc_if, gl_profile_tab[blenum].remote_bda, gl_profile_tab[blenum].char2_handle);
 	}
-	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71) && (ptr->xbtauth == 1)) {
+	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69) && (ptr->xbtauth == 1)) {
 	uint8_t *bufftab = NULL;
 	bufftab = malloc(256);
 	if (bufftab == NULL) {
@@ -12481,7 +12887,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	cipherCrypt(write_char_data, &write_char_data[12], bufftab, 12);
         esp_gatt_status_t ret_status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].auth_handle,
+                                  gl_profile_tab[blenum].char2_handle,
                                   write_char_data_len,
                                   &write_char_data[12],
                                   ESP_GATT_WRITE_TYPE_RSP,
@@ -12492,6 +12898,15 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
             	}  else if (fdebug) ESP_LOGI(AP_TAG, "Write_auth_mi %d Ok", blenum1);
 		free(bufftab);
         	}
+	} else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 71)) {
+	esp_gatt_status_t ret_status = esp_ble_gattc_read_char( gl_profile_tab[blenum].gattc_if,
+                                  gl_profile_tab[blenum].conn_id,
+                                  gl_profile_tab[blenum].char1_handle,
+                                  ESP_GATT_AUTH_REQ_NONE);
+        if (ret_status != ESP_GATT_OK) {
+	conerr = 1;
+	if (fdebug) ESP_LOGE(AP_TAG, "Read_ce_req %d error", blenum1);
+        }
 	} else if (ptr->DEV_TYP == 71) {
 	esp_gatt_status_t ret_status;
         write_char_data[0] = 0x00;
@@ -12506,7 +12921,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
         ret_status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].rxchar_handle,
+                                  gl_profile_tab[blenum].char0_handle,
                                   write_char_data_len,
                                   write_char_data,
                                   ESP_GATT_WRITE_TYPE_RSP,
@@ -12531,7 +12946,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
         ret_status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].setup_handle,
+                                  gl_profile_tab[blenum].char4_handle,
                                   write_char_data_len,
                                   write_char_data,
                                   ESP_GATT_WRITE_TYPE_RSP,
@@ -12546,7 +12961,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
         ret_status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].auth_handle,
+                                  gl_profile_tab[blenum].char2_handle,
                                   write_char_data_len,
                                   write_char_data,
                                   ESP_GATT_WRITE_TYPE_RSP,
@@ -12588,7 +13003,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
         esp_gatt_status_t ret_status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].rxchar_handle,
+                                  gl_profile_tab[blenum].char0_handle,
                                   write_char_data_len,
                                   write_char_data,
                                   ESP_GATT_WRITE_TYPE_NO_RSP,
@@ -12624,7 +13039,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
         esp_gatt_status_t ret_status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].txchar_handle,
+                                  gl_profile_tab[blenum].char1_handle,
                                   write_char_data_len,
                                   write_char_data,
                                   ESP_GATT_WRITE_TYPE_NO_RSP,
@@ -12653,7 +13068,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
         esp_gatt_status_t ret_status = esp_ble_gattc_write_char( gattc_if,
                                   gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].rxchar_handle,
+                                  gl_profile_tab[blenum].char0_handle,
                                   write_char_data_len,
                                   write_char_data,
                                   ESP_GATT_WRITE_TYPE_RSP,
@@ -12698,7 +13113,7 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ptr->btauthoriz = false;
 	ptr->get_server = false;
 	ptr->xbtauth = 0;
-	if ((ptr->DEV_TYP > 70) && (ptr->DEV_TYP < 74)) ptr->t_ppcon = 60;
+	if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 74)) ptr->t_ppcon = 60;
 	else ptr->t_ppcon = 30;
 	ptr->btopen = false;
 	ptr->btopenreq = false;
@@ -12761,60 +13176,63 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 //if (fdebug) ESP_LOGI(AP_TAG,"read %d-RSSI: %d", blenum1, param->read_rssi_cmpl.rssi); //test #2 with data from read_rssi_cmpl
 	if ((ptr->r4sConnErr < 4) && (ptr->btopenreq) && (ptr->btauthoriz)) {
 	if ((ptr->sendDataLen > 0) && (ptr->sendDataLen < BLE_OUTPUT_BUFFSIZE)) {
-	SHandle = gl_profile_tab[blenum].txchar_handle;
+	SHandle = gl_profile_tab[blenum].char1_handle;
 	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71)) {
 	switch (ptr->sendDataHandle) {
 	case 0:
-	SHandle = gl_profile_tab[blenum].rxchar_handle;
+	SHandle = gl_profile_tab[blenum].char0_handle;
 	break;
 	case 2:
-	SHandle = gl_profile_tab[blenum].auth_handle;
+	SHandle = gl_profile_tab[blenum].char2_handle;
 	break;
 	case 3:
-	SHandle = gl_profile_tab[blenum].ver_handle;
+	SHandle = gl_profile_tab[blenum].char3_handle;
 	break;
 	case 4:
-	SHandle = gl_profile_tab[blenum].setup_handle;
+	SHandle = gl_profile_tab[blenum].char4_handle;
 	break;
 	case 5:
-	SHandle = gl_profile_tab[blenum].time_handle;
+	SHandle = gl_profile_tab[blenum].char5_handle;
 	break;
 	case 6:
-	SHandle = gl_profile_tab[blenum].boil_handle;
+	SHandle = gl_profile_tab[blenum].char6_handle;
 	break;
 	case 7:
-	SHandle = gl_profile_tab[blenum].mcuver_handle;
+	SHandle = gl_profile_tab[blenum].char7_handle;
 	break;
 	case 8:
-	SHandle = gl_profile_tab[blenum].update_handle;
+	SHandle = gl_profile_tab[blenum].char8_handle;
+	break;
+	case 9:
+	SHandle = gl_profile_tab[blenum].char9_handle;
 	break;
 	}
 	} else if (ptr->DEV_TYP == 71) {
 	switch (ptr->sendDataHandle) {
 	case 0:
-	SHandle = gl_profile_tab[blenum].rxchar_handle;
+	SHandle = gl_profile_tab[blenum].char0_handle;
 	break;
 	case 2:
-	SHandle = gl_profile_tab[blenum].auth_handle;
+	SHandle = gl_profile_tab[blenum].char2_handle;
 	break;
 	case 3:
-	SHandle = gl_profile_tab[blenum].setup_handle;
+	SHandle = gl_profile_tab[blenum].char4_handle;
 	break;
 	}
 	} else if (ptr->DEV_TYP == 73) {
 	switch (ptr->sendDataHandle) {
 	case 2:
-	SHandle = gl_profile_tab[blenum].auth_handle;
+	SHandle = gl_profile_tab[blenum].char2_handle;
 	break;
 	case 3:
-	SHandle = gl_profile_tab[blenum].time_handle;
+	SHandle = gl_profile_tab[blenum].char5_handle;
 	break;
 	}
 	}
 	esp_gatt_status_t ret_status;
 	if ((ptr->DEV_TYP > 73) && (ptr->DEV_TYP < 77)) {
-	if (ptr->DEV_TYP == 74) SHandle = gl_profile_tab[blenum].rxchar_handle;
-//	else SHandle = gl_profile_tab[blenum].txchar_handle;
+	if (ptr->DEV_TYP == 74) SHandle = gl_profile_tab[blenum].char0_handle;
+//	else SHandle = gl_profile_tab[blenum].char1_handle;
 	ret_status = esp_ble_gattc_write_char( gl_profile_tab[blenum].gattc_if,
                                   gl_profile_tab[blenum].conn_id,
                                   SHandle,
@@ -12823,7 +13241,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                                   ESP_GATT_WRITE_TYPE_NO_RSP,
                                   ESP_GATT_AUTH_REQ_NONE);
 	} else {
-	if (ptr->DEV_TYP == 77) SHandle = gl_profile_tab[blenum].rxchar_handle;
+	if (ptr->DEV_TYP == 77) SHandle = gl_profile_tab[blenum].char0_handle;
 	ret_status = esp_ble_gattc_write_char( gl_profile_tab[blenum].gattc_if,
                                   gl_profile_tab[blenum].conn_id,
                                   SHandle,
@@ -12843,21 +13261,72 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 	}
 	ptr->sendDataLen = 0;
 	} else if (!ptr->sendDataLen) {
-	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71) && (ptr->sendDataHandle == 7)) {
+	if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69) && (ptr->sendDataHandle == 7)) {
         esp_gatt_status_t ret_status = esp_ble_gattc_read_char( gl_profile_tab[blenum].gattc_if,
                                   gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].mcuver_handle,
+                                  gl_profile_tab[blenum].char7_handle,
                                   ESP_GATT_AUTH_REQ_NONE);
         if (ret_status != ESP_GATT_OK) {
 	conerr = 1;
 	if (fdebug) ESP_LOGE(AP_TAG, "Read_ver_req %d error", blenum1);
         }
-
+	} else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 71)) {
+	switch (ptr->sendDataHandle) {
+	case 0:
+	SHandle = gl_profile_tab[blenum].char1_handle;
+	break;
+	case 1:
+	SHandle = gl_profile_tab[blenum].char2_handle;
+	break;
+	case 2:
+	SHandle = gl_profile_tab[blenum].char3_handle;
+	break;
+	case 3:
+	SHandle = gl_profile_tab[blenum].char4_handle;
+	break;
+	case 4:
+	SHandle = gl_profile_tab[blenum].char5_handle;
+	break;
+	case 5:
+	SHandle = gl_profile_tab[blenum].char6_handle;
+	break;
+	case 6:
+	SHandle = gl_profile_tab[blenum].char7_handle;
+	break;
+	case 7:
+	SHandle = gl_profile_tab[blenum].char8_handle;
+	break;
+	case 8:
+	SHandle = gl_profile_tab[blenum].char9_handle;
+	break;
+/*
+	case 9:
+	SHandle = gl_profile_tab[blenum].char10_handle;
+	break;
+	case 10:
+	SHandle = gl_profile_tab[blenum].char11_handle;
+	break;
+	case 11:
+	SHandle = gl_profile_tab[blenum].char12_handle;
+	break;
+	case 12:
+	SHandle = gl_profile_tab[blenum].char13_handle;
+	break;
+*/
+	}
+        esp_gatt_status_t ret_status = esp_ble_gattc_read_char( gl_profile_tab[blenum].gattc_if,
+                                  gl_profile_tab[blenum].conn_id,
+                                  SHandle,
+                                  ESP_GATT_AUTH_REQ_NONE);
+        if (ret_status != ESP_GATT_OK) {
+	conerr = 1;
+	if (fdebug) ESP_LOGE(AP_TAG, "Read_char_data_req %d error", blenum1);
+	}
 //	} else if (ptr->DEV_TYP == 71) {
 	} else if (ptr->DEV_TYP == 73) {
         esp_gatt_status_t ret_status = esp_ble_gattc_read_char( gl_profile_tab[blenum].gattc_if,
                                   gl_profile_tab[blenum].conn_id,
-                                  gl_profile_tab[blenum].rxchar_handle,
+                                  gl_profile_tab[blenum].char0_handle,
                                   ESP_GATT_AUTH_REQ_NONE);
         if (ret_status != ESP_GATT_OK) {
 	conerr = 1;
@@ -14177,7 +14646,148 @@ int8_t am43Command(uint8_t blenum, uint8_t cmd, uint8_t* data, size_t len) {
 	return ptr->readDataLen;
 }
 
+//******************* ce208 ********************
+uint8_t ce28Command(uint8_t blenum, char* cmd, char* rsp) {
+	if ((blenum > 4) || !cmd || !rsp) return 0;
+	uint8_t len = strlen(cmd);
+	if (!len) return 0;
+        struct BleDevSt *ptr;
+	switch (blenum) {
+	case 1:
+	ptr = &BleDevStB;
+	break;
+	case 2:
+	ptr = &BleDevStC;
+	break;
+	case 3:
+	ptr = &BleDevStD;
+	break;
+	case 4:
+	ptr = &BleDevStE;
+	break;
+	default:
+	ptr = &BleDevStA;
+	break;
+	}
+	if (!ptr->btauthoriz) return 0;
+	ptr->notifyDataLen = -1;
+	ptr->sendDataHandle = 0;  //tx
+	uint8_t seg = 0;
+	uint8_t ci = 0;
+	uint8_t sm = 0;
+	uint8_t bi;
+	while (seg  < 0x80) {
+	bi = 0;
+	while ((bi < 20) && (seg  < 0x80)) {
+	if (!bi) {
+	ptr->sendData[bi] = seg;
+	bi++;
+	if (!seg) {
+	ptr->sendData[bi] = 0xaf;
+	bi++;
+	ptr->sendData[bi] = 0x3f;
+	bi++;
+	ptr->sendData[bi] = 0x21;
+	bi++;
+	ptr->sendData[bi] = 0x81;
+	bi++;
+	ptr->sendData[bi] = 0xd2;
+	sm += ptr->sendData[bi];
+	bi++;
+	ptr->sendData[bi] = 0xb1;
+	sm += ptr->sendData[bi];
+	bi++;
+	ptr->sendData[bi] = 0x82;
+	sm += ptr->sendData[bi];
+	bi++;
+	} else vTaskDelay(40 / portTICK_PERIOD_MS);
+	}
+	if (ci < len) {
+        ptr->sendData[bi] =  ce_parity(cmd[ci]);
+	sm += ptr->sendData[bi];
+	bi++;
+	ci++;
+	} else if (ci == len) {
+        ptr->sendData[bi] =  0x03;
+	sm += ptr->sendData[bi];
+	bi++;
+	ci++;
+	} else {
+        ptr->sendData[bi] = ce_parity(sm);
+	seg |= 0x80;
+	ptr->sendData[0] = seg;
+	bi++;
+	}
+	}
+	ptr->sendDataLen = bi;
+	if (ptr->btauthoriz) esp_ble_gap_read_rssi(gl_profile_tab[blenum].remote_bda);
+	else {
+	ptr->iRssi = 0;
+	return 0;
+	}
+	seg++;
+	}
+	uint8_t timeout = 200; 	// 200*10 = 2 seconds
+	while (--timeout && (ptr->notifyDataLen == -1)) {
+	vTaskDelay(10 / portTICK_PERIOD_MS);
+	}
+	if ((ptr->notifyDataLen == 1) && ptr->notifyData[0] && (ptr->notifyData[0] < 9)) {
+	seg = ptr->notifyData[0];
+	ptr->sendDataLen = 0;
+	ptr->notifyDataLen = -1;
+	sm = 0;
+	ci = 0;
+	while (sm < seg) {
+	ptr->readDataLen = -1;
+	ptr->sendDataHandle = sm + 1;  //rxx
+	if (ptr->btauthoriz) esp_ble_gap_read_rssi(gl_profile_tab[blenum].remote_bda);
+	else {
+	ptr->iRssi = 0;
+	return 0;
+	}
+	uint8_t timeout = 200; 	// 200*10 = 2 seconds
+	while (--timeout && (ptr->readDataLen == -1)) {
+	vTaskDelay(10 / portTICK_PERIOD_MS);
+	}
+	if ((ptr->readDataLen > 0) && (ptr->readDataLen < 21)) {
+	bi = 0;
+	if (!sm) {
+	if (ptr->readDataLen < 2) return 0;
+	bi = 1;
+	}
+	while (bi < ptr->readDataLen) {
+	if (ptr->readData[bi] < 0x20) {
+	rsp[ci] = 0;
+	ci++;
+	bi = ptr->readDataLen;
+	sm = seg;
+	ptr->r4sConnErr = 0;	
+	} else {
+	rsp[ci] = ptr->readData[bi] & 0x7f;
+	bi++;
+	ci++;
+	}	
+	}
+/*
+	if (fdebug && !sm) ESP_LOGI(AP_TAG, "Receive Data %d: ", blenum + 1);
+	if (fdebug) ESP_LOG_BUFFER_HEX(AP_TAG, ptr->readData, ptr->readDataLen);
+*/
+	} else {
+	ptr->r4sConnErr++;
+	return 0;
+	}
+	sm++;
+	}
+	} else {
+	ptr->r4sConnErr++;
+	return 0;
+	}
+	return ci;
+}
+
+
 //******************** mir *********************
+
 uint8_t mircWrite(uint8_t blenum, uint8_t cmd, uint8_t* data, size_t len) {
 	uint8_t retc = 0;
 	if (blenum > 4) return retc;
@@ -18089,7 +18699,7 @@ void msStatus(uint8_t blenum) {
 	strcat(ptr->cStatus,tmpvar);
 	strcat(ptr->cStatus,"}");    
 	}
-	} else if (ptr->btauthoriz && (ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71)) {
+	} else if (ptr->btauthoriz && (ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69)) {
 	if (!ptr->sVer[0]) {
 	uint8_t timeout = 200; 	// 200*10 = 2 seconds
 	ptr->sendDataLen = 0;
@@ -18182,9 +18792,95 @@ void msStatus(uint8_t blenum) {
 	} else if (ptr->notifyDataLen != -1) {
 	ptr->r4sConnErr++;
 	}
-
+	} else if (ptr->btauthoriz && (ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 71)) {
+	char buf[160];
+	uint8_t offs, sz;
+	uint32_t var1;
+	memset(buf, 0, sizeof(buf));
+	if (!ptr->sVer[0]) {
+	ptr->sVer[0] = 0x20;
+	}
+	sz = ce28Command(blenum, "GRPNM(EMD00(0.0,0))\x00", buf);
+	if (sz) {
+	if (fdebug) ESP_LOGI(AP_TAG, "Receive Data: %s", buf);
+	var1 = 0;
+	offs = parsoff(buf, "EMD01(", sz);
+	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs+9]);
+	if (retc == 0x62) ptr->bSEnergy = var1;                                            //active direct energy
+	var1 = 0;
+	offs = parsoff(buf, "EMD02(", sz);
+	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs+9]);
+	if (retc == 0x62) ptr->bS1Energy = var1;                                                             //active reverse energy
+	var1 = 0;
+	offs = parsoff(buf, "EMD03(", sz);
+	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs+9]);
+	if (retc == 0x62) ptr->bSCount = var1;                                                               //reactive direct energy
+	var1 = 0;
+	offs = parsoff(buf, "EMD04(", sz);
+	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs+9]);
+	if (retc == 0x62) ptr->bS1Count = var1;                                                              //reactive reverse energy
+	sz = ce28Command(blenum, "GRPNM(VOLTA()CURRE()POWEP()POWES()COS_f()FREQU()TERMO())\x00", buf);
+	if (fdebug) ESP_LOGI(AP_TAG, "Receive Data: %s", buf);
+	if (sz) {
+	var1 = 0;
+	offs = parsoff(buf, "POWEP(", sz);
+	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
+	if (retc == 0x62) ptr->bSHum = (ptr->bSHum & 0xffff0000) | (var1 & 0xffff);        //active power
+	var1 = 0;
+	offs = parsoff(buf, "POWES(", sz);
+	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
+	if (retc == 0x62) ptr->bSHum = (ptr->bSHum & 0xffff) | (var1 << 16);               //apparent power
+	var1 = 0;
+	offs = parsoff(buf, "VOLTA(", sz);
+	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
+	if (retc == 0x62) ptr->bSTime = (ptr->bSTime & 0xffff0000) | (var1 & 0xffff);      //voltage
+	var1 = 0;
+	offs = parsoff(buf, "CURRE(", sz);
+	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
+	if (retc == 0x62) ptr->bSTime = (ptr->bSTime & 0xffff) | (var1 << 16);             //current
+	var1 = 0;
+	offs = parsoff(buf, "COS_f(", sz);
+	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
+	if (retc == 0x62) ptr->bHeat = var1;                                               //power factor
+	var1 = 0;
+	offs = parsoff(buf, "FREQU(", sz);
+	retc = str_u32(&var1, 3, (uint8_t*) &buf[offs]);
+	if (retc == 0x63) ptr->bS2Count = (ptr->bS2Count & 0xffff0000) | (var1 & 0xffff);  //frequency
+	var1 = 0;
+	offs = parsoff(buf, "TERMO(", sz);
+	retc = str_u32(&var1, 1, (uint8_t*) &buf[offs]);
+	var1 = var1 / 10;
+	if (retc & 0x80) var1 |= 0x8000;
+	if ((retc & 0x7f) == 0x20) ptr->bS2Count = (ptr->bS2Count & 0xffff) | (var1 << 16); //temp
+	}
+	}
+	strcpy(ptr->cStatus,"{\"enrgacd\":");
+	u32_strcat_p2 (ptr->bSEnergy, ptr->cStatus);
+	strcat(ptr->cStatus,",\"enrgacr\":");
+	u32_strcat_p2 (ptr->bS1Energy, ptr->cStatus);
+	strcat(ptr->cStatus,",\"enrgred\":");
+	u32_strcat_p2 (ptr->bSCount, ptr->cStatus);
+	strcat(ptr->cStatus,",\"enrgrer\":");
+	u32_strcat_p2 (ptr->bS1Count, ptr->cStatus);
+	strcat(ptr->cStatus,",\"pwrac\":");
+	u32_strcat_p2 (ptr->bSHum & 0xffff, ptr->cStatus);
+	strcat(ptr->cStatus,",\"pwrap\":");
+	u32_strcat_p2 (ptr->bSHum >> 16, ptr->cStatus);
+	strcat(ptr->cStatus,",\"pwrf\":");
+	utoa(ptr->bHeat,tmpvar,10);
+	strcat(ptr->cStatus,tmpvar);
+	strcat(ptr->cStatus,",\"volt\":");
+	u32_strcat_p2 (ptr->bSTime & 0xffff, ptr->cStatus);
+	strcat(ptr->cStatus,",\"curr\":");
+	u32_strcat_p2 (ptr->bSTime >> 16, ptr->cStatus);
+	strcat(ptr->cStatus,",\"freq\":");
+	u32_strcat_p3 (ptr->bS2Count & 0xffff, ptr->cStatus);
+	strcat(ptr->cStatus,",\"temp\":");
+	if (ptr->bS2Count & 0x80000000) strcat(ptr->cStatus,"-");
+	u32_strcat_p1 ((ptr->bS2Count >> 16) & 0x7fff, ptr->cStatus);
+	strcat(ptr->cStatus,"}");    
+	if (!sz) ptr->r4sConnErr++;
 	} else if (ptr->btauthoriz && (ptr->DEV_TYP == 71)) {
-//??
 	uint8_t i;
 	if (!ptr->sVer[0]) {
 	ptr->sVer[0] = 0x20;
@@ -18206,37 +18902,37 @@ void msStatus(uint8_t blenum) {
 	if (retc > 0x14) {
 	uint32_t var1 = 0;
         if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x08\x01\x00\x01",6)) { //obis
-	retc = str_u32(&var1, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
+	retc = str_u32(&var1, 0, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
 	if (retc == 0x62) ptr->bSEnergy = var1;                                            //active direct energy
 	} else if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x08\x02\x00\x01",6)) { //obis
-	retc = str_u32(&var1, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
+	retc = str_u32(&var1, 0, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
 	if (retc == 0x62) ptr->bS1Energy = var1;                                           //active reverse energy
 	} else if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x08\x03\x00\x01",6)) { //obis
-	retc = str_u32(&var1, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
+	retc = str_u32(&var1, 0, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
 	if (retc == 0x62) ptr->bSCount = var1;                                             //reactive direct energy
 	} else if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x08\x03\x00\x01",6)) { //obis
-	retc = str_u32(&var1, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
+	retc = str_u32(&var1, 0, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
 	if (retc == 0x62) ptr->bS1Count = var1;                                            //reactive reverse energy
 	} else if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x07\x01\x00\x01",6)) { //obis
-	retc = str_u32(&var1, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
+	retc = str_u32(&var1, 0, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
 	if (retc == 0x62) ptr->bSHum = (ptr->bSHum & 0xffff0000) | (var1 & 0xffff);        //active power
 	} else if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x07\x09\x00\x01",6)) { //obis
-	retc = str_u32(&var1, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
+	retc = str_u32(&var1, 0, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
 	if (retc == 0x62) ptr->bSHum = (ptr->bSHum & 0xffff) | (var1 << 16);               //apparent power
 	} else if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x07\x0d\x00\x01",6)) { //obis
-	retc = str_u32(&var1, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
+	retc = str_u32(&var1, 0, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
 	if (retc == 0x62) ptr->bHeat = var1;                                               //power factor
 	} else if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x07\x20\x00\x01",6)) { //obis
-	retc = str_u32(&var1, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
+	retc = str_u32(&var1, 0, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
 	if (retc == 0x62) ptr->bSTime = (ptr->bSTime & 0xffff0000) | (var1 & 0xffff);      //voltage
 	} else if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x07\x1f\x00\x01",6)) { //obis
-	retc = str_u32(&var1, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
+	retc = str_u32(&var1, 0, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
 	if (retc == 0x62) ptr->bSTime = (ptr->bSTime & 0xffff) | (var1 << 16);             //current
 	} else if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x07\x0e\x00\x01",6)) { //obis
-	retc = str_u32(&var1, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
+	retc = str_u32(&var1, 0, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
 	if (retc == 0x63) ptr->bS2Count = (ptr->bS2Count & 0xffff0000) | (var1 & 0xffff);  //frequency
 	} else if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x07\x1f\x00\x01",6)) { //obis
-	retc = str_u32(&var1, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
+	retc = str_u32(&var1, 0, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
 	if (retc & 0x80) var1 |= 0x8000;
 	if ((retc & 0x7f) == 0x61) ptr->bS2Count = (ptr->bS2Count & 0xffff) | (var1 << 16);//temp
 	}
@@ -20382,7 +21078,6 @@ void MqSState() {
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	bprevStatG8h = bStatG8h;
 	}
-//???
 	if (bgpio11 > 63) {
 //modbus
 	if (mb1_adr) {
@@ -20665,7 +21360,7 @@ void MqState(uint8_t blenum) {
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	ptr->iprevRssi = ptr->iRssi;
 	}
-	if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71))) {
+	if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69))) {
 	if  (ptr->bprevCtemp != ptr->bCtemp) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
@@ -22095,7 +22790,7 @@ void MqState(uint8_t blenum) {
 	ptr->bprevSCount = ptr->bSCount;
 	}
 
-	} else if (ptr->DEV_TYP == 71) {
+	} else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 72)) {
 	if  (ptr->bSEnergy != ptr->bprevSEnergy) {
 	strcpy(ldata,MQTT_BASE_TOPIC);
 	strcat(ldata,"/");
@@ -22170,8 +22865,7 @@ void MqState(uint8_t blenum) {
 	strcat(ldata,ptr->tBLEAddr);
 	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/pwrf");
-	tmpvar[0] = 0;
-	u32_strcat_p2(ptr->bHeat,tmpvar);
+	utoa(ptr->bHeat,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
 	ptr->r4sppcom = 30;
 	ptr->bprevHeat = ptr->bHeat;
@@ -22521,7 +23215,7 @@ void MqState(uint8_t blenum) {
 	if (!fcommtp) strcat(ldata,"/rsp");
 	strcat(ldata,"/alarm");
 	tmpvar[0] = 0;
-	if (!(ptr->bSHum & 0xfffff858)) strcat(tmpvar,"None");
+	if (!(ptr->bSHum & 0xfffff858)) strcat(tmpvar,"No");
 	else {
 	while (!ecmab2st(tmpvar, ptr->bSHum, ptr->bCVol)) ptr->bCVol++;
 	ptr->bCVol++;
@@ -23818,7 +24512,7 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_CALIBRATION_OFF");
 	}
 
-	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71)) {
+	} else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69)) {
 	//mikettle
 	if (!memcmp(topic+topoff, "boil", topic_len-topoff)) {
 	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
@@ -25542,7 +26236,6 @@ void MqtDevInit(bool mqtttst) {
 //
 	}
 	} //for i6-8
-//???
 	if (bgpio11 > 63) {
 	char tbuff[16];
 //modbus
@@ -25627,7 +26320,7 @@ void MqtDevInit(bool mqtttst) {
 	strcat(llwtd,"/m");
 	itoa(mb1_adr,tbuff,10);
 	strcat(llwtd,tbuff);
-	strcat(llwtd,"flowrate\",\"unit_of_meas\":\"\x6d\xc2\xb3\x2f\x68\",\"avty\":[{\"t\":\"");
+	strcat(llwtd,"flowrate\",\"sug_dsp_prc\":3,\"unit_of_meas\":\"\x6d\xc2\xb3\x2f\x68\",\"avty\":[{\"t\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/m");
 	itoa(mb1_adr,tbuff,10);
@@ -27456,7 +28149,7 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	strcat(bsend,buff);
 	strcat(bsend," ");
        	if (ptr->tBLEAddr[0] && ptr->DEV_TYP) {
-	if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71))) strcat(bsend,"Kettle");
+	if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69))) strcat(bsend,"Kettle");
 	else if (ptr->DEV_TYP < 11) strcat(bsend,"Power");
 	else if ((ptr->DEV_TYP == 11) || (ptr->DEV_TYP == 15)) strcat(bsend,"Heater");
 	else if (ptr->DEV_TYP < 15) strcat(bsend,"Coffee");
@@ -27468,6 +28161,7 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	else if (ptr->DEV_TYP == 61) strcat(bsend,"Open");
 	else if (ptr->DEV_TYP == 62) strcat(bsend,"Smoke");
 	else if (ptr->DEV_TYP == 63) strcat(bsend,"Weather");
+	else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 71)) strcat(bsend,"Energomera");
 	else if (ptr->DEV_TYP == 71) strcat(bsend,"Mir");
 	else if ((ptr->DEV_TYP > 71) && (ptr->DEV_TYP < 74)) strcat(bsend,"Galcon");
 	else if ((ptr->DEV_TYP > 73) && (ptr->DEV_TYP < 76)) strcat(bsend,"Blinds");
@@ -27481,7 +28175,7 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	strcat(bsend,", Ver: ");
 	strcat(bsend, ptr->sVer);
 	}
-	if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71))) {
+	if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69))) {
 	strcat(bsend,", State: ");
  	if (!ptr->btauthoriz) strcat(bsend,"Offline");
 	else if ((!ptr->bState) && (!ptr->bHeat || (ptr->DEV_TYP > 63)) && (!ptr->bStNl)) strcat(bsend,"Off");
@@ -27716,7 +28410,8 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	itoa(ptr->bSCount,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"mm3/m3, ");
-	} else if (ptr->DEV_TYP == 71) {
+//	} else if (ptr->DEV_TYP == 71) {
+	} else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 72)){
 	strcat(bsend,", State: ");
  	if (!ptr->btauthoriz) strcat(bsend,"Offline");
  	else strcat(bsend,"Online");
@@ -27803,7 +28498,7 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	itoa(ptr->bLock,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,", Alarm: ");
-	if (!(ptr->bSHum & 0xfffff858)) strcat(bsend,"None");
+	if (!(ptr->bSHum & 0xfffff858)) strcat(bsend,"No");
 	else {
 	while (!ecmab2st(bsend, ptr->bSHum, ptr->bCVoll)) ptr->bCVoll++;
 	ptr->bCVoll++;
@@ -28196,7 +28891,6 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	strcat(bsend,", Err: ");
 	itoa(mb_errcnt,buff,10);
 	strcat(bsend,buff);
-//???
 	if (mb1_adr) {
 	strcat(bsend,"&emsp;");
 	itoa(mb1_adr,buff,10);
@@ -28284,7 +28978,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	if (!BleDevStA.btopen) strcat(bsend," (Open");
 	else {
 	strcat(bsend," (Auth");
-	if ((BleDevStA.DEV_TYP > 63) && (BleDevStA.DEV_TYP < 71)) {
+	if ((BleDevStA.DEV_TYP > 63) && (BleDevStA.DEV_TYP < 69)) {
 	strcat(bsend,"/Id:");
 	itoa(BleDevStA.MiKettleID,buff,10);
 	strcat(bsend,buff);
@@ -28297,7 +28991,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	if (!BleDevStB.btopen) strcat(bsend," (Open");
 	else {
 	strcat(bsend," (Auth");
-	if ((BleDevStB.DEV_TYP > 63) && (BleDevStB.DEV_TYP < 71)) {
+	if ((BleDevStB.DEV_TYP > 63) && (BleDevStB.DEV_TYP < 69)) {
 	strcat(bsend," / Id:");
 	itoa(BleDevStB.MiKettleID,buff,10);
 	strcat(bsend,buff);
@@ -28310,7 +29004,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	if (!BleDevStC.btopen) strcat(bsend," (Open");
 	else {
 	strcat(bsend," (Auth");
-	if ((BleDevStC.DEV_TYP > 63) && (BleDevStC.DEV_TYP < 71)) {
+	if ((BleDevStC.DEV_TYP > 63) && (BleDevStC.DEV_TYP < 69)) {
 	strcat(bsend," / Id:");
 	itoa(BleDevStC.MiKettleID,buff,10);
 	strcat(bsend,buff);
@@ -28323,7 +29017,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	if (!BleDevStD.btopen) strcat(bsend," (Open");
 	else {
 	strcat(bsend," (Auth");
-	if ((BleDevStD.DEV_TYP > 63) && (BleDevStD.DEV_TYP < 71)) {
+	if ((BleDevStD.DEV_TYP > 63) && (BleDevStD.DEV_TYP < 69)) {
 	strcat(bsend," / Id:");
 	itoa(BleDevStD.MiKettleID,buff,10);
 	strcat(bsend,buff);
@@ -28336,7 +29030,7 @@ static esp_err_t pmain_get_handler(httpd_req_t *req)
 	if (!BleDevStE.btopen) strcat(bsend," (Open");
 	else {
 	strcat(bsend," (Auth");
-	if ((BleDevStE.DEV_TYP > 63) && (BleDevStE.DEV_TYP < 71)) {
+	if ((BleDevStE.DEV_TYP > 63) && (BleDevStE.DEV_TYP < 69)) {
 	strcat(bsend," / Id:");
 	itoa(BleDevStE.MiKettleID,buff,10);
 	strcat(bsend,buff);
@@ -28560,7 +29254,8 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	else if (ptr->DEV_TYP == 61) strcat(bsend,"Open");
 	else if (ptr->DEV_TYP == 62) strcat(bsend,"Smoke");
 	else if (ptr->DEV_TYP == 63) strcat(bsend,"Weather");
-	else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71)) strcat(bsend,"Kettle");
+	else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69)) strcat(bsend,"Kettle");
+	else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 71)) strcat(bsend,"Energomera");
 	else if (ptr->DEV_TYP == 71) strcat(bsend,"Mir");
 	else if ((ptr->DEV_TYP > 71) && (ptr->DEV_TYP < 74)) strcat(bsend,"Galcon");
 	else if ((ptr->DEV_TYP > 73) && (ptr->DEV_TYP < 76)) strcat(bsend,"Blinds");
@@ -28581,7 +29276,8 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	else if (ptr->DEV_TYP == 61) strcat(bsend,"Open");
 	else if (ptr->DEV_TYP == 62) strcat(bsend,"Smoke");
 	else if (ptr->DEV_TYP == 63) strcat(bsend,"Weather");
-	else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 71)) strcat(bsend,"Kettle");
+	else if ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69)) strcat(bsend,"Kettle");
+	else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 71)) strcat(bsend,"Energomera");
 	else if (ptr->DEV_TYP == 71) strcat(bsend,"Mir");
 	else if ((ptr->DEV_TYP > 71) && (ptr->DEV_TYP < 74)) strcat(bsend,"Galcon");
 	else if ((ptr->DEV_TYP > 73) && (ptr->DEV_TYP < 76)) strcat(bsend,"Blinds");
@@ -28671,7 +29367,7 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	strcat(bsend,"value=\"63\">Start Calibration</option></select>Select state<br/>");
 //	strcat(bsend,"No control available<br/>");
 //	strcat(bsend,"<body><form method=\"POST\" action=\"/setignore\">");
-	} else if ( ptr->DEV_TYP == 71) {
+	} else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 72)) {
 	strcat(bsend,"No control available<br/>");
 	strcat(bsend,"<body><form method=\"POST\" action=\"/setignore\">");
 	} else if ( ptr->DEV_TYP == 73) {
@@ -28697,7 +29393,7 @@ void HtpDeVHandle(uint8_t blenum, char* bsend) {
 	itoa(ptr->bDHour,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"\" min=\"0\" max=\"59\" size=\"2\">Set Sec<br/>");
-	} else if (( ptr->DEV_TYP > 63) && ( ptr->DEV_TYP < 71)){
+	} else if (( ptr->DEV_TYP > 63) && ( ptr->DEV_TYP < 69)){
 	if ((ptr->bModProg == 2) && (ptr->xshedcom != 2)) {
 	strcat(bsend,"<body><form method=\"POST\" action=\"/cfgdev");
 	itoa(blenum1,buff,10);
@@ -30973,9 +31669,11 @@ void HtpDeVSett(uint8_t blenum, char* bsend) {
 	if (ptr->DEV_TYP == 66) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"66\">V-SK152(Int)</option><option ");
 	if (fdebug) {
-	if (ptr->DEV_TYP == 70) strcat(bsend,"selected ");
-	strcat(bsend,"value=\"70\">MiKettle ID</option><option ");
+	if (ptr->DEV_TYP == 68) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"68\">MiKettle ID</option><option ");
 	}
+	if (ptr->DEV_TYP == 69) strcat(bsend,"selected ");
+	strcat(bsend,"value=\"69\">CE208</option><option ");
 	if (ptr->DEV_TYP == 71) strcat(bsend,"selected ");
 	strcat(bsend,"value=\"71\">Mir-C05</option><option ");
 	if (ptr->DEV_TYP == 73) strcat(bsend,"selected ");
@@ -33348,6 +34046,7 @@ void lpcomstat(uint8_t blenum) {
 	else ptr->t_rspdel = 10;
 	} else if ((ptr->DEV_TYP > 60) && (ptr->DEV_TYP < 63)) ptr->t_rspdel = 18000;
 	else if (ptr->DEV_TYP == 63) ptr->t_rspdel = 600;
+	else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 71)) ptr->t_rspdel = 100;
 	else if (ptr->DEV_TYP == 71) ptr->t_rspdel = 30;
 	else if ((ptr->DEV_TYP > 71) && (ptr->DEV_TYP < 74)) ptr->t_rspdel = 100;
 	else if ((ptr->DEV_TYP > 73) && (ptr->DEV_TYP < 76)) ptr->t_rspdel = 6000;

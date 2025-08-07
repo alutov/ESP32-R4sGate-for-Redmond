@@ -2159,6 +2159,16 @@ void tfblestate(uint8_t tmr)
 	itoa(ptr->bSTime * 75 / 10000,buff,10);
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("mmHg", sumx, 224, 2);
+	} else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 72)) {
+	sumx += drawString(" U: ", sumx, 224, 2);
+	buff[0] = 0;
+	u32_strcat_p2(ptr->bSTime & 0xffff,buff);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("V, I: ", sumx, 224, 2);
+	buff[0] = 0;
+	u32_strcat_p2(ptr->bSTime >> 16,buff);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("A", sumx, 224, 2);
 	} else if (ptr->DEV_TYP == 73) {
 	sumx += drawString(" T: ", sumx, 224, 2);
 	itoa(ptr->bCHour,buff,10);
