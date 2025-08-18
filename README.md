@@ -4,8 +4,9 @@ ENG | [RUS](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 
 > **[A script based on a PHP server on a local network with Internet access to display the weather on the gateway screen.](https://github.com/artt652/Weather-for-ESP32-R4S-gate).**<br>
 
-#### Current version is 2025.08.07 for [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) and [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin) and [ESP32S3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/S3/build/r4sGate.bin).
+#### Current version is 2025.08.18 for [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) and [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin) and [ESP32S3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/S3/build/r4sGate.bin).
 
+* 2025.08.18. For electricity meters, a periodic connection mode with subsequent polling and disconnection has been added. The polling interval in seconds is set in the settings in the **Heat/Tmr** field. A zero value means a constant connection.
 * 2025.08.07. The project was built using esp-idf version 5.4.2. [Energomera CE208](https://www.energomera.ru/ru/products/meters/ce208c4_spodes) electricity meters support added.
 * 2025.06.14. RS485/MODBUS [TSONIC t3-1](https://www.t3-1.com) water meter and [QDY30A](https://kotyara12.ru/iot/qdy30a/) level meter support added. 
 * 2025.02.16. BTHome mode in [pvvx custom firmware](https://github.com/pvvx/ATC_MiThermometer) support added.
