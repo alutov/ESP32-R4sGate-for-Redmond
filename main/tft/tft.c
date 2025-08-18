@@ -1982,7 +1982,8 @@ void tfblestate(uint8_t tmr)
 	else sumx += drawString("\xe0 ", sumx, 224, 2);
 	}
 	if (ptr->btauthoriz) {
-	if (!ptr->bState && ptr->bHeat && (ptr->DEV_TYP < 74)) setTextColor(TFT_YELLOW, TFT_BLACK);
+	if (!ptr->bState && ptr->bHeat && (ptr->DEV_TYP < 69)) setTextColor(TFT_YELLOW, TFT_BLACK);
+	else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 72)) setTextColor(TFT_GREEN, TFT_BLACK);
 	else if (!ptr->bState) setTextColor(TFT_BLUE, TFT_BLACK);
 	else if (ptr->bState == 254) setTextColor(TFT_DARKGREY, TFT_BLACK);
 	else if ((ptr->DEV_TYP > 15) && (ptr->DEV_TYP < 24) && (ptr->bState == 1)) setTextColor(TFT_WHITE, TFT_BLACK);
@@ -1996,7 +1997,7 @@ void tfblestate(uint8_t tmr)
 	setTextColor(TFT_GREEN, TFT_BLACK);
 	if (!ptr->DEV_TYP) {
 	sumx += drawString(" Not Defined, ", sumx, 224, 2);
-	} else if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 73))) {
+	} else if ((ptr->DEV_TYP < 10) || ((ptr->DEV_TYP > 63) && (ptr->DEV_TYP < 69))) {
 	sumx += drawString(" T: ", sumx, 224, 2);
 	if (ptr->bCtemp > 84) setTextColor(TFT_WHITE, TFT_BLACK);
 	else if (ptr->bCtemp > 64) setTextColor(TFT_YELLOW, TFT_BLACK);
@@ -2234,6 +2235,20 @@ void tfblestate(uint8_t tmr)
 	sumx += drawString(buff, sumx, 224, 2);
 	sumx += drawString("dB", sumx, 224, 2);
 	fillRect(sumx,224,320-sumx,16,TFT_BLACK);
+	} else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 72) && (ptr->t_ppcon > 30)) {
+	setTextColor(TFT_DARKGREY, TFT_BLACK);
+	sumx += drawString(ptr->DEV_NAME, sumx, 224, 2);
+	sumx += drawString(":", sumx, 224, 2);
+	setTextColor(TFT_GREEN, TFT_BLACK);
+	sumx += drawString(" U: ", sumx, 224, 2);
+	buff[0] = 0;
+	u32_strcat_p2(ptr->bSTime & 0xffff,buff);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("V, I: ", sumx, 224, 2);
+	buff[0] = 0;
+	u32_strcat_p2(ptr->bSTime >> 16,buff);
+	sumx += drawString(buff, sumx, 224, 2);
+	sumx += drawString("A", sumx, 224, 2);
 	} else {
 	setTextColor(TFT_DARKGREY, TFT_BLACK);
 	if (ptr->DEV_NAME[0]) strcpy(buf,ptr->DEV_NAME);

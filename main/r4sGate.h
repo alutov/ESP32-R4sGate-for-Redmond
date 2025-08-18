@@ -259,7 +259,7 @@ uint8_t  r4slppar6;
 uint8_t  r4slppar7;
 uint8_t  r4slppar8;
 uint8_t  r4slpres;
-uint8_t  t_ppcon;
+uint16_t  t_ppcon;
 uint16_t t_rspdel;
 uint8_t  t_rspcnt;
 uint8_t  f_Sync;

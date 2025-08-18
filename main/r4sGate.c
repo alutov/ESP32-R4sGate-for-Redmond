@@ -1,12 +1,12 @@
 /* 
 *************************************************************
-	ESP32 r4sGate for Redmond+ main for idf 5.4
+	ESP32 r4sGate for Redmond+ main for idf 5.4.2
 	Lutov Andrey  Donetsk
 Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2025.08.07"
+#define AP_VER "2025.08.18"
 #define NVS_VER 8  //NVS config version (even only)
 
 // Init WIFI setting
@@ -1294,7 +1294,7 @@ void    mb_rddev()
 	mb2_wlevcm = (buf[7] << 8) + buf[8];
 	if (mb2_wlevcm > 0x7fff) mb2_wlevcm = 0;
 	if (mb2_mxlev) mb2_wlevp = mb2_wlevcm * 100 / mb2_mxlev;
-	if (mb2_wlevcm > 9) {
+	if (mb2_wlevcm > 10) {
 	mb2_pump = 1;
 	if (mb2_cpin & 0x3f) gpio_set_level(mb2_cpin & 0x3f, 1);
 	} else {
@@ -11114,7 +11114,8 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	}
 	ptr->btopen = false;
         ptr->btopenreq = false;
-	if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 74)) ptr->t_ppcon = 60;
+	if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 73)) ptr->t_ppcon = ptr->bLtemp * 10 + 330;
+	else if  (ptr->DEV_TYP == 73) ptr->t_ppcon = 60;
 	else ptr->t_ppcon = 10;
 	start_scan();
 	} else {
@@ -12477,6 +12478,11 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 */
 
 	if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 71) && !ptr->btauthoriz) {
+	if (fdebug) {
+	ESP_LOGI(AP_TAG, "READ_CHAR_EVT, receive read value:");
+	ESP_LOG_BUFFER_HEX(AP_TAG, p_data->read.value, p_data->read.value_len);
+	ESP_LOGI(AP_TAG, "Read char handle = 0x%X", p_data->read.handle);
+	}
 	if (p_data->read.value_len == 20) {
 	ptr->t_rspdel = 0;
 	ptr->t_ppcon = 40;
@@ -13113,7 +13119,8 @@ static void gattc_profile_cm_event_handler(uint8_t blenum, esp_gattc_cb_event_t 
 	ptr->btauthoriz = false;
 	ptr->get_server = false;
 	ptr->xbtauth = 0;
-	if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 74)) ptr->t_ppcon = 60;
+	if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 73)) ptr->t_ppcon = ptr->bLtemp * 10 + 330;
+	else if (ptr->DEV_TYP == 73) ptr->t_ppcon = 60;
 	else ptr->t_ppcon = 30;
 	ptr->btopen = false;
 	ptr->btopenreq = false;
@@ -14114,6 +14121,8 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 
 	if (!(wf_retry_cnt && (wf_bits & 0x04)) && !f_update && !StartStopScanReq && !SetScanReq && (!BleDevStA.btopenreq || BleDevStA.btopen) && (!BleDevStB.btopenreq || BleDevStB.btopen) && (!BleDevStC.btopenreq || BleDevStC.btopen) && (!BleDevStD.btopenreq || BleDevStD.btopen) && (!BleDevStE.btopenreq || BleDevStE.btopen)) {
 	blenum = 0;
+	uint16_t tvar;
+
 	while (blenum < 5) {
 	switch (blenum) {
 	case 1:
@@ -14132,8 +14141,9 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 	ptr = &BleDevStA;
 	break;
 	}
-
-       	if ((ptr->t_ppcon < 20) && !ptr->btopenreq && !ptr->btopen && ptr->DEV_NAME[0] && !f_scanproc && 
+	if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 74)) tvar = 330;
+	else tvar = 20;
+       	if ((ptr->t_ppcon < tvar) && !ptr->btopenreq && !ptr->btopen && ptr->DEV_NAME[0] && !f_scanproc && 
 	((strlen(ptr->REQ_NAME) == adv_name_len && !strncmp((char *)adv_name, ptr->REQ_NAME, adv_name_len)) ||
 	(strlen(ptr->REQ_NAME) == 12 && !incascmp(ptr->REQ_NAME,FND_ADDR,12))) ) {
 	ptr->btopen = false;
@@ -18804,56 +18814,65 @@ void msStatus(uint8_t blenum) {
 	if (sz) {
 	if (fdebug) ESP_LOGI(AP_TAG, "Receive Data: %s", buf);
 	var1 = 0;
+	retc = 0;
 	offs = parsoff(buf, "EMD01(", sz);
-	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs+9]);
+	if (offs) retc = str_u32(&var1, 2, (uint8_t*) &buf[offs+9]);
 	if (retc == 0x62) ptr->bSEnergy = var1;                                            //active direct energy
 	var1 = 0;
+	retc = 0;
 	offs = parsoff(buf, "EMD02(", sz);
-	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs+9]);
-	if (retc == 0x62) ptr->bS1Energy = var1;                                                             //active reverse energy
+	if (offs) retc = str_u32(&var1, 2, (uint8_t*) &buf[offs+9]);
+	if (retc == 0x62) ptr->bS1Energy = var1;                                           //active reverse energy
 	var1 = 0;
+	retc = 0;
 	offs = parsoff(buf, "EMD03(", sz);
-	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs+9]);
-	if (retc == 0x62) ptr->bSCount = var1;                                                               //reactive direct energy
+	if (offs) retc = str_u32(&var1, 2, (uint8_t*) &buf[offs+9]);
+	if (retc == 0x62) ptr->bSCount = var1;                                             //reactive direct energy
 	var1 = 0;
+	retc = 0;
 	offs = parsoff(buf, "EMD04(", sz);
-	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs+9]);
-	if (retc == 0x62) ptr->bS1Count = var1;                                                              //reactive reverse energy
+	if (offs) retc = str_u32(&var1, 2, (uint8_t*) &buf[offs+9]);
+	if (retc == 0x62) ptr->bS1Count = var1;                                            //reactive reverse energy
 	sz = ce28Command(blenum, "GRPNM(VOLTA()CURRE()POWEP()POWES()COS_f()FREQU()TERMO())\x00", buf);
 	if (fdebug) ESP_LOGI(AP_TAG, "Receive Data: %s", buf);
 	if (sz) {
 	var1 = 0;
+	retc = 0;
 	offs = parsoff(buf, "POWEP(", sz);
-	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
+	if (offs) retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
 	if (retc == 0x62) ptr->bSHum = (ptr->bSHum & 0xffff0000) | (var1 & 0xffff);        //active power
 	var1 = 0;
+	retc = 0;
 	offs = parsoff(buf, "POWES(", sz);
-	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
+	if (offs) retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
 	if (retc == 0x62) ptr->bSHum = (ptr->bSHum & 0xffff) | (var1 << 16);               //apparent power
 	var1 = 0;
+	retc = 0;
 	offs = parsoff(buf, "VOLTA(", sz);
-	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
+	if (offs) retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
 	if (retc == 0x62) ptr->bSTime = (ptr->bSTime & 0xffff0000) | (var1 & 0xffff);      //voltage
 	var1 = 0;
+	retc = 0;
 	offs = parsoff(buf, "CURRE(", sz);
-	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
+	if (offs) retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
 	if (retc == 0x62) ptr->bSTime = (ptr->bSTime & 0xffff) | (var1 << 16);             //current
 	var1 = 0;
+	retc = 0;
 	offs = parsoff(buf, "COS_f(", sz);
-	retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
+	if (offs) retc = str_u32(&var1, 2, (uint8_t*) &buf[offs]);
 	if (retc == 0x62) ptr->bHeat = var1;                                               //power factor
 	var1 = 0;
+	retc = 0;
 	offs = parsoff(buf, "FREQU(", sz);
-	retc = str_u32(&var1, 3, (uint8_t*) &buf[offs]);
+	if (offs) retc = str_u32(&var1, 3, (uint8_t*) &buf[offs]);
 	if (retc == 0x63) ptr->bS2Count = (ptr->bS2Count & 0xffff0000) | (var1 & 0xffff);  //frequency
 	var1 = 0;
+	retc = 0;
 	offs = parsoff(buf, "TERMO(", sz);
-	retc = str_u32(&var1, 1, (uint8_t*) &buf[offs]);
+	if (offs) retc = str_u32(&var1, 1, (uint8_t*) &buf[offs]);
 	var1 = var1 / 10;
 	if (retc & 0x80) var1 |= 0x8000;
 	if ((retc & 0x7f) == 0x20) ptr->bS2Count = (ptr->bS2Count & 0xffff) | (var1 << 16); //temp
-	}
-	}
 	strcpy(ptr->cStatus,"{\"enrgacd\":");
 	u32_strcat_p2 (ptr->bSEnergy, ptr->cStatus);
 	strcat(ptr->cStatus,",\"enrgacr\":");
@@ -18879,7 +18898,14 @@ void msStatus(uint8_t blenum) {
 	if (ptr->bS2Count & 0x80000000) strcat(ptr->cStatus,"-");
 	u32_strcat_p1 ((ptr->bS2Count >> 16) & 0x7fff, ptr->cStatus);
 	strcat(ptr->cStatus,"}");    
-	if (!sz) ptr->r4sConnErr++;
+	}
+	}
+	if (ptr->bLtemp && !ptr->t_ppcon && ptr->btauthoriz && ptr->btopen && ptr->btopenreq && ptr->get_server) {
+        ptr->btopenreq = false;
+	esp_ble_gap_disconnect(gl_profile_tab[blenum].remote_bda);
+	if (ptr->NumConn) ptr->NumConn--;
+	} else if (!sz && ptr->btauthoriz) ptr->r4sConnErr++;
+
 	} else if (ptr->btauthoriz && (ptr->DEV_TYP == 71)) {
 	uint8_t i;
 	if (!ptr->sVer[0]) {
@@ -18966,7 +18992,11 @@ void msStatus(uint8_t blenum) {
 	if (ptr->bS2Count & 0x80000000) strcat(ptr->cStatus,"-");
 	u32_strcat_p1 ((ptr->bS2Count >> 16) & 0x7fff, ptr->cStatus);
 	strcat(ptr->cStatus,"}");    
-	if (!retc) ptr->r4sConnErr++;
+	if (ptr->bLtemp && !ptr->t_ppcon && ptr->btauthoriz && ptr->btopen && ptr->btopenreq && ptr->get_server) {
+        ptr->btopenreq = false;
+	esp_ble_gap_disconnect(gl_profile_tab[blenum].remote_bda);
+	if (ptr->NumConn) ptr->NumConn--;
+	} else if (!retc && ptr->btauthoriz) ptr->r4sConnErr++;
 	} else if (ptr->btauthoriz && (ptr->DEV_TYP == 73)) {
 	if ((ptr->notifyDataLen == 7) && ((ptr->notifyData[0] & 0xf0)== 0x90)){
 	if (fdebug) {
@@ -19317,7 +19347,8 @@ void msStatus(uint8_t blenum) {
 	} else {
 	if (ptr->btauthoriz) {
 	if (ptr->DEV_TYP) ptr->r4sConnErr++;
-	} else {
+//???
+	} else if (ptr->t_ppcon < 31) {
 	ptr->cStatus[0]=0;
 	if (fkpmd && (ptr->DEV_TYP > 3) && (ptr->DEV_TYP < 10)) {
 	if (ptr->bHeat && (ptr->bHeat != 254)) ptr->bKeep  = 1;
@@ -24578,8 +24609,8 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	}
 	}
 //	if (fdebug) ESP_LOGI(AP_TAG,"MQTT_HEAT_TEMP");
-	} else if (ptr->DEV_TYP == 71) {
-//mir
+	} else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 73)) {
+//energomera & mir
 // no control avaiable
 	} else if (ptr->DEV_TYP == 73) {
 	//galcon
@@ -25417,7 +25448,7 @@ bool HDisci2c(uint32_t* f_i2cdev)
 	strcat(llwtd,"\"]],\"mf\":\"Espressif\"},\"dev_cla\":\"voltage\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/i2c34");
-	strcat(llwtd,"batvoltage\",\"unit_of_meas\":\"V\",\"avty_t\":\"");
+	strcat(llwtd,"batvoltage\",\"sug_dsp_prc\":1,\"unit_of_meas\":\"V\",\"avty_t\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/status\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
@@ -26367,7 +26398,7 @@ void MqtDevInit(bool mqtttst) {
 	strcat(llwtd,"/m");
 	itoa(mb2_adr,tbuff,10);
 	strcat(llwtd,tbuff);
-	strcat(llwtd,"levelcm\",\"unit_of_meas\":\"cm\",\"avty\":[{\"t\":\"");
+	strcat(llwtd,"levelcm\",\"sug_dsp_prc\":1,\"unit_of_meas\":\"cm\",\"avty\":[{\"t\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/m");
 	itoa(mb2_adr,tbuff,10);
@@ -26408,7 +26439,7 @@ void MqtDevInit(bool mqtttst) {
 	strcat(llwtd,"\",\"cns\":[[\"mac\",\"");
 	strcat(llwtd,tESP32Addr1);
 //	strcat(llwtd,"\"]],\"mf\":\"Espressif\"},\"dev_cla\":\"distance\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
-	strcat(llwtd,"\"]],\"mf\":\"Espressif\"},\"stat_t\":\"");
+	strcat(llwtd,"\"]],\"mf\":\"Espressif\"},\"dev_cla\":\"moisture\",\"stat_cla\":\"measurement\",\"stat_t\":\"");
 	strcat(llwtd,MQTT_BASE_TOPIC);
 	strcat(llwtd,"/m");
 	itoa(mb2_adr,tbuff,10);
@@ -28410,7 +28441,6 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	itoa(ptr->bSCount,buff,10);
 	strcat(bsend,buff);
 	strcat(bsend,"mm3/m3, ");
-//	} else if (ptr->DEV_TYP == 71) {
 	} else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 72)){
 	strcat(bsend,", State: ");
  	if (!ptr->btauthoriz) strcat(bsend,"Offline");
@@ -28529,14 +28559,21 @@ void MnHtpBleSt(uint8_t blenum, char* bsend) {
 	if (ptr->DEV_NAME[0]) strcat(bsend,ptr->DEV_NAME);
 	strcat(bsend,"\",\"status\":\"");
 	if (ptr->btauthoriz) {
-	strcat(bsend,"online\",\"state\":");
-	if (ptr->cStatus[0]) strcat(bsend,ptr->cStatus);
+	strcat(bsend,"online\"");
+	if (ptr->cStatus[0]) {
+	strcat(bsend,",\"state\":");
+	strcat(bsend,ptr->cStatus);
+	}
 	} else {
 	strcat(bsend,"offline\"");
 	if (fkpmd && (ptr->DEV_TYP < 10)) {
 	strcat(bsend,",\"keep\":");
 	itoa(ptr->bKeep,buff,10);
 	strcat(bsend,buff);
+	}
+	if (ptr->cStatus[0]) {
+	strcat(bsend,",\"state\":");
+	strcat(bsend,ptr->cStatus);
 	}
 	}
 	}
@@ -31613,7 +31650,7 @@ void HtpDeVSett(uint8_t blenum, char* bsend) {
 	strcat(bsend,"\" type=\"number\" value=\"");
 	itoa(ptr->PassKey,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"999999\" size=\"4\">Passkey &emsp;<select name=\"sreqtp");
+	strcat(bsend,"\" min=\"0\" max=\"999999\" size=\"4\">Key &emsp;<select name=\"sreqtp");
 	strcpy(buff,"a");
 	buff[0] = buff[0] + blenum;
 	strcat(bsend,buff);
@@ -31715,7 +31752,7 @@ void HtpDeVSett(uint8_t blenum, char* bsend) {
 	strcat(bsend,"\" type=\"number\" value=\"");
 	itoa(ptr->bLtemp,buff,10);
 	strcat(bsend,buff);
-	strcat(bsend,"\" min=\"0\" max=\"95\" size=\"3\">Heat<br/>");
+	strcat(bsend,"\" min=\"0\" max=\"255\" size=\"3\">Heat/Tmr<br/>");
 }
 
 
@@ -34046,8 +34083,7 @@ void lpcomstat(uint8_t blenum) {
 	else ptr->t_rspdel = 10;
 	} else if ((ptr->DEV_TYP > 60) && (ptr->DEV_TYP < 63)) ptr->t_rspdel = 18000;
 	else if (ptr->DEV_TYP == 63) ptr->t_rspdel = 600;
-	else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 71)) ptr->t_rspdel = 100;
-	else if (ptr->DEV_TYP == 71) ptr->t_rspdel = 30;
+//	else if ((ptr->DEV_TYP > 68) && (ptr->DEV_TYP < 72) && (ptr->bLtemp == 1)) ptr->t_rspdel = 100;
 	else if ((ptr->DEV_TYP > 71) && (ptr->DEV_TYP < 74)) ptr->t_rspdel = 100;
 	else if ((ptr->DEV_TYP > 73) && (ptr->DEV_TYP < 76)) ptr->t_rspdel = 6000;
 	else if (ptr->DEV_TYP == 76) ptr->t_rspdel = 10;
