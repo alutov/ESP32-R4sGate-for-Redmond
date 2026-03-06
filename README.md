@@ -47,6 +47,10 @@ ENG | [RUS](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 * Redmond SkyCooker **RMC-M92S**
 * Redmond SkyCooker **RMC-M961S**
      
+**Oven**
+
+* REDMOND SkyOven **RO-5707S** / RO-5717S / RO-5727S
+
 **Coffee makers**
 
 * Redmond SkyCoffee **RCM-M1519S**
