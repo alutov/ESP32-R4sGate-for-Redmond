@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2026.02.08"
+#define AP_VER "2026.03.31"
 #define NVS_VER 8  //NVS config version (even only)
 
 // Init WIFI setting
@@ -6464,6 +6464,14 @@ void MqttPubSub (uint8_t blenum) {
 	if (!fcommtp) strcat(buft,"/cmd");
 	strcat(buft,"/mode");
 	esp_mqtt_client_subscribe(mqttclient, buft, 0);
+	if (ptr->DEV_TYP == 24) {
+	strcpy(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/");
+	strcat(buft,ptr->tBLEAddr);
+	if (!fcommtp) strcat(buft,"/cmd");
+	strcat(buft,"/hmode");
+	esp_mqtt_client_subscribe(mqttclient, buft, 0);
+	}
 	strcpy(buft,MQTT_BASE_TOPIC);
 	strcat(buft,"/");
 	strcat(buft,ptr->tBLEAddr);
@@ -6705,6 +6713,49 @@ void MqttPubSub (uint8_t blenum) {
 	strcat(bufd,"[\"OFF\",\"ON\"]}");
 	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
 //
+	if (ptr->DEV_TYP == 24) {
+	strcpy(buft,"homeassistant/select/");
+	strcat(buft,MQTT_BASE_TOPIC);
+	strcat(buft,"/3x");
+	strcat(buft,ptr->tBLEAddr);
+	strcat(buft,"/config");
+	strcpy(bufd,"{\"name\":\"");
+	strcat(bufd,"heat.mode\",\"icon\":\"mdi:pot-steam-outline\",\"uniq_id\":\"heatmode_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\",\"dev\":{\"ids\":[\"Cooker_");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"\"],\"name\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	utoa(blenum1,tbuff,10);
+	strcat(bufd,tbuff);
+	strcat(bufd,".Cooker\",\"mdl\":\"");
+	strcat(bufd,ptr->DEV_NAME);
+	if (ptr->sVer[0] > 0x20) {
+	strcat(bufd,"\",\"sw\":\"");
+	strcat(bufd, ptr->sVer);
+	}
+	strcat(bufd,"\",\"via_device\":\"ESP32_");
+	strcat(bufd,tESP32Addr);
+	strcat(bufd,"\",\"mf\":\"Redmond\"},\"cmd_t\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/cmd");
+	strcat(bufd,"/hmode\",\"stat_t\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	if (!fcommtp) strcat(bufd,"/rsp");
+	strcat(bufd,"/hmode\",\"avty\":[{\"t\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/");
+	strcat(bufd,ptr->tBLEAddr);
+	strcat(bufd,"/status\"},{\"t\":\"");
+	strcat(bufd,MQTT_BASE_TOPIC);
+	strcat(bufd,"/status\"}],\"avty_mode\":\"all\",\"options\":");
+	strcat(bufd,"[\"Top\",\"Bottom\",\"Both\"]}");
+	esp_mqtt_client_publish(mqttclient, buft, bufd, 0, 1, 1);
+	}
 	if (ptr->DEV_TYP != 48) {
 	strcpy(buft,"homeassistant/number/");
 	strcat(buft,MQTT_BASE_TOPIC);
@@ -13745,15 +13796,15 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 	BleMX[i].par2 = BleMX[i].advdat[12] * 100;
 	BleMX[i].par3 = BleMX[i].advdat[15] + (BleMX[i].advdat[14] << 8);
 	BleMX[i].par4 = BleMX[i].advdat[13];
-	BleMX[i].par5 = BleMX[i].advdat[16];
+//	BleMX[i].par5 = BleMX[i].advdat[16];
 	} else {
 	BleMX[i].par1 = BleMX[i].advdat[10] + (BleMX[i].advdat[11] << 8);
 	if (BleMX[i].par1 == -1) BleMX[i].par1 = 0;
 	BleMX[i].par2 = BleMX[i].advdat[12] + (BleMX[i].advdat[13] << 8);
 	BleMX[i].par3 = BleMX[i].advdat[14] + (BleMX[i].advdat[15] << 8);
 	BleMX[i].par4 = BleMX[i].advdat[16];
-	BleMX[i].par5 = BleMX[i].advdat[17];
-	BleMX[i].par6 = BleMX[i].advdat[18];
+	BleMX[i].par5 = BleMX[i].advdat[18] & 1;
+//	BleMX[i].par6 = BleMX[i].advdat[18];
 	}
 	} else if (!memcmp(&BleMX[i].advdat[1],"\x16\x1c\x18",3)) {
 	if ((BleMX[i].advdat[0] == 0x11) && (BleMX[i].advdat[8] == 0x02) && (BleMX[i].advdat[12] == 0x03)
@@ -14010,15 +14061,15 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 	BleMX[i].par2 = BleMX[i].advdat[12] * 100;
 	BleMX[i].par3 = BleMX[i].advdat[15] + (BleMX[i].advdat[14] << 8);
 	BleMX[i].par4 = BleMX[i].advdat[13];
-	BleMX[i].par5 = BleMX[i].advdat[16];
+//	BleMX[i].par5 = BleMX[i].advdat[16];
 	} else {
 	BleMX[i].par1 = BleMX[i].advdat[10] + (BleMX[i].advdat[11] << 8);
 	if (BleMX[i].par1 == -1) BleMX[i].par1 = 0;
 	BleMX[i].par2 = BleMX[i].advdat[12] + (BleMX[i].advdat[13] << 8);
 	BleMX[i].par3 = BleMX[i].advdat[14] + (BleMX[i].advdat[15] << 8);
 	BleMX[i].par4 = BleMX[i].advdat[16];
-	BleMX[i].par5 = BleMX[i].advdat[17];
-	BleMX[i].par6 = BleMX[i].advdat[18];
+	BleMX[i].par5 = BleMX[i].advdat[18] & 1;
+//	BleMX[i].par6 = BleMX[i].advdat[18];
 	}
 	} else if (!memcmp(&BleMX[i].advdat[1],"\x16\x1c\x18",3)) {
 	if ((BleMX[i].advdat[0] == 0x11) && (BleMX[i].advdat[8] == 0x02) && (BleMX[i].advdat[12] == 0x03)
@@ -22727,6 +22778,24 @@ void MqState(uint8_t blenum) {
 	strcat(ldata,"/mode");
 	itoa(ptr->bModProg,tmpvar,10);
 	esp_mqtt_client_publish(mqttclient, ldata, tmpvar, 0, 1, 1);
+	if (ptr->DEV_TYP == 24) {
+	strcpy(ldata,MQTT_BASE_TOPIC);
+	strcat(ldata,"/");
+	strcat(ldata,ptr->tBLEAddr);
+	if (!fcommtp) strcat(ldata,"/rsp");
+	strcat(ldata,"/hmode");
+	switch (ptr->bModProg) {
+	case 1:
+	esp_mqtt_client_publish(mqttclient, ldata, "Bottom", 0, 1, 1);
+	break;
+	case 2:
+	esp_mqtt_client_publish(mqttclient, ldata, "Both", 0, 1, 1);
+	break;
+	default:
+	esp_mqtt_client_publish(mqttclient, ldata, "Top", 0, 1, 1);
+	break;
+	}
+	}
 	ptr->r4sppcom = 30;
 	ptr->bprevModProg = ptr->bModProg;
 	}
@@ -24641,6 +24710,15 @@ void BleMqtPr(uint8_t blenum, int topoff, char *topic, int topic_len, char *data
 	if ((mod < 4) && ((!fcommtp) || (!ptr->r4sppcom) || ( mod != ptr->bModProg))) {
 	ptr->r4slppar1 = mod;
 	ptr->r4slpcom = 12;
+	}
+	} else if (!memcmp(topic+topoff, "hmode", topic_len-topoff)) {
+	if ( ptr->DEV_TYP == 24 ) {
+	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
+        ptr->r4slppar1 = 255;
+	if (!incascmp("Top",data,data_len)) ptr->r4slppar1 = 0; 
+	else if (!incaspcmp("Bottom",data,data_len)) ptr->r4slppar1 = 1; 
+	else if (!incaspcmp("Both",data,data_len)) ptr->r4slppar1 = 2; 
+	if ((ptr->r4slppar1 < 3) && ((!fcommtp) || (!ptr->r4sppcom) || ( ptr->r4slppar1 != ptr->bModProg))) ptr->r4slpcom = 12;
 	}
 	} else if (!memcmp(topic+topoff, "temp", topic_len-topoff)) {
 	if (!fcommtp) esp_mqtt_client_publish(mqttclient, ttopic, ".", 0, 1, 1);
