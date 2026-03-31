@@ -4,7 +4,7 @@ ENG | [RUS](https://github-com.translate.goog/alutov/ESP32-R4sGate-for-Redmond?_
 
 > **[A script based on a PHP server on a local network with Internet access to display the weather on the gateway screen.](https://github.com/artt652/Weather-for-ESP32-R4S-gate).**<br>
 
-#### Current version is 2026.02.08 for [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) and [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin) and [ESP32S3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/S3/build/r4sGate.bin).
+#### Current version is 2026.03.31 for [ESP32](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/build/r4sGate.bin) and [ESP32C3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/C3/build/r4sGate.bin) and [ESP32S3](https://github.com/alutov/ESP32-R4sGate-for-Redmond/raw/master/S3/build/r4sGate.bin).
 
 * 2026.03.31. Fixed [issue  #219](https://github.com/alutov/ESP32-R4sGate-for-Redmond/issues/245).
 * 2026.02.08. [Deembot aTick](https://deembot.com/atick/index.ru.html) support added in BLE Monitor. Active scanner and aTick PIN code needed to read data from aTick.
