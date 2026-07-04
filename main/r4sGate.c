@@ -6,7 +6,7 @@ Use for compilation ESP-IDF Programming Guide:
 https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 *************************************************************
 */
-#define AP_VER "2026.03.31"
+#define AP_VER "2026.06.27"
 #define NVS_VER 8  //NVS config version (even only)
 
 // Init WIFI setting
@@ -13954,7 +13954,6 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 	BleMX[i].par6 = BleMX[i].advdat[26];
 	}
 	} else if (id == 28) {
-//???
 	uint8_t j;
 	uint8_t sum = 0;
 	uint8_t data[12];
@@ -14218,7 +14217,6 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 	BleMX[i].par6 = BleMX[i].advdat[26];
 	}
 	} else if (id == 28) {
-//???
 	uint8_t j;
 	uint8_t sum = 0;
 	uint8_t data[12];
@@ -19054,6 +19052,7 @@ void msStatus(uint8_t blenum) {
 
 	} else if (ptr->btauthoriz && (ptr->DEV_TYP == 71)) {
 	uint8_t i;
+	uint8_t ofs = 0;
 	if (!ptr->sVer[0]) {
 	ptr->sVer[0] = 0x20;
 	ptr->bKeep = 0;
@@ -19062,9 +19061,11 @@ void msStatus(uint8_t blenum) {
 	ptr->bKeep++;
 	retc = mircCommand(blenum, 0xee, 0, 0);	
 	if (retc < 0x20) retc = 0;
-	if (retc) retc = !memcmp(&ptr->notifyData[0x26],"\xff\x00\x08\x01\x00\x01",6);
+	if (retc) ofs = ptr->notifyData[0x04]  + 6;
+	if (retc) retc = !memcmp(&ptr->notifyData[ofs],"\xff\x00\x08\x01\x00\x01",6);
+	vTaskDelay(50 / portTICK_PERIOD_MS);
 	if (retc) retc = mircCommand(blenum, 0x02, 0, 0);	
-	if (retc != 0x24) retc = 0;
+	if (retc < 0x20) retc = 0;
 	if (retc) ptr->bKeep |= 0x01;
 	} else {
 	i = 0;
@@ -19103,12 +19104,13 @@ void msStatus(uint8_t blenum) {
 	} else if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x07\x0e\x00\x01",6)) { //obis
 	retc = str_u32(&var1, 0, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
 	if (retc == 0x63) ptr->bS2Count = (ptr->bS2Count & 0xffff0000) | (var1 & 0xffff);  //frequency
-	} else if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x07\x1f\x00\x01",6)) { //obis
+	} else if (!memcmp(&ptr->notifyData[0x0a],"\xff\x00\x09\x60\x00\x00",6)) { //obis
 	retc = str_u32(&var1, 0, &ptr->notifyData[ptr->notifyData[0x13] + 0x16]);
 	if (retc & 0x80) var1 |= 0x8000;
 	if ((retc & 0x7f) == 0x61) ptr->bS2Count = (ptr->bS2Count & 0xffff) | (var1 << 16);//temp
 	}
 	} else retc = 0;
+	vTaskDelay(50 / portTICK_PERIOD_MS);
 	i++;
 	}	
 	ptr->bKeep &= 0xfe;
@@ -19493,7 +19495,6 @@ void msStatus(uint8_t blenum) {
 	} else {
 	if (ptr->btauthoriz) {
 	if (ptr->DEV_TYP) ptr->r4sConnErr++;
-//???
 	} else if (ptr->t_ppcon < 31) {
 	ptr->cStatus[0]=0;
 	if (fkpmd && (ptr->DEV_TYP > 3) && (ptr->DEV_TYP < 10)) {
@@ -20127,7 +20128,6 @@ void HDiscBlerec(uint8_t i, char *llwtd, uint8_t finit)
 	strcat(llwtd,"/status\"}],\"avty_mode\":\"all\"}");
 	esp_mqtt_client_publish(mqttclient, llwtt, llwtd, 0, 1, 1);
 //
-//????
 	strcpy(llwtt,"homeassistant/binary_sensor/");
 	strcat(llwtt,"r4s/7x");
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
@@ -20993,7 +20993,6 @@ void MqSState() {
 	BleMX[i].ppar2 = BleMX[i].par2;
 	}
 	if (BleMR[i].id == 3) {
-//???
 	if  ((mqttConnected) && BleMR[i].sto && (fbms || (BleMX[i].par5 != BleMX[i].ppar5))) {
 	strcpy(ldata,"r4s/");
 	bin2hex(BleMR[i].mac,tmpvar,6,0);
@@ -31834,7 +31833,6 @@ static esp_err_t pblemon_get_handler(httpd_req_t *req)
 	strcat(bsend,buff);	
 	strcat(bsend,"&#956;S/cm");	
 	} else if (BleMR[i].id == 28) {
-//???
 	uint32_t var = (uint16_t)BleMX[i].par4;
 	var = ((var << 16) + (uint16_t)BleMX[i].par3);
 	strcat(bsend,"CntA: ");	
