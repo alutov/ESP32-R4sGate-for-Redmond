@@ -13,6 +13,12 @@ https://docs.espressif.com/projects/esp-idf/en/latest/esp32/
 #define INIT_WIFI_SSID "r4s"
 #define INIT_WIFI_PASSWORD "12345678"
 
+// Some ESP32-C3 boards (Wemos/Lolin C3 mini v1.0.0 and its clones) ship with a
+// defective antenna matching network and never associate at full TX power.
+// If the station fails to connect, the gateway falls back to this value and
+// stores it in nvs. 34 = 8.5 dBm, the value the board vendor specifies.
+#define WIFI_TXPOW_C3_FALLBACK 34
+
 // If use ili9341 320*240 tft
 #define USE_TFT
 // If use IR TX
@@ -27931,6 +27937,7 @@ void wifi_init_sta(void)
 	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
 	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
 	ESP_ERROR_CHECK(esp_wifi_start() );
+	if (wftxpow > 7) esp_wifi_set_max_tx_power(wftxpow);  //esp_wifi_set_max_tx_power takes 8..84
 	if ((wf_mod & 3) == 3) ESP_ERROR_CHECK(esp_wifi_set_dynamic_cs(true));
 #ifdef USE_TFT
 	if (tft_conn) tfststr("Connecting to AP ",WIFI_SSID," ..."); 
@@ -27956,6 +27963,22 @@ void wifi_init_sta(void)
 	} else if (bits & WIFI_FAIL_BIT) {
 	if (fdebug) ESP_LOGI(AP_TAG,"Failed to connect to SSID:'%s', password:'%s'",
 		WIFI_SSID, WIFI_PASSWORD);
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+//board with defective antenna matching, detected by symptom: retry with reduced tx power
+	if (!wftxpow) {
+	wftxpow = WIFI_TXPOW_C3_FALLBACK;
+	nvs_handle_t txp_handle;
+	if (nvs_open("storage", NVS_READWRITE, &txp_handle) == ESP_OK) {
+	nvs_set_u8(txp_handle, "wftxp", wftxpow);
+	nvs_commit(txp_handle);
+	nvs_close(txp_handle);
+	}
+	if (fdebug) ESP_LOGI(AP_TAG,"Connect failed, retry with reduced wifi tx power. Restarting...");
+	fflush(stdout);
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
+	esp_restart();
+	}
+#endif
 	if (wf_bits & 0x01) {
 #ifdef USE_TFT
 	if (tft_conn) tfststr("Connection to AP ",WIFI_SSID," failed. Restarting ..."); 
@@ -27980,6 +28003,7 @@ void wifi_init_sta(void)
 	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
 	ESP_ERROR_CHECK(esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B|WIFI_PROTOCOL_11G|WIFI_PROTOCOL_11N));
 	ESP_ERROR_CHECK(esp_wifi_start() );
+	if (wftxpow > 7) esp_wifi_set_max_tx_power(wftxpow);  //esp_wifi_set_max_tx_power takes 8..84
 //	ESP_ERROR_CHECK(esp_wifi_set_dynamic_cs(true));
 #ifdef USE_TFT
 	if (tft_conn) tfststr("Connecting to AP ",DEFWFSSID," ..."); 
@@ -28295,6 +28319,7 @@ uint8_t ReadNVS(){
 	BleDevStE.PRgbG = ~BleDevStE.RgbG;
 	BleDevStE.PRgbB = ~BleDevStE.RgbB;
 	nvs_get_u8(my_handle, "timzon", &TimeZone);
+	nvs_get_u8(my_handle, "wftxp",  &wftxpow);
 	nvs_get_u8(my_handle, "r4snum", &R4SNUM);
 	size_t nvsize = 32;
 	nvs_get_str(my_handle,"swfid", WIFI_SSID,&nvsize);
@@ -28504,6 +28529,7 @@ void WriteNVS () {
 	nvs_set_u64(my_handle, "btvc1", nvtemp);
 	}
 	nvs_set_u8(my_handle,  "timzon", TimeZone);
+	nvs_set_u8(my_handle,  "wftxp", wftxpow);
 	nvs_set_u8(my_handle,  "r4snum", R4SNUM);
 	nvs_set_str(my_handle, "swfid", WIFI_SSID);
 	nvs_set_str(my_handle, "swfpsw", WIFI_PASSWORD);
@@ -32279,7 +32305,10 @@ static esp_err_t psetting_get_handler(httpd_req_t *req)
 	if (wf_bits & 0x02) strcat(bsend,"checked");
 	strcat(bsend,"> Restart if WIFI loss&emsp;<input type=\"checkbox\" name=\"wfb4\" value=\"4\"");
 	if (wf_bits & 0x08) strcat(bsend,"checked");
-	strcat(bsend,"> Reconnect if Mqtt loss<br/><h3>MQTT Setting</h3><br/><input name=\"smqsrv\" value=\"");
+	strcat(bsend,"> Reconnect if Mqtt loss&emsp;<input name=\"wftxp\" type=\"number\" value=\"");
+	itoa(wftxpow,buff,10);
+	strcat(bsend,buff);
+	strcat(bsend,"\" min=\"0\" max=\"84\" size=\"3\">TX power &times;0.25dBm (0=max)<br/><h3>MQTT Setting</h3><br/><input name=\"smqsrv\" value=\"");
 	if (MQTT_SERVER[0]) strcat(bsend,MQTT_SERVER);
 	strcat(bsend,"\"size=\"25\">Server &emsp;<input name=\"smqprt\" type=\"number\" value=\"");
 	itoa(mqtt_port,buff,10);
@@ -32947,6 +32976,10 @@ smqpsw=esp&devnam=&rlight=255&glight=255&blight=255&chk2=2
 	parsuri(buf1,buf3,buf2,4096,2,0);
 	wf_bits &= 0xf7;
 	if (buf3[0] == 0x34) wf_bits |= 0x08;
+	buf3[0] = 0;
+	strcpy(buf2,"wftxp");
+	parsuri(buf1,buf3,buf2,4096,4,0);
+	if (buf3[0]) wftxpow = atoi(buf3);
 	buf3[0] = 0;
 	strcpy(buf2,"chk1");
 	parsuri(buf1,buf3,buf2,4096,2,0);
